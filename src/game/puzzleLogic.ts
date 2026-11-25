@@ -703,25 +703,6 @@ export function getProgressiveGuessNudge(params: ProgressiveNudgeParams): string
   return `Final stretch wink: the answer ${openingGroup} and carries ${t.length - vowelsInTarget.length} consonants.`;
 }
 
-/**
- * Computes up to 5 unused absent letters on the board for a 50/50 Puzzle split,
- * strictly excluding any letters present in the target word.
- */
-export function computeBoardFiftyFiftyElimination(
-  guesses: string[],
-  target: string,
-  alreadyEliminated: string[] = [],
-  count = 5
-): string[] {
-  const t = target.trim().toUpperCase();
-  const targetLetters = new Set(t.split(''));
-  const keyStates = deriveKeyboardStates(guesses, t, alreadyEliminated);
-  const priorityPool = 'ETAOINSHRDLCUMWFGYPBVKJXQZ'.split('');
-  return priorityPool
-    .filter((ch) => !targetLetters.has(ch) && !keyStates[ch])
-    .slice(0, Math.max(1, count));
-}
-
 export interface ShareParams {
   mode: GameMode;
   puzzleNumber: number;

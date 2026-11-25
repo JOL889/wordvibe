@@ -26,7 +26,7 @@ test('resolveDocumentThemeState applies dark class and meta colors across all 4 
     animationIntensity: 'full',
   });
   assert.equal(dark.isDarkClass, true);
-  assert.equal(dark.metaThemeColor, '#111315');
+  assert.equal(dark.metaThemeColor, '#0B1633');
 
   const amoled = resolveDocumentThemeState({
     themeMode: 'amoled',
@@ -42,7 +42,7 @@ test('resolveDocumentThemeState applies dark class and meta colors across all 4 
     animationIntensity: 'reduced',
   });
   assert.equal(light.isDarkClass, false);
-  assert.equal(light.metaThemeColor, '#F7F5F0');
+  assert.equal(light.metaThemeColor, '#F6F1E7');
 
   const colorblind = resolveDocumentThemeState({
     themeMode: 'colorblind',

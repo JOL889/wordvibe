@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle2, PlayCircle, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, PlayCircle, Sparkles, X } from 'lucide-react';
 import { rewardedAdService, type RewardPlacement } from '../services/rewardedAdService';
 
 interface RewardedAdModalProps {
@@ -33,7 +33,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       if (!active) return;
       if (!available) {
         setLoadFailed(true);
-        rewardedAdService.notifyFailedToLoad('Ad unit fill unavailable while offline.');
+        rewardedAdService.notifyFailedToLoad('Ad unit fill unavailable right now.');
         return;
       }
 
@@ -69,16 +69,24 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
           rewardLabel: `5 Plays Unlocked in ${contextLabel}`,
           description: `Watch a brief ${baseMeta.durationSeconds}-second sponsor preview to unlock 5 full puzzles in ${contextLabel}.`,
         }
+      : placement === 'puzzle_clue' && contextLabel
+      ? {
+          ...baseMeta,
+          title: `Unlock Clue · ${contextLabel}`,
+          rewardLabel: `Word Structure & Meaning Unlocked!`,
+          description: `Watch a brief ${baseMeta.durationSeconds}-second sponsor preview to reveal consonant/vowel count & explanation for ${contextLabel}.`,
+        }
       : placement === 'puzzle_word_trivia' && contextLabel
       ? {
           ...baseMeta,
-          title: `Unlock ${contextLabel} Word Trivia`,
-          rewardLabel: `${contextLabel} Word Trivia Unlocked`,
-          description: `Watch a brief ${baseMeta.durationSeconds}-second sponsor preview to unlock AI word trivia for horizontal ${contextLabel}.`,
+          title: `Unlock ${contextLabel} Word Clue`,
+          rewardLabel: `${contextLabel} Clue Unlocked`,
+          description: `Watch a brief ${baseMeta.durationSeconds}-second sponsor preview to unlock structure & meaning for ${contextLabel}.`,
         }
       : baseMeta;
 
-  const progressPct = ((meta.durationSeconds - secondsLeft) / meta.durationSeconds) * 100;
+  const isDualConcurrent = (meta.concurrentAdsCount || 1) >= 2;
+  const progressPct = ((meta.durationSeconds - secondsLeft) / Math.max(1, meta.durationSeconds)) * 100;
   const activeUnitId = rewardedAdService.getActiveAdUnitId();
 
   const handleClose = () => {
@@ -97,17 +105,20 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="rewarded-ad-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 p-4 backdrop-blur-xs"
     >
-      <div className="w-full max-w-md rounded-xl border border-stone-200 dark:border-zinc-800 bg-[#FAF9F6] dark:bg-zinc-900 p-6 shadow-2xl animate-modal-pop">
+      <div className="w-full max-w-md rounded-2xl border-2 wv-border wv-card p-5 sm:p-6 shadow-2xl animate-modal-pop">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              Sponsored Reward Preview
+            <p className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider wv-accent-text">
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>
+                {isDualConcurrent ? 'Dual Concurrent Ad Preview (2 Ads)' : 'Sponsored Reward Preview'}
+              </span>
             </p>
             <h2
               id="rewarded-ad-title"
-              className="mt-1 font-display text-xl font-bold text-zinc-900 dark:text-zinc-50"
+              className="mt-1 font-display text-xl font-bold wv-text"
             >
               {meta.title}
             </h2>
@@ -117,49 +128,76 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
             type="button"
             onClick={handleClose}
             aria-label="Close reward preview"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-zinc-500 hover:bg-stone-200/70 dark:text-zinc-400 dark:hover:bg-zinc-800 cursor-pointer"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl wv-text-muted hover:opacity-80 cursor-pointer"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
-        <div className="mt-4 flex flex-col items-center justify-center rounded-lg border border-stone-200 dark:border-zinc-800 bg-stone-100 dark:bg-zinc-950 p-6 text-center">
+        <div className="mt-4 rounded-xl border wv-border wv-card-muted p-4 sm:p-5 text-center">
           {loadFailed ? (
             <>
-              <AlertCircle
-                className="h-10 w-10 text-amber-600 dark:text-amber-400"
-                aria-hidden="true"
-              />
-              <p className="mt-3 text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                Rewarded ad could not load while offline. Reconnect to load your reward preview.
+              <AlertCircle className="mx-auto h-10 w-10 text-amber-500" aria-hidden="true" />
+              <p className="mt-3 text-sm font-medium wv-text">
+                Rewarded ad could not load right now. Please try again.
               </p>
             </>
+          ) : isDualConcurrent ? (
+            <div data-testid="concurrent-ads-stage">
+              <div className="grid grid-cols-2 gap-2.5">
+                {[1, 2].map((adIdx) => (
+                  <div
+                    key={adIdx}
+                    data-testid={`concurrent-ad-slot-${adIdx}`}
+                    className="rounded-xl border wv-border wv-card p-3 text-center shadow-xs"
+                  >
+                    <div className="text-[10px] font-bold uppercase tracking-wide wv-accent-text">
+                      Ad #{adIdx} Active
+                    </div>
+                    {completed ? (
+                      <CheckCircle2 className="mx-auto mt-2 h-8 w-8 text-emerald-500" aria-hidden="true" />
+                    ) : (
+                      <PlayCircle className="mx-auto mt-2 h-8 w-8 text-amber-500 animate-pulse" aria-hidden="true" />
+                    )}
+                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-black/15 dark:bg-white/15">
+                      <div
+                        className="h-full bg-amber-500 transition-[width] duration-300 ease-out"
+                        style={{ width: `${progressPct}%` }}
+                      />
+                    </div>
+                    <p className="mt-1.5 font-mono-tabular text-[11px] font-semibold wv-text-muted">
+                      {completed ? 'Watched ✓' : `${secondsLeft}s`}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-xs sm:text-sm font-semibold wv-text">
+                {completed ? meta.rewardLabel : meta.description}
+              </p>
+              <p className="mt-1 font-mono-tabular text-xs font-medium wv-text-muted">
+                {completed ? 'Both ads finished · Tap Claim to reveal!' : `Both ads finish in ${secondsLeft}s`}
+              </p>
+            </div>
           ) : (
             <>
               {completed ? (
-                <CheckCircle2
-                  className="h-10 w-10 text-emerald-700 dark:text-emerald-400"
-                  aria-hidden="true"
-                />
+                <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" aria-hidden="true" />
               ) : (
-                <PlayCircle
-                  className="h-10 w-10 text-amber-600 dark:text-amber-400"
-                  aria-hidden="true"
-                />
+                <PlayCircle className="mx-auto h-10 w-10 text-amber-500 animate-pulse" aria-hidden="true" />
               )}
 
-              <p className="mt-3 text-sm font-medium text-zinc-800 dark:text-zinc-200">
+              <p className="mt-3 text-sm font-semibold wv-text">
                 {completed ? meta.rewardLabel : meta.description}
               </p>
 
               <div className="mt-4 w-full">
-                <div className="h-2 w-full overflow-hidden rounded-full bg-stone-200 dark:bg-zinc-800">
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-black/15 dark:bg-white/15">
                   <div
-                    className="h-full bg-emerald-700 dark:bg-emerald-500 transition-[width] duration-300 ease-out"
+                    className="h-full bg-emerald-500 transition-[width] duration-300 ease-out"
                     style={{ width: `${progressPct}%` }}
                   />
                 </div>
-                <p className="mt-2 font-mono-tabular text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                <p className="mt-2 font-mono-tabular text-xs font-semibold wv-text-muted">
                   {completed ? 'Reward ready to claim' : `Reward unlocks in ${secondsLeft}s`}
                 </p>
               </div>
@@ -167,7 +205,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
           )}
         </div>
 
-        <p className="mt-2.5 truncate font-mono-tabular text-[10px] text-zinc-400 dark:text-zinc-500">
+        <p className="mt-2.5 truncate font-mono-tabular text-[10px] wv-text-muted opacity-70">
           Ad Unit: {activeUnitId}
         </p>
 
@@ -176,7 +214,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
             <button
               type="button"
               onClick={handleClose}
-              className="rounded-lg border border-stone-300 dark:border-zinc-700 px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-stone-100 dark:hover:bg-zinc-800 cursor-pointer"
+              className="min-h-11 rounded-xl border wv-border px-4 py-2 text-xs font-bold wv-text-muted hover:opacity-80 cursor-pointer"
             >
               {loadFailed ? 'Close' : 'Skip (No Reward)'}
             </button>
@@ -187,7 +225,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
               data-testid="claim-reward-btn"
               disabled={!completed}
               onClick={handleClose}
-              className="rounded-lg bg-emerald-700 px-5 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-800 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer"
+              className="min-h-11 rounded-xl wv-accent-btn px-5 py-2 text-xs sm:text-sm font-bold disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer"
             >
               {completed ? 'Claim Reward' : `Wait ${secondsLeft}s...`}
             </button>

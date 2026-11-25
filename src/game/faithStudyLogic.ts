@@ -1,5 +1,12 @@
 import { VALID_WORDS, type WordLength } from '../data/words';
-import type { TriviaDifficulty, TriviaQuestion } from './triviaLogic';
+import type { FiveDifficultyLevel } from './settingsLogic';
+import { CURATED_TRIVIA_BANK } from './triviaBank';
+import {
+  normalizeToFiveLevel,
+  type TriviaDifficulty,
+  type TriviaQuestion,
+} from './triviaLogic';
+import { getBucketRemainingCount, pickZeroRepeatItem } from './zeroRepeatDeck';
 
 export type ReligionId =
   | 'christianity'
@@ -954,10 +961,25 @@ export function getFaithTriviaQuestions(
   difficultyFilter?: TriviaDifficulty
 ): TriviaQuestion[] {
   const profile = getFaithTradition(religion);
-  const base = difficultyFilter
-    ? profile.trivia.filter((q) => q.difficulty === difficultyFilter)
-    : profile.trivia;
-  const source = base.length >= count ? base : profile.trivia;
+  const normFilter = difficultyFilter ? normalizeToFiveLevel(difficultyFilter) : undefined;
+  const bankItems = CURATED_TRIVIA_BANK.filter(
+    (item) => item.categoryId === `faith:${religion}`
+  ).map((item) => ({
+    id: item.id,
+    question: item.question,
+    options: item.options,
+    correctIndex: item.correctIndex,
+    explanation: item.explanation,
+    funFact: item.funFact,
+    category: `Faith Study · ${profile.name}`,
+    difficulty: item.level as TriviaDifficulty,
+  }));
+
+  const combined = [...bankItems, ...profile.trivia];
+  const base = normFilter
+    ? combined.filter((q) => normalizeToFiveLevel(q.difficulty) === normFilter)
+    : combined;
+  const source = base.length > 0 ? base : combined;
   const out: TriviaQuestion[] = [];
   for (let i = 0; i < count; i++) {
     const q = source[i % source.length];
@@ -968,3 +990,66 @@ export function getFaithTriviaQuestions(
   }
   return out;
 }
+
+export function drawZeroRepeatFaithQuestion(params: {
+  religion: ReligionId;
+  level: FiveDifficultyLevel;
+  excludeIdsOrQuestions?: string[];
+}): TriviaQuestion {
+  const { religion, level, excludeIdsOrQuestions = [] } = params;
+  const profile = getFaithTradition(religion);
+
+  const bankItems = CURATED_TRIVIA_BANK.filter(
+    (item) => item.categoryId === `faith:${religion}`
+  ).map((item) => ({
+    id: item.id,
+    question: item.question,
+    options: item.options,
+    correctIndex: item.correctIndex,
+    explanation: item.explanation,
+    funFact: item.funFact,
+    category: `Faith Study · ${profile.name}`,
+    difficulty: item.level as FiveDifficultyLevel,
+  }));
+
+  const traditionItems = profile.trivia.map((q, idx) => ({
+    ...q,
+    id: `faith-inline:${religion}:${idx}`,
+    category: `Faith Study · ${profile.name}`,
+    difficulty: normalizeToFiveLevel(q.difficulty),
+  }));
+
+  // Deduplicate by lowercase question text while merging both sources
+  const dedupMap = new Map<string, (typeof bankItems)[number]>();
+  for (const q of [...bankItems, ...traditionItems]) {
+    dedupMap.set(q.question.trim().toLowerCase(), q);
+  }
+  const allForReligion = Array.from(dedupMap.values());
+  const levelFiltered = allForReligion.filter((q) => q.difficulty === level);
+  const excludeSet = new Set(excludeIdsOrQuestions.map((s) => s.trim().toLowerCase()));
+
+  // First try unseen items at the requested level; if that level is exhausted, widen to other unseen items for this faith
+  const primaryPool = levelFiltered.length > 0 ? levelFiltered : allForReligion;
+  const remainingPrimary = getBucketRemainingCount(
+    `faith:${religion}:${level}`,
+    primaryPool.filter((q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())),
+    (q) => q.id
+  );
+
+  if (remainingPrimary > 0) {
+    return pickZeroRepeatItem(
+      `faith:${religion}:${level}`,
+      primaryPool,
+      (q) => q.id,
+      excludeIdsOrQuestions
+    );
+  }
+
+  return pickZeroRepeatItem(
+    `faith:${religion}:all`,
+    allForReligion,
+    (q) => q.id,
+    excludeIdsOrQuestions
+  );
+}
+

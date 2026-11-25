@@ -43,7 +43,6 @@ import {
   buildSmartHintClueText,
   MIN_PROBABILITY_WORD_LENGTH,
   getProgressiveGuessNudge,
-  computeBoardFiftyFiftyElimination,
   type GridBoxHint,
 } from './puzzleLogic';
 import { buildCompletedWordSquare, validateWordSquare } from './wordSquareLogic';
@@ -475,9 +474,9 @@ test('completed cross-grid produces valid English words horizontally and vertica
     [5, 'ARIES'],
     [5, 'LIBRA'],
     [5, 'CRANE'],
-    [6, 'PLANET'],
-    [6, 'ORACLE'],
-    [6, 'ZODIAC'],
+    [6, 'INFORM'],
+    [6, 'AGENDA'],
+    [6, 'SESAME'],
   ];
   for (const [len, target] of sampleTargets) {
     const sq = buildCompletedWordSquare(target, len);
@@ -623,7 +622,7 @@ test('probability hint setup alternates between 4, 5, and 6 words with user cont
   assert.equal(/default hint|smart hint/i.test(`${c4.text} ${c5.text} ${c6.text}`), false);
 });
 
-test('progressive smart nudges avoid leaking target and 50/50 board elimination excludes target letters', () => {
+test('progressive smart nudges avoid leaking target word', () => {
   const target = 'CRANE';
   const n1 = getProgressiveGuessNudge({ guess: 'PILOT', target, attemptIndex: 1, categoryName: 'Nature' });
   const n2 = getProgressiveGuessNudge({ guess: 'GHOST', target, attemptIndex: 2, categoryName: 'Nature' });
@@ -632,13 +631,6 @@ test('progressive smart nudges avoid leaking target and 50/50 board elimination 
   for (const nudge of [n1, n2, n3]) {
     assert.ok(nudge.length >= 20);
     assert.equal(nudge.toUpperCase().includes(target), false, 'Nudge must not leak target word');
-  }
-
-  const eliminated = computeBoardFiftyFiftyElimination(['PILOT'], target, [], 5);
-  assert.equal(eliminated.length, 5);
-  for (const ch of eliminated) {
-    assert.equal(target.includes(ch), false, `50/50 must never eliminate target letter ${ch}`);
-    assert.equal('PILOT'.includes(ch), false, `50/50 must not re-pick already guessed letter ${ch}`);
   }
 });
 

@@ -1,26 +1,23 @@
 /**
  * RewardedAdService — Google AdMob Rewarded Ads Wrapper & Web/Native Bridge
  *
- * Uses official Google AdMob TEST Ad Unit IDs by default so rewarded placements run
- * cleanly out of the box without policy violations or build errors.
- *
- * WHERE TO INSERT YOUR PRODUCTION ADMOB AD UNIT ID:
- * 1. Set `VITE_ADMOB_REWARDED_AD_UNIT_ID` in your `.env` / hosting Secrets, OR
- * 2. Replace `PRODUCTION_REWARDED_AD_UNIT_ID` below inside `ADMOB_CONFIG`.
+ * Hints & Word Clues are unlimited as long as ads are watched.
+ * Normal Trivia supports watching 2 ads concurrently/sequentially to reveal the answer.
  */
 
 export type RewardPlacement =
   | 'hint'
+  | 'puzzle_clue'
   | 'extra_attempt'
   | 'save_streak'
   | 'unlock_category'
   | 'trivia_revive'
-  | 'trivia_fifty_fifty'
   | 'double_xp'
   | 'unlock_trivia_24h'
   | 'puzzle_word_trivia'
   | 'trivia_reveal_answer_1'
-  | 'trivia_reveal_answer_2';
+  | 'trivia_reveal_answer_2'
+  | 'trivia_reveal_answer_pair';
 
 export type AdLoadState = 'idle' | 'loading' | 'loaded' | 'failed';
 
@@ -31,6 +28,7 @@ export interface RewardMeta {
   description: string;
   durationSeconds: number;
   isOptionalPrompt: boolean;
+  concurrentAdsCount?: number;
 }
 
 export interface RewardedAdCallbacks {
@@ -50,19 +48,12 @@ export interface AdSDKAdapter {
   onAdFailed?(reason: string): void;
 }
 
-/**
- * Official Google AdMob Test Ad Unit IDs + Production Placeholder Constants
- */
 export const ADMOB_CONFIG = {
-  // Official Google-provided Test Rewarded Ad Unit IDs (safe for dev & QA)
   TEST_REWARDED_ANDROID_ID: 'ca-app-pub-3940256099942544/5224354917',
   TEST_REWARDED_IOS_ID: 'ca-app-pub-3940256099942544/1712485313',
-
-  // PRODUCTION PLACEHOLDER: Set VITE_ADMOB_REWARDED_AD_UNIT_ID or replace below before release
   PRODUCTION_REWARDED_AD_UNIT_ID:
     (import.meta.env?.VITE_ADMOB_REWARDED_AD_UNIT_ID as string | undefined) ||
     'ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY',
-
   USE_TEST_ADS_BY_DEFAULT: !import.meta.env?.VITE_ADMOB_REWARDED_AD_UNIT_ID,
 } as const;
 
@@ -75,11 +66,8 @@ export function getActiveRewardedAdUnitId(): string {
   return isApple ? ADMOB_CONFIG.TEST_REWARDED_IOS_ID : ADMOB_CONFIG.TEST_REWARDED_ANDROID_ID;
 }
 
-/**
- * Non-intrusive frequency caps & cooldown constants
- */
-export const AD_OPTIONAL_PROMPT_COOLDOWN_MS = 120_000; // 2 minutes between optional upsell prompts
-export const AD_DAILY_REWARDED_CAP = 12;
+export const AD_OPTIONAL_PROMPT_COOLDOWN_MS = 120_000;
+export const AD_DAILY_REWARDED_CAP = 9999; // Hints & clues are unlimited via watched ads
 
 const AD_GUARD_STORAGE_KEY = 'lexicon_ad_frequency_guard_v1';
 
@@ -130,16 +118,25 @@ export const REWARD_PLACEMENTS: Record<RewardPlacement, RewardMeta> = {
   hint: {
     placement: 'hint',
     title: 'Unlock +1 Letter Hint',
-    rewardLabel: '+1 Hint Unlocked',
-    description: 'Watch a brief 5-second sponsor preview to reveal a helpful letter position.',
-    durationSeconds: 5,
+    rewardLabel: '+1 Hint Unlocked (Unlimited)',
+    description: 'Watch a brief 4-second sponsor preview to reveal a letter box on the grid.',
+    durationSeconds: 4,
+    isOptionalPrompt: false,
+  },
+  puzzle_clue: {
+    placement: 'puzzle_clue',
+    title: 'Unlock Word Structure & Meaning Clue',
+    rewardLabel: 'Vowel/Consonant & Meaning Clue Unlocked',
+    description:
+      'Watch a brief 4-second sponsor preview to reveal consonant/vowel count and the word explanation.',
+    durationSeconds: 4,
     isOptionalPrompt: false,
   },
   extra_attempt: {
     placement: 'extra_attempt',
     title: 'Unlock +1 Extra Attempt',
     rewardLabel: '+1 Bonus Row Granted',
-    description: 'Watch a brief 5-second sponsor preview to add a 7th guess row to this puzzle.',
+    description: 'Watch a brief 5-second sponsor preview to continue playing.',
     durationSeconds: 5,
     isOptionalPrompt: true,
   },
@@ -157,8 +154,8 @@ export const REWARD_PLACEMENTS: Record<RewardPlacement, RewardMeta> = {
     title: 'Unlock Premium Category (5 Plays)',
     rewardLabel: '5 Plays Unlocked',
     description:
-      'Watch a brief 5-second sponsor preview to unlock 5 full puzzles in this premium category.',
-    durationSeconds: 5,
+      'Watch a brief 4-second sponsor preview to unlock 5 full puzzles in this premium category.',
+    durationSeconds: 4,
     isOptionalPrompt: false,
   },
   trivia_revive: {
@@ -166,23 +163,15 @@ export const REWARD_PLACEMENTS: Record<RewardPlacement, RewardMeta> = {
     title: 'Second Chance · Keep Streak',
     rewardLabel: 'Trivia Streak Preserved',
     description: 'Watch a short rewarded ad to keep your active Trivia Streak Multiplier alive.',
-    durationSeconds: 5,
+    durationSeconds: 4,
     isOptionalPrompt: true,
-  },
-  trivia_fifty_fifty: {
-    placement: 'trivia_fifty_fifty',
-    title: 'AI Hint · 50-50 Eliminate',
-    rewardLabel: '2 Wrong Options Removed',
-    description: 'Watch a short rewarded ad to eliminate 2 incorrect choices on this question.',
-    durationSeconds: 5,
-    isOptionalPrompt: false,
   },
   double_xp: {
     placement: 'double_xp',
     title: 'Claim 2x Weekly XP Boost',
     rewardLabel: '2x Weekly XP Credited',
     description: 'Watch a short rewarded ad to double the Weekly XP earned from this round.',
-    durationSeconds: 5,
+    durationSeconds: 4,
     isOptionalPrompt: true,
   },
   unlock_trivia_24h: {
@@ -190,17 +179,42 @@ export const REWARD_PLACEMENTS: Record<RewardPlacement, RewardMeta> = {
     title: 'Unlock Mastermind Vault (24 Hours)',
     rewardLabel: 'Bonus Theme Unlocked for 24h',
     description: 'Watch a short rewarded ad for 24 hours of unlimited access to Mastermind Vault.',
-    durationSeconds: 5,
+    durationSeconds: 4,
     isOptionalPrompt: false,
   },
   puzzle_word_trivia: {
     placement: 'puzzle_word_trivia',
-    title: 'Unlock Horizontal Word Trivia',
-    rewardLabel: 'Word Trivia Unlocked',
+    title: 'Unlock Word Trivia Clue',
+    rewardLabel: 'Consonant/Vowel & Meaning Clue Unlocked',
     description:
-      'Watch a brief 5-second sponsor preview to unlock an AI word trivia clue for your chosen horizontal line.',
+      'Watch a brief 5-second sponsor preview to reveal the consonant/vowel breakdown and meaning clue for your selected horizontal line or vertical column.',
     durationSeconds: 5,
     isOptionalPrompt: false,
+  },
+  trivia_reveal_answer_1: {
+    placement: 'trivia_reveal_answer_1',
+    title: 'Reveal Answer · Ad 1 of 2',
+    rewardLabel: 'Ad 1 Complete — Ready for Ad 2',
+    description: 'Watch 2 quick sponsor previews back-to-back to reveal the exact Trivia answer.',
+    durationSeconds: 3,
+    isOptionalPrompt: false,
+  },
+  trivia_reveal_answer_2: {
+    placement: 'trivia_reveal_answer_2',
+    title: 'Reveal Answer · Ad 2 of 2',
+    rewardLabel: 'Correct Answer Unlocked!',
+    description: 'Final preview! Claiming reveals the exact verified Trivia answer immediately.',
+    durationSeconds: 3,
+    isOptionalPrompt: false,
+  },
+  trivia_reveal_answer_pair: {
+    placement: 'trivia_reveal_answer_pair',
+    title: 'Watch 2 Concurrent Ads · Reveal Answer',
+    rewardLabel: 'Both Ads Watched — Answer Revealed!',
+    description: 'Two brief sponsor previews run side-by-side to unlock the exact Trivia answer.',
+    durationSeconds: 5,
+    isOptionalPrompt: false,
+    concurrentAdsCount: 2,
   },
 };
 
@@ -236,17 +250,12 @@ class AdMobHybridAdapter implements AdSDKAdapter {
         });
         return true;
       }
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        return false;
-      }
     }
     return true;
   }
 
   public async isRewardedAvailable(_placement: RewardPlacement): Promise<boolean> {
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      return false;
-    }
+    // Supported both online and in offline test preview mode so ad-gated hints never break without network
     return true;
   }
 
@@ -263,17 +272,9 @@ class AdMobHybridAdapter implements AdSDKAdapter {
     }
   }
 
-  public onRewardGranted(_placement: RewardPlacement): void {
-    // Verified reward hook (connect SSV endpoint here if needed)
-  }
-
-  public onAdDismissed(_placement: RewardPlacement): void {
-    // Closed before reward completion or after claiming
-  }
-
-  public onAdFailed(_reason: string): void {
-    // Telemetry hook when offline or ad fill is unavailable
-  }
+  public onRewardGranted(_placement: RewardPlacement): void {}
+  public onAdDismissed(_placement: RewardPlacement): void {}
+  public onAdFailed(_reason: string): void {}
 }
 
 class RewardedAdService {
@@ -298,7 +299,7 @@ class RewardedAdService {
   }
 
   public getPlacementMeta(placement: RewardPlacement): RewardMeta {
-    return REWARD_PLACEMENTS[placement];
+    return REWARD_PLACEMENTS[placement] || REWARD_PLACEMENTS.hint;
   }
 
   public async preloadRewardedAd(): Promise<boolean> {
@@ -314,7 +315,7 @@ class RewardedAdService {
         return true;
       }
       this.loadState = 'failed';
-      this.adapter.onAdFailed?.('No ad fill available (offline)');
+      this.adapter.onAdFailed?.('Ad fill unavailable');
       this.callbacks.onAdFailedToLoad?.('Rewarded ad unavailable right now.');
       return false;
     } catch {
@@ -336,7 +337,6 @@ class RewardedAdService {
 
   public canShowOptionalPrompt(nowMs: number = Date.now()): boolean {
     const guard = loadFrequencyGuard(nowMs);
-    if (guard.dailyAdsWatched >= AD_DAILY_REWARDED_CAP) return false;
     return nowMs - guard.lastOptionalPromptAtMs >= AD_OPTIONAL_PROMPT_COOLDOWN_MS;
   }
 
@@ -370,7 +370,6 @@ class RewardedAdService {
     this.adapter.onRewardGranted?.(placement);
     this.callbacks.onUserEarnedReward?.(placement);
     this.callbacks.onAdDismissedFullScreenContent?.(placement, true);
-    // Automatically preload the next ad in the background
     void this.preloadRewardedAd();
   }
 

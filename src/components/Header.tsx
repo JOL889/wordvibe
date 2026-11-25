@@ -29,8 +29,8 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigateSection,
 }) => {
   return (
-    <header className="w-full border-b border-stone-200/75 dark:border-zinc-800/80 bg-[#F7F5F0]/90 dark:bg-[#111315]/90 backdrop-blur-sm amoled-surface">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-1.5 px-2.5 py-2 sm:py-2.5 sm:px-6">
+    <header className="sticky top-0 z-30 w-full border-b wv-border wv-card backdrop-blur-md">
+      <div className="mx-auto flex max-w-5xl items-center justify-between gap-1.5 px-3 py-2 sm:py-2.5 sm:px-6">
         <a
           href="#top"
           onClick={(e) => {
@@ -39,14 +39,20 @@ export const Header: React.FC<HeaderProps> = ({
               onNavigateSection('streak');
             }
           }}
-          className="font-display text-xl sm:text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 whitespace-nowrap shrink-0 flex items-center gap-1.5"
+          className="font-display text-xl sm:text-2xl font-bold tracking-tight wv-text whitespace-nowrap shrink-0 flex items-center gap-2"
         >
+          <span
+            aria-hidden="true"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border-2 wv-tile-wooden font-display text-lg font-bold shadow-xs"
+          >
+            W
+          </span>
           <span>WordVibe</span>
         </a>
 
         <nav
           aria-label="Puzzle guides"
-          className="hidden md:flex items-center gap-6 text-sm font-medium text-zinc-500 dark:text-zinc-400"
+          className="hidden md:flex items-center gap-6 text-sm font-semibold wv-text-muted"
         >
           <a
             href="#how-to-play"
@@ -56,7 +62,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onNavigateSection('rules');
               }
             }}
-            className="hover:text-zinc-900 dark:hover:text-zinc-100 hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
+            className="hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
           >
             Rules
           </a>
@@ -68,7 +74,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onNavigateSection('streak');
               }
             }}
-            className="hover:text-zinc-900 dark:hover:text-zinc-100 hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
+            className="hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
           >
             Streaks
           </a>
@@ -80,13 +86,13 @@ export const Header: React.FC<HeaderProps> = ({
                 onNavigateSection('faq');
               }
             }}
-            className="hover:text-zinc-900 dark:hover:text-zinc-100 hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
+            className="hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
           >
             FAQ
           </a>
         </nav>
 
-        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           <PWAInstallButton compact />
 
           <button
@@ -98,7 +104,7 @@ export const Header: React.FC<HeaderProps> = ({
             }}
             aria-label={`Rank ${weeklyGradeId}, ${weeklyXp} XP, ${bonusCoins} coins. Open weekly grading and achievements.`}
             title="Weekly Rank, XP & Coins"
-            className="inline-flex h-10 items-center gap-1 sm:gap-1.5 rounded-xl border border-stone-200/90 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 px-2 sm:px-2.5 text-[11px] sm:text-xs font-semibold text-zinc-700 dark:text-zinc-200 transition-colors hover:border-emerald-700/40 dark:hover:border-emerald-500/40 whitespace-nowrap cursor-pointer"
+            className="inline-flex h-10 items-center gap-1 sm:gap-1.5 rounded-xl border wv-border wv-card-muted px-2 sm:px-2.5 text-[11px] sm:text-xs font-bold wv-text transition-transform active:scale-95 whitespace-nowrap cursor-pointer"
           >
             <Crown className="h-3.5 w-3.5 text-amber-500 shrink-0" aria-hidden="true" />
             <span className="font-mono-tabular sm:hidden">
@@ -107,7 +113,7 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="font-mono-tabular hidden sm:inline">
               Rank {weeklyGradeId} · {weeklyXp} XP
             </span>
-            <span className="inline-flex items-center gap-0.5 border-l border-stone-200 dark:border-zinc-700 pl-1.5 font-mono-tabular text-amber-600 dark:text-amber-400">
+            <span className="inline-flex items-center gap-0.5 border-l wv-border pl-1.5 font-mono-tabular text-amber-500">
               <Coins className="h-3 w-3 shrink-0" aria-hidden="true" />
               <span data-testid="header-coins-count">{bonusCoins}</span>
             </span>
@@ -121,7 +127,7 @@ export const Header: React.FC<HeaderProps> = ({
             }}
             aria-label="How to play WordVibe"
             title="How to play"
-            className="inline-flex h-10 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl text-zinc-500 dark:text-zinc-400 transition-colors hover:bg-stone-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 cursor-pointer"
+            className="inline-flex h-10 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl wv-text-muted transition-colors hover:opacity-80 cursor-pointer"
           >
             <HelpCircle className="h-[18px] w-[18px]" aria-hidden="true" />
           </button>
@@ -134,7 +140,7 @@ export const Header: React.FC<HeaderProps> = ({
             }}
             aria-label="View statistics and streaks"
             title="Statistics"
-            className="inline-flex h-10 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl text-zinc-500 dark:text-zinc-400 transition-colors hover:bg-stone-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 cursor-pointer"
+            className="inline-flex h-10 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl wv-text-muted transition-colors hover:opacity-80 cursor-pointer"
           >
             <BarChart3 className="h-[18px] w-[18px]" aria-hidden="true" />
           </button>
@@ -148,12 +154,12 @@ export const Header: React.FC<HeaderProps> = ({
             aria-label={soundEnabled ? 'Mute sound effects' : 'Enable sound effects'}
             aria-pressed={soundEnabled}
             title={soundEnabled ? 'Sound on' : 'Sound muted'}
-            className="hidden sm:inline-flex h-10 w-10 items-center justify-center rounded-xl text-zinc-500 dark:text-zinc-400 transition-colors hover:bg-stone-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 cursor-pointer"
+            className="hidden sm:inline-flex h-10 w-10 items-center justify-center rounded-xl wv-text-muted transition-colors hover:opacity-80 cursor-pointer"
           >
             {soundEnabled ? (
               <Volume2 className="h-[18px] w-[18px]" aria-hidden="true" />
             ) : (
-              <VolumeX className="h-[18px] w-[18px] text-zinc-400 dark:text-zinc-500" aria-hidden="true" />
+              <VolumeX className="h-[18px] w-[18px] opacity-60" aria-hidden="true" />
             )}
           </button>
 
@@ -165,8 +171,8 @@ export const Header: React.FC<HeaderProps> = ({
               onOpenSettings();
             }}
             aria-label="Open WordVibe settings"
-            title="Settings"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-zinc-600 dark:text-zinc-300 transition-transform active:scale-90 hover:bg-stone-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 cursor-pointer"
+            title="Settings & Themes"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl wv-text transition-transform active:scale-90 hover:opacity-80 cursor-pointer"
           >
             <Settings className="h-[19px] w-[19px]" aria-hidden="true" />
           </button>

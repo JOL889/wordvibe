@@ -12,7 +12,6 @@ import {
 } from './weeklyLogic';
 import {
   calculateTriviaXp,
-  computeFiftyFiftyIndices,
   getStreakMultiplier,
   getTriviaDifficultyForStreak,
   isTriviaCategoryUnlocked,
@@ -77,7 +76,7 @@ test('weekly rollover awards last week bonus coins/XP into the new Monday cycle'
   assert.equal(rolled.weeklyXp, rolled.pendingWeekSummary.bonusXpAwarded);
 });
 
-test('12+ achievements track across Lexicon puzzles & AI Trivia and unlock cleanly', () => {
+test('12+ achievements track across WordVibe puzzles & Trivia and unlock cleanly', () => {
   assert.ok(ACHIEVEMENTS.length >= 10, 'Expected at least 10 achievements');
   let state = createFreshWeeklyState('2026-11-16');
 
@@ -97,16 +96,16 @@ test('12+ achievements track across Lexicon puzzles & AI Trivia and unlock clean
   state = res.state;
   assert.ok(res.newlyUnlocked.some((a) => a.id === 'first_spark'));
 
-  // Build 5-streak AI Trivia + finish a round -> 5-Streak Genius & Puzzle & Brainiac Combo
+  // Build 5-streak Trivia + finish a round -> 5-Streak Genius & Puzzle & Brainiac Combo
   for (let i = 1; i <= 5; i++) {
     res = applyWeeklyActivityEvent(
       state,
       {
         type: 'trivia_answered',
         correct: true,
-        difficulty: i >= 5 ? 'hard' : i >= 3 ? 'medium' : 'easy',
+        difficulty: i >= 5 ? 'expert' : i >= 3 ? 'intermediate' : 'novice',
         streakAfter: i,
-        xpAwarded: calculateTriviaXp(i >= 5 ? 'hard' : i >= 3 ? 'medium' : 'easy', i),
+        xpAwarded: calculateTriviaXp(i >= 5 ? 'expert' : i >= 3 ? 'intermediate' : 'novice', i),
         categoryId: 'science',
       },
       Date.UTC(2026, 10, 16, 10, i, 0)
@@ -129,7 +128,7 @@ test('12+ achievements track across Lexicon puzzles & AI Trivia and unlock clean
   assert.ok(state.unlockedAchievements.includes('puzzle_brainiac_combo'));
 });
 
-test('AI Trivia difficulty scaling, streak multipliers, 50-50, 24h unlock & dedupe fallback work cleanly', () => {
+test('Trivia difficulty scaling, streak multipliers, 24h unlock & zero-repeat bank work cleanly', () => {
   assert.equal(TRIVIA_CATEGORIES.length, 9);
   assert.ok(TRIVIA_CATEGORIES.some((c) => c.id === 'faith-study'));
   assert.equal(getTriviaDifficultyForStreak(0), 'novice');
@@ -138,12 +137,6 @@ test('AI Trivia difficulty scaling, streak multipliers, 50-50, 24h unlock & dedu
   assert.equal(getStreakMultiplier(0), 1);
   assert.equal(getStreakMultiplier(3), 2);
   assert.equal(getStreakMultiplier(8), 3);
-
-  const elim = computeFiftyFiftyIndices(2, 7);
-  assert.equal(elim.length, 2);
-  assert.notEqual(elim[0], 2);
-  assert.notEqual(elim[1], 2);
-  assert.notEqual(elim[0], elim[1]);
 
   const now = Date.UTC(2026, 10, 22, 12, 0, 0);
   assert.equal(isTriviaCategoryUnlocked('general-knowledge', {}, now), true);
@@ -154,12 +147,12 @@ test('AI Trivia difficulty scaling, streak multipliers, 50-50, 24h unlock & dedu
   );
 
   // Dedupe local bank
-  const first = pickFallbackTriviaQuestion('science', 'easy', []);
-  const second = pickFallbackTriviaQuestion('science', 'easy', [first.question]);
+  const first = pickFallbackTriviaQuestion('science', 'novice', []);
+  const second = pickFallbackTriviaQuestion('science', 'novice', [first.question]);
   assert.notEqual(first.question, second.question);
 });
 
-test('AdMob config defaults to Google official test Ad Unit ID and respects placements', () => {
+test('AdMob config defaults to Google official test Ad Unit ID and respects placements including 2-ad answer reveal', () => {
   const unitId = getActiveRewardedAdUnitId();
   assert.ok(
     unitId === ADMOB_CONFIG.TEST_REWARDED_ANDROID_ID ||
@@ -168,4 +161,6 @@ test('AdMob config defaults to Google official test Ad Unit ID and respects plac
   assert.equal(rewardedAdService.getPlacementMeta('trivia_revive').isOptionalPrompt, true);
   assert.equal(rewardedAdService.getPlacementMeta('double_xp').isOptionalPrompt, true);
   assert.equal(rewardedAdService.getPlacementMeta('unlock_trivia_24h').isOptionalPrompt, false);
+  assert.equal(rewardedAdService.getPlacementMeta('trivia_reveal_answer_pair').concurrentAdsCount, 2);
+  assert.ok(rewardedAdService.getPlacementMeta('puzzle_clue').title.includes('Clue'));
 });

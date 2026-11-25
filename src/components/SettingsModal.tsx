@@ -12,10 +12,15 @@ import {
   Share2,
   Shield,
   Sliders,
+  Smartphone,
   Sparkles,
   Volume2,
   X,
 } from 'lucide-react';
+import {
+  getSensorSupportStatus,
+  requestMotionSensorPermission,
+} from '../services/deviceSensorService';
 import { FAITH_TRADITIONS, RELIGION_IDS } from '../game/faithStudyLogic';
 import { formatLocationLabel, type PlayerProfileState } from '../game/playerProfileLogic';
 import type {
@@ -93,18 +98,18 @@ const ToggleRow: React.FC<ToggleRowProps> = ({
     aria-checked={checked}
     data-testid={testId}
     onClick={onToggle}
-    className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-stone-100/80 dark:hover:bg-zinc-800/60 cursor-pointer"
+    className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:opacity-95 cursor-pointer"
   >
     <div className="min-w-0">
-      <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{label}</div>
+      <div className="text-sm font-semibold wv-text">{label}</div>
       {description && (
-        <div className="text-xs text-zinc-500 dark:text-zinc-400">{description}</div>
+        <div className="text-xs wv-text-muted">{description}</div>
       )}
     </div>
     <span
       aria-hidden="true"
       className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-        checked ? 'wv-accent-btn' : 'bg-stone-300 dark:bg-zinc-700'
+        checked ? 'wv-accent-btn' : 'bg-black/20 dark:bg-white/20'
       }`}
     >
       <span
@@ -127,8 +132,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onResetTutorial,
 }) => {
   const [aboutExpanded, setAboutExpanded] = useState(false);
+  const [sensorPermFeedback, setSensorPermFeedback] = useState<string | null>(null);
 
   if (!open) return null;
+
+  const sensorStatus = getSensorSupportStatus();
 
   const locationSummary =
     playerProfile.locationEnabled && !playerProfile.locationOptOut
@@ -146,20 +154,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }}
       className="fixed inset-0 z-[65] flex items-end sm:items-center justify-center bg-black/60 sm:p-4"
     >
-      <div className="flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl border border-stone-200 dark:border-zinc-800 bg-[#FAF9F6] dark:bg-zinc-900 shadow-2xl animate-modal-pop amoled-surface">
+      <div className="flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl border-2 wv-border wv-card shadow-2xl animate-modal-pop amoled-surface">
         {/* Header */}
-        <div className="flex items-center justify-between gap-3 border-b border-stone-200 dark:border-zinc-800 px-5 py-4">
+        <div className="flex items-center justify-between gap-3 border-b wv-border px-5 py-4">
           <div className="flex items-center gap-2">
             <Sliders className="h-5 w-5 wv-accent-text" aria-hidden="true" />
             <div>
               <h2
                 id="settings-modal-title"
-                className="font-display text-xl font-bold text-zinc-900 dark:text-zinc-50"
+                className="font-display text-xl font-bold wv-text"
               >
                 WordVibe Settings
               </h2>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Daily Puzzle, AI Trivia &amp; Faith Study
+              <p className="text-xs wv-text-muted">
+                Crossword, Brain Trivia &amp; Faith Study
               </p>
             </div>
           </div>
@@ -169,7 +177,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             data-testid="close-settings-btn"
             onClick={onClose}
             aria-label="Close settings"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-zinc-500 hover:bg-stone-200/70 dark:text-zinc-400 dark:hover:bg-zinc-800 cursor-pointer"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl wv-text-muted hover:opacity-80 cursor-pointer"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -178,7 +186,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Scrollable Sections */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-5">
           {/* 1. General */}
-          <section className="rounded-2xl border border-stone-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-950/60 p-3.5 space-y-2.5 amoled-surface">
+          <section className="rounded-2xl border wv-border wv-card-muted p-3.5 space-y-2.5 amoled-surface">
             <h3 className="flex items-center gap-1.5 px-1 text-xs font-bold uppercase tracking-wider wv-accent-text">
               <Compass className="h-3.5 w-3.5" aria-hidden="true" />
               <span>General</span>
@@ -187,20 +195,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <ToggleRow
               testId="setting-auto-location"
               label="Auto-Detect Location"
-              description="Tailor trivia & trends via GPS or IP fallback"
+              description="Tailor trivia & trends via offline timezone or GPS"
               checked={settings.autoDetectLocation}
               onToggle={() =>
                 onUpdateSettings({ autoDetectLocation: !settings.autoDetectLocation })
               }
             />
 
-            <div className="flex items-center justify-between gap-2 rounded-xl border border-stone-200/80 dark:border-zinc-800 px-3 py-2.5">
+            <div className="flex items-center justify-between gap-2 rounded-xl border wv-border wv-card px-3 py-2.5">
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+                <div className="flex items-center gap-1.5 text-xs font-semibold wv-text">
                   <MapPin className="h-3.5 w-3.5 wv-accent-text shrink-0" aria-hidden="true" />
                   <span className="truncate">{locationSummary}</span>
                 </div>
-                <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                <p className="text-[11px] wv-text-muted">
                   Manual city &amp; country selector
                 </p>
               </div>
@@ -211,14 +219,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   onClose();
                   onOpenPersonalize();
                 }}
-                className="min-h-10 shrink-0 rounded-xl border border-stone-300 dark:border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-800 dark:text-zinc-200 hover:bg-stone-100 dark:hover:bg-zinc-800 cursor-pointer"
+                className="min-h-10 shrink-0 rounded-xl border wv-border wv-card-muted px-3 py-1.5 text-xs font-semibold wv-text hover:opacity-90 cursor-pointer"
               >
                 Edit City
               </button>
             </div>
 
             <div className="px-1 pt-1">
-              <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+              <span className="text-xs font-semibold wv-text-muted">
                 Default Starting Tab
               </span>
               <div className="mt-1.5 grid grid-cols-4 gap-1.5">
@@ -233,7 +241,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       className={`min-h-11 rounded-xl border px-2 text-xs font-semibold transition-colors cursor-pointer ${
                         active
                           ? 'wv-accent-btn border-transparent'
-                          : 'border-stone-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:border-stone-300'
+                          : 'wv-border wv-card wv-text-muted hover:opacity-90'
                       }`}
                     >
                       {tab.label}
@@ -244,7 +252,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <div className="px-1 pt-1">
-              <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+              <span className="text-xs font-semibold wv-text-muted">
                 Difficulty Tier
               </span>
               <div className="mt-1.5 grid grid-cols-3 gap-1.5">
@@ -259,7 +267,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       className={`min-h-11 rounded-xl border px-2 text-xs font-semibold transition-colors cursor-pointer ${
                         active
                           ? 'wv-accent-btn border-transparent'
-                          : 'border-stone-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:border-stone-300'
+                          : 'wv-border wv-card wv-text-muted hover:opacity-90'
                       }`}
                     >
                       {opt.label}
@@ -279,14 +287,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </section>
 
           {/* 2. Faith & Study */}
-          <section className="rounded-2xl border border-stone-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-950/60 p-3.5 space-y-2.5 amoled-surface">
+          <section className="rounded-2xl border wv-border wv-card-muted p-3.5 space-y-2.5 amoled-surface">
             <h3 className="flex items-center gap-1.5 px-1 text-xs font-bold uppercase tracking-wider wv-accent-text">
               <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Faith &amp; Study</span>
             </h3>
 
             <div className="px-1">
-              <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+              <span className="text-xs font-semibold wv-text-muted">
                 Default Faith Tradition
               </span>
               <div className="mt-1.5 grid grid-cols-3 gap-1.5">
@@ -302,7 +310,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       className={`flex min-h-12 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition-colors cursor-pointer ${
                         active
                           ? 'wv-accent-btn border-transparent'
-                          : 'border-stone-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-stone-300'
+                          : 'wv-border wv-card wv-text hover:opacity-90'
                       }`}
                     >
                       <ReligionIcon religion={id} className="h-4 w-4 shrink-0" />
@@ -325,8 +333,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             <ToggleRow
               testId="setting-mix-faith"
-              label="Mix Faith Words into Daily Puzzles"
-              description="Blend inspiring words from your tradition into Practice Sprint"
+              label="Mix Faith Words into Crossword Sprints"
+              description="Blend inspiring words from your tradition into Endless Sprint"
               checked={settings.mixFaithWordsInDaily}
               onToggle={() =>
                 onUpdateSettings({ mixFaithWordsInDaily: !settings.mixFaithWordsInDaily })
@@ -335,7 +343,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </section>
 
           {/* 3. Theme & Visuals */}
-          <section className="rounded-2xl border border-stone-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-950/60 p-3.5 space-y-3 amoled-surface">
+          <section className="rounded-2xl border wv-border wv-card-muted p-3.5 space-y-3 amoled-surface">
             <h3 className="flex items-center gap-1.5 px-1 text-xs font-bold uppercase tracking-wider wv-accent-text">
               <Palette className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Theme &amp; Visuals</span>
@@ -353,7 +361,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     className={`flex min-h-12 flex-col items-start justify-center rounded-xl border px-3 py-2 text-left transition-colors cursor-pointer ${
                       active
                         ? 'wv-accent-pill border-2'
-                        : 'border-stone-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200 hover:border-stone-300'
+                        : 'wv-border wv-card wv-text hover:opacity-90'
                     }`}
                   >
                     <span className="text-xs font-bold">{opt.label}</span>
@@ -364,7 +372,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <div className="px-1">
-              <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+              <span className="text-xs font-semibold wv-text-muted">
                 Accent Color
               </span>
               <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
@@ -378,8 +386,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       onClick={() => onUpdateSettings({ accentColor: acc.id })}
                       className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition-colors cursor-pointer ${
                         active
-                          ? 'border-zinc-900 dark:border-white bg-stone-100 dark:bg-zinc-800 text-zinc-900 dark:text-white'
-                          : 'border-stone-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300'
+                          ? 'wv-accent-pill border-2'
+                          : 'wv-border wv-card wv-text-muted hover:opacity-90'
                       }`}
                     >
                       <span className={`h-3 w-3 shrink-0 rounded-full ${acc.dotClass}`} aria-hidden="true" />
@@ -391,7 +399,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <div className="px-1">
-              <span className="flex items-center gap-1 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+              <span className="flex items-center gap-1 text-xs font-semibold wv-text-muted">
                 <Sparkles className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
                 <span>Animation Intensity</span>
               </span>
@@ -407,7 +415,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       className={`min-h-11 rounded-xl border px-2 text-xs font-semibold transition-colors cursor-pointer ${
                         active
                           ? 'wv-accent-btn border-transparent'
-                          : 'border-stone-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300'
+                          : 'wv-border wv-card wv-text-muted hover:opacity-90'
                       }`}
                     >
                       {anim.label}
@@ -418,11 +426,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </section>
 
-          {/* 4. Audio & Haptics */}
-          <section className="rounded-2xl border border-stone-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-950/60 p-3.5 space-y-1.5 amoled-surface">
+          {/* 4. Audio, Haptics & Phone Sensors */}
+          <section className="rounded-2xl border wv-border wv-card-muted p-3.5 space-y-1.5 amoled-surface">
             <h3 className="flex items-center gap-1.5 px-1 pb-1 text-xs font-bold uppercase tracking-wider wv-accent-text">
               <Volume2 className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Audio &amp; Haptics</span>
+              <span>Audio, Haptics &amp; Phone Sensors</span>
             </h3>
 
             <ToggleRow
@@ -443,30 +451,62 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             />
             <ToggleRow
               testId="setting-haptics"
-              label="Vibration &amp; Haptic Feedback"
-              description="Subtle tactile taps on Android devices"
+              label="Vibration & Haptic Feedback"
+              description="Subtle tactile taps on Android & iPhone"
               checked={settings.hapticsEnabled}
               onToggle={() => onUpdateSettings({ hapticsEnabled: !settings.hapticsEnabled })}
             />
+            <ToggleRow
+              testId="setting-sensors"
+              label="Tilt 3D & Shake Sensors"
+              description="Gyroscope 3D board tilt + shake phone to nudge or switch words"
+              checked={settings.sensorsEnabled}
+              onToggle={() => onUpdateSettings({ sensorsEnabled: !settings.sensorsEnabled })}
+            />
+
+            {settings.sensorsEnabled && sensorStatus.needsPermissionPrompt && (
+              <div className="px-2 pt-1">
+                <button
+                  type="button"
+                  data-testid="request-motion-permission-btn"
+                  onClick={() => {
+                    void requestMotionSensorPermission().then((ok) => {
+                      setSensorPermFeedback(
+                        ok
+                          ? 'Motion sensors enabled!'
+                          : 'Motion permission was denied in browser settings.'
+                      );
+                    });
+                  }}
+                  className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border wv-border wv-card px-3 py-1.5 text-xs font-bold wv-accent-text cursor-pointer"
+                >
+                  <Smartphone className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Enable iOS Motion Access</span>
+                </button>
+                {sensorPermFeedback && (
+                  <p className="mt-1 text-[11px] font-medium wv-text-muted">{sensorPermFeedback}</p>
+                )}
+              </div>
+            )}
           </section>
 
           {/* 5. Account & Data */}
-          <section className="rounded-2xl border border-stone-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-950/60 p-3.5 space-y-2.5 amoled-surface">
+          <section className="rounded-2xl border wv-border wv-card-muted p-3.5 space-y-2.5 amoled-surface">
             <h3 className="flex items-center gap-1.5 px-1 text-xs font-bold uppercase tracking-wider wv-accent-text">
               <Shield className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Account &amp; Data</span>
             </h3>
 
-            <div className="flex items-center justify-between gap-2 rounded-xl bg-stone-100/80 dark:bg-zinc-900 px-3 py-2.5 text-xs">
+            <div className="flex items-center justify-between gap-2 rounded-xl border wv-border wv-card px-3 py-2.5 text-xs">
               <div>
-                <p className="font-bold text-zinc-900 dark:text-zinc-100">
+                <p className="font-bold wv-text">
                   {playerProfile.displayName?.trim() || 'Guest WordVibe Player'}
                 </p>
-                <p className="text-zinc-500 dark:text-zinc-400">
-                  Local study &amp; streak progress saved on device
+                <p className="wv-text-muted">
+                  Local study &amp; streak progress saved offline on device
                 </p>
               </div>
-              <Bell className="h-4 w-4 text-zinc-400 shrink-0" aria-hidden="true" />
+              <Bell className="h-4 w-4 wv-text-muted shrink-0" aria-hidden="true" />
             </div>
 
             <ToggleRow
@@ -482,7 +522,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 type="button"
                 data-testid="setting-share-app-btn"
                 onClick={onShareApp}
-                className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border border-stone-300 dark:border-zinc-700 px-3 text-xs font-semibold text-zinc-800 dark:text-zinc-200 hover:bg-stone-100 dark:hover:bg-zinc-800 cursor-pointer"
+                className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border wv-border wv-card px-3 text-xs font-semibold wv-text hover:opacity-90 cursor-pointer"
               >
                 <Share2 className="h-4 w-4 wv-accent-text" aria-hidden="true" />
                 <span>Share WordVibe</span>
@@ -491,9 +531,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 type="button"
                 data-testid="setting-reset-tutorial-btn"
                 onClick={onResetTutorial}
-                className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border border-stone-300 dark:border-zinc-700 px-3 text-xs font-semibold text-zinc-800 dark:text-zinc-200 hover:bg-stone-100 dark:hover:bg-zinc-800 cursor-pointer"
+                className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border wv-border wv-card px-3 text-xs font-semibold wv-text hover:opacity-90 cursor-pointer"
               >
-                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                <RotateCcw className="h-4 w-4 wv-accent-text" aria-hidden="true" />
                 <span>Reset Tutorial</span>
               </button>
             </div>
@@ -501,7 +541,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <button
               type="button"
               onClick={() => setAboutExpanded((v) => !v)}
-              className="flex min-h-11 w-full items-center justify-between rounded-xl px-2 text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 cursor-pointer"
+              className="flex min-h-11 w-full items-center justify-between rounded-xl px-2 text-xs font-semibold wv-text-muted hover:opacity-90 cursor-pointer"
             >
               <span className="inline-flex items-center gap-1.5">
                 <Cloud className="h-3.5 w-3.5" aria-hidden="true" />
@@ -511,17 +551,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </button>
 
             {aboutExpanded && (
-              <p className="rounded-xl bg-stone-100/80 dark:bg-zinc-900 p-3 text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-400">
-                WordVibe stores streaks, coins, Faith Study milestones, and theme settings locally
-                on your device. Optional city detection is used solely to tailor local trivia and
-                never shared with third-party brokers.
+              <p className="rounded-xl border wv-border wv-card p-3 text-[11px] leading-relaxed wv-text-muted">
+                WordVibe runs offline using your on-device zero-repeat question vault, streaks,
+                coins, Faith Study progress, and theme preferences. Optional city selection stays
+                strictly on your device.
               </p>
             )}
           </section>
         </div>
 
         {/* Footer */}
-        <div className="border-t border-stone-200 dark:border-zinc-800 px-5 py-3 flex justify-end">
+        <div className="border-t wv-border px-5 py-3 flex justify-end">
           <button
             type="button"
             onClick={onClose}

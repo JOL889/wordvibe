@@ -22,7 +22,10 @@ import {
   DEFAULT_APP_SETTINGS,
   migrateLegacyPreferences,
   type AppSettings,
+  type FiveDifficultyLevel,
+  type SessionPlayMode,
 } from '../game/settingsLogic';
+import type { CrosswordBoardState, CrosswordLevelClimbState } from '../game/crosswordLogic';
 import { isReligionId, type ReligionId } from '../game/faithStudyLogic';
 
 export interface PuzzleRoundState {
@@ -42,7 +45,6 @@ export interface PuzzleRoundState {
   defaultHintText?: string;
   defaultHintWordCount?: HintClueWordCount;
   eliminatedLetters: string[];
-  fiftyFiftyUsed?: boolean;
   progressiveNudge?: string;
   faithReligion?: ReligionId;
   extraAttemptGranted: boolean;
@@ -176,7 +178,6 @@ function normalizeRound(parsed: Partial<PuzzleRoundState> | null): PuzzleRoundSt
         ? parsed.defaultHintWordCount
         : fallbackClue.wordCount,
     eliminatedLetters: Array.isArray(parsed.eliminatedLetters) ? parsed.eliminatedLetters : [],
-    fiftyFiftyUsed: Boolean(parsed.fiftyFiftyUsed),
     progressiveNudge: typeof parsed.progressiveNudge === 'string' ? parsed.progressiveNudge : undefined,
     faithReligion: isReligionId(parsed.faithReligion) ? parsed.faithReligion : undefined,
     extraAttemptGranted: Boolean(parsed.extraAttemptGranted),
@@ -516,7 +517,6 @@ export function createFreshRound(params: {
     defaultHintText: clueMeta.text,
     defaultHintWordCount: clueMeta.wordCount,
     eliminatedLetters: [],
-    fiftyFiftyUsed: false,
     faithReligion: params.faithReligion,
     extraAttemptGranted: false,
     statsRecorded: false,
@@ -654,3 +654,141 @@ export function savePlayerProfile(profile: PlayerProfileState): void {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(PLAYER_PROFILE_KEY, JSON.stringify(profile));
 }
+
+export interface ModeConfigState {
+  puzzleLevel: FiveDifficultyLevel;
+  triviaLevel: FiveDifficultyLevel;
+  faithLevel: FiveDifficultyLevel;
+  puzzleSessionMode: SessionPlayMode;
+  triviaSessionMode: SessionPlayMode;
+}
+
+export interface TriviaLevelClimbState {
+  currentLevel: FiveDifficultyLevel;
+  questionIndex: number; // 0..9
+  correctCount: number; // >= 8 promotes
+  stageComplete: boolean;
+  promotedToLevel: FiveDifficultyLevel | null;
+}
+
+const MODE_CONFIG_KEY = 'wordvibe_mode_config_v1';
+const CROSSWORD_BOARD_KEY = 'wordvibe_crossword_board_v1';
+const CROSSWORD_CLIMB_KEY = 'wordvibe_crossword_climb_v1';
+const TRIVIA_CLIMB_KEY = 'wordvibe_trivia_climb_v1';
+
+const VALID_FIVE_LEVELS = new Set<FiveDifficultyLevel>([
+  'novice',
+  'beginner',
+  'intermediate',
+  'expert',
+  'legendary',
+]);
+
+function cleanFiveLevel(val: unknown, fallback: FiveDifficultyLevel = 'novice'): FiveDifficultyLevel {
+  return typeof val === 'string' && VALID_FIVE_LEVELS.has(val as FiveDifficultyLevel)
+    ? (val as FiveDifficultyLevel)
+    : fallback;
+}
+
+export function loadModeConfig(): ModeConfigState {
+  const defaults: ModeConfigState = {
+    puzzleLevel: 'novice',
+    triviaLevel: 'novice',
+    faithLevel: 'novice',
+    puzzleSessionMode: 'level_climb',
+    triviaSessionMode: 'level_climb',
+  };
+  if (typeof window === 'undefined') return defaults;
+  const parsed = safeParse<Partial<ModeConfigState>>(window.localStorage.getItem(MODE_CONFIG_KEY), {});
+  return {
+    puzzleLevel: cleanFiveLevel(parsed.puzzleLevel, 'novice'),
+    triviaLevel: cleanFiveLevel(parsed.triviaLevel, 'novice'),
+    faithLevel: cleanFiveLevel(parsed.faithLevel, 'novice'),
+    puzzleSessionMode: parsed.puzzleSessionMode === 'sprint' ? 'sprint' : 'level_climb',
+    triviaSessionMode: parsed.triviaSessionMode === 'sprint' ? 'sprint' : 'level_climb',
+  };
+}
+
+export function saveModeConfig(cfg: ModeConfigState): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(MODE_CONFIG_KEY, JSON.stringify(cfg));
+}
+
+export function loadSavedCrosswordBoard(): CrosswordBoardState | null {
+  if (typeof window === 'undefined') return null;
+  const parsed = safeParse<CrosswordBoardState | null>(
+    window.localStorage.getItem(CROSSWORD_BOARD_KEY),
+    null
+  );
+  if (
+    !parsed ||
+    !parsed.solution ||
+    !Array.isArray(parsed.userGrid) ||
+    !Array.isArray(parsed.solvedRows) ||
+    !Array.isArray(parsed.solvedCols) ||
+    parsed.userGrid.length !== parsed.length
+  ) {
+    return null;
+  }
+  return parsed;
+}
+
+export function saveCrosswordBoard(board: CrosswordBoardState): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(CROSSWORD_BOARD_KEY, JSON.stringify(board));
+}
+
+export function loadCrosswordLevelClimb(defaultLevel: FiveDifficultyLevel = 'novice'): CrosswordLevelClimbState {
+  const defaults: CrosswordLevelClimbState = {
+    currentLevel: defaultLevel,
+    roundIndex: 0,
+    roundPassedCount: 0,
+    stageComplete: false,
+    promotedToLevel: null,
+  };
+  if (typeof window === 'undefined') return defaults;
+  const parsed = safeParse<Partial<CrosswordLevelClimbState>>(
+    window.localStorage.getItem(CROSSWORD_CLIMB_KEY),
+    {}
+  );
+  return {
+    currentLevel: cleanFiveLevel(parsed.currentLevel, defaultLevel),
+    roundIndex: typeof parsed.roundIndex === 'number' ? Math.max(0, Math.min(9, parsed.roundIndex)) : 0,
+    roundPassedCount: typeof parsed.roundPassedCount === 'number' ? Math.max(0, parsed.roundPassedCount) : 0,
+    stageComplete: Boolean(parsed.stageComplete),
+    promotedToLevel: parsed.promotedToLevel ? cleanFiveLevel(parsed.promotedToLevel) : null,
+  };
+}
+
+export function saveCrosswordLevelClimb(state: CrosswordLevelClimbState): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(CROSSWORD_CLIMB_KEY, JSON.stringify(state));
+}
+
+export function loadTriviaLevelClimb(defaultLevel: FiveDifficultyLevel = 'novice'): TriviaLevelClimbState {
+  const defaults: TriviaLevelClimbState = {
+    currentLevel: defaultLevel,
+    questionIndex: 0,
+    correctCount: 0,
+    stageComplete: false,
+    promotedToLevel: null,
+  };
+  if (typeof window === 'undefined') return defaults;
+  const parsed = safeParse<Partial<TriviaLevelClimbState>>(
+    window.localStorage.getItem(TRIVIA_CLIMB_KEY),
+    {}
+  );
+  return {
+    currentLevel: cleanFiveLevel(parsed.currentLevel, defaultLevel),
+    questionIndex: typeof parsed.questionIndex === 'number' ? Math.max(0, Math.min(9, parsed.questionIndex)) : 0,
+    correctCount: typeof parsed.correctCount === 'number' ? Math.max(0, parsed.correctCount) : 0,
+    stageComplete: Boolean(parsed.stageComplete),
+    promotedToLevel: parsed.promotedToLevel ? cleanFiveLevel(parsed.promotedToLevel) : null,
+  };
+}
+
+export function saveTriviaLevelClimb(state: TriviaLevelClimbState): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(TRIVIA_CLIMB_KEY, JSON.stringify(state));
+}
+

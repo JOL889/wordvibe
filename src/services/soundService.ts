@@ -73,12 +73,6 @@ class SoundService {
     this.triggerHaptic(10);
   }
 
-  public playFiftyFiftyWhoosh(): void {
-    this.playTone(440, 0.08, 'sine', 0.04, 0);
-    this.playTone(620, 0.11, 'triangle', 0.04, 0.06);
-    this.triggerHaptic(14);
-  }
-
   public playBackspace(): void {
     this.playTone(310, 0.05, 'triangle', 0.035);
   }

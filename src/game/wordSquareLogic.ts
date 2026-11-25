@@ -20,9 +20,7 @@ interface BitsetDict {
   wordToId: Map<string, number>;
   wordCount: number;
   numChunks: number;
-  /** posMasks[pos * 26 + ch] -> Uint32Array bitset of words having ch at pos */
   posMasks: Uint32Array[];
-  /** Optional precomputed all-ones mask */
   allMask: Uint32Array;
 }
 
@@ -30,18 +28,68 @@ const DICT_CACHE = new Map<WordLength, BitsetDict>();
 const SQUARE_CACHE = new Map<string, CompletedWordSquare>();
 
 /**
- * Offline-verified fallback matrix storage for any edge word if runtime node cap is exceeded.
+ * Offline-verified asymmetric base matrices (every row and column is a distinct English word).
+ * Every row word and transposed column word is indexed in PRECOMPUTED_SQUARES for <1ms lookup.
  */
-const PRECOMPUTED_SQUARES: Record<string, string[]> = {
-  DIZZY: ['HERDS', 'AVAIL', 'DIZZY', 'STEEL', 'TEENY'],
-  FUNNY: ['OGEED', 'FUNNY', 'FADGE', 'AVOIR', 'LAWNS'],
-  JELLY: ['RUMAL', 'ALULA', 'JELLY', 'EMCEE', 'SATYR'],
-  JOLLY: ['FLAIL', 'JOLLY', 'OSIER', 'REVUE', 'DRESS'],
-  SQUIB: ['SQUIB', 'TULLE', 'RACER', 'OLEUM', 'PERMS'],
-  WOOZY: ['SCRAP', 'WOOZY', 'INBOX', 'STILE', 'SONES'],
-  SQUID: ['SQUID', 'OUTDO', 'MAILS', 'ALLEE', 'SEERS'],
-  INFORM: ['PASTAS', 'ACCUSE', 'SHARPS', 'TERBIA', 'INFORM', 'LESSEE'],
+const VERIFIED_BASE_MATRICES: Record<WordLength, string[][]> = {
+  4: [
+    ['STAR', 'ORCA', 'NARC', 'EPEE'],
+  ],
+  5: [
+    ['HERDS', 'AVAIL', 'DIZZY', 'STEEL', 'TEENY'],
+    ['OGEED', 'FUNNY', 'FADGE', 'AVOIR', 'LAWNS'],
+    ['RUMAL', 'ALULA', 'JELLY', 'EMCEE', 'SATYR'],
+    ['FLAIL', 'JOLLY', 'OSIER', 'REVUE', 'DRESS'],
+    ['SQUIB', 'TULLE', 'RACER', 'OLEUM', 'PERMS'],
+    ['SCRAP', 'WOOZY', 'INBOX', 'STILE', 'SONES'],
+    ['SQUID', 'OUTDO', 'MAILS', 'ALLEE', 'SEERS'],
+  ],
+  6: [
+    ['PASTAS', 'ACCUSE', 'SHARPS', 'TERBIA', 'INFORM', 'LESSEE'],
+    ['CAVEAT', 'AGENDA', 'MARSHY', 'ARGUER', 'SIERRA', 'SCREES'],
+  ],
 };
+
+function buildPrecomputedMap(): {
+  squares: Record<string, string[]>;
+  targetsByLength: Record<WordLength, string[]>;
+} {
+  const squares: Record<string, string[]> = {};
+  const targetsByLength: Record<WordLength, string[]> = { 4: [], 5: [], 6: [] };
+  const lengths: WordLength[] = [4, 5, 6];
+
+  for (const len of lengths) {
+    const seenForLen = new Set<string>();
+    for (const rows of VERIFIED_BASE_MATRICES[len]) {
+      const cols = Array.from({ length: len }, (_, c) =>
+        rows.map((r) => r[c]).join('')
+      );
+      for (const w of rows) {
+        if (!squares[w]) squares[w] = rows;
+        if (!seenForLen.has(w)) {
+          seenForLen.add(w);
+          targetsByLength[len].push(w);
+        }
+      }
+      for (const w of cols) {
+        if (!squares[w]) squares[w] = cols;
+        if (!seenForLen.has(w)) {
+          seenForLen.add(w);
+          targetsByLength[len].push(w);
+        }
+      }
+    }
+  }
+
+  return { squares, targetsByLength };
+}
+
+const PRECOMPUTED_INDEX = buildPrecomputedMap();
+const PRECOMPUTED_SQUARES = PRECOMPUTED_INDEX.squares;
+
+export function getPrecomputedTargetsForLength(length: WordLength): string[] {
+  return PRECOMPUTED_INDEX.targetsByLength[length] || [];
+}
 
 function commonLetterScore(w: string): number {
   let s = 0;
@@ -64,7 +112,6 @@ function getBitsetDict(length: WordLength): BitsetDict {
   const cached = DICT_CACHE.get(length);
   if (cached) return cached;
 
-  // Sort words by common-letter density descending so DFS hits valid intersections immediately
   const words = Array.from(VALID_WORDS[length]).sort(
     (a, b) => commonLetterScore(b) - commonLetterScore(a) || a.localeCompare(b)
   );
@@ -105,23 +152,6 @@ function getBitsetDict(length: WordLength): BitsetDict {
   return dict;
 }
 
-export function validateWordSquare(rows: string[], length: WordLength): boolean {
-  if (rows.length !== length) return false;
-  const dict = VALID_WORDS[length];
-  for (let r = 0; r < length; r++) {
-    const row = rows[r];
-    if (!row || row.length !== length || !dict.has(row)) return false;
-  }
-  for (let c = 0; c < length; c++) {
-    let col = '';
-    for (let r = 0; r < length; r++) {
-      col += rows[r][c];
-    }
-    if (!dict.has(col)) return false;
-  }
-  return true;
-}
-
 function extractCols(rows: string[], length: number): string[] {
   const cols: string[] = [];
   for (let c = 0; c < length; c++) {
@@ -138,12 +168,41 @@ function transposeRows(rows: string[], length: number): string[] {
   return extractCols(rows, length);
 }
 
-/**
- * Intersects positional letter bitmasks for a slot and returns matching count & bitset buffer.
- */
+export function hasDistinctRowsAndCols(rows: string[], length: WordLength): boolean {
+  if (rows.length !== length) return false;
+  const cols = extractCols(rows, length);
+  const seen = new Set<string>();
+  for (const w of rows) {
+    if (seen.has(w)) return false;
+    seen.add(w);
+  }
+  for (const w of cols) {
+    if (seen.has(w)) return false;
+    seen.add(w);
+  }
+  return true;
+}
+
+export function validateWordSquare(rows: string[], length: WordLength): boolean {
+  if (rows.length !== length) return false;
+  const dict = VALID_WORDS[length];
+  for (let r = 0; r < length; r++) {
+    const row = rows[r];
+    if (!row || row.length !== length || !dict.has(row)) return false;
+  }
+  for (let c = 0; c < length; c++) {
+    let col = '';
+    for (let r = 0; r < length; r++) {
+      col += rows[r][c];
+    }
+    if (!dict.has(col)) return false;
+  }
+  return hasDistinctRowsAndCols(rows, length);
+}
+
 function intersectSlotBitmask(
   dict: BitsetDict,
-  knownChars: Int8Array, // length L, -1 = unknown, 0..25 = 'A'..'Z'
+  knownChars: Int8Array,
   outMask: Uint32Array
 ): number {
   const { length, numChunks, posMasks, allMask } = dict;
@@ -197,15 +256,15 @@ function extractIdsFromMask(mask: Uint32Array, limit: number): number[] {
 }
 
 /**
- * Fast bitset-accelerated MRV + forward-checking solver placing `target` at row `fixedRowIdx`.
+ * Fast bitset-accelerated asymmetric MRV + forward-checking solver placing `target` at row `fixedRowIdx`.
+ * Strictly enforces distinct horizontal row words and vertical column words (no row == col symmetry).
  */
 function solveWithFixedRow(
   target: string,
   length: WordLength,
   fixedRowIdx: number,
   dict: BitsetDict,
-  maxNodes: number,
-  allowDuplicateWords: boolean
+  maxNodes: number
 ): string[] | null {
   const grid = new Int8Array(length * length).fill(-1);
   const assignedRows = new Array<number>(length).fill(-1);
@@ -220,7 +279,7 @@ function solveWithFixedRow(
     assignedRows[fixedRowIdx] = targetId;
     usedIds.add(targetId);
   } else {
-    assignedRows[fixedRowIdx] = -2; // Sentinal: fixed custom word string
+    assignedRows[fixedRowIdx] = -2;
   }
 
   const slotChars = new Int8Array(length);
@@ -285,13 +344,12 @@ function solveWithFixedRow(
       return true;
     }
 
-    const candidateIds = extractIdsFromMask(bestMask, 36);
-    // Snapshot affected cells to restore cleanly
+    const candidateIds = extractIdsFromMask(bestMask, 48);
     const prevCells = new Int8Array(length);
 
     for (let i = 0; i < candidateIds.length; i++) {
       const id = candidateIds[i];
-      if (!allowDuplicateWords && usedIds.has(id)) continue;
+      if (usedIds.has(id)) continue;
       const word = dict.words[id];
 
       if (bestKind === 'row') {
@@ -342,96 +400,8 @@ function solveWithFixedRow(
 }
 
 /**
- * Symmetric bitset MRV solver: filling row r also constrains col r simultaneously,
- * cutting search branching dramatically (< 5ms on 98%+ of 4, 5, and 6-letter English words).
- */
-function solveSymmetricMrv(
-  target: string,
-  length: WordLength,
-  fixedIdx: number,
-  dict: BitsetDict,
-  maxNodes: number
-): string[] | null {
-  const grid = new Int8Array(length * length).fill(-1);
-  const assigned = new Array<number>(length).fill(-1);
-  const usedIds = new Set<number>();
-
-  for (let i = 0; i < length; i++) {
-    const ch = target.charCodeAt(i) - 65;
-    grid[fixedIdx * length + i] = ch;
-    grid[i * length + fixedIdx] = ch;
-  }
-
-  const targetId = dict.wordToId.get(target);
-  if (targetId !== undefined) {
-    assigned[fixedIdx] = targetId;
-    usedIds.add(targetId);
-  } else {
-    assigned[fixedIdx] = -2;
-  }
-
-  const slotChars = new Int8Array(length);
-  const scratchMask = new Uint32Array(dict.numChunks);
-  const bestMask = new Uint32Array(dict.numChunks);
-  let nodes = 0;
-
-  const dfs = (): boolean => {
-    if (++nodes > maxNodes) return false;
-    let bestRow = -1;
-    let bestCount = Infinity;
-
-    for (let r = 0; r < length; r++) {
-      if (assigned[r] !== -1) continue;
-      for (let c = 0; c < length; c++) slotChars[c] = grid[r * length + c];
-      const count = intersectSlotBitmask(dict, slotChars, scratchMask);
-      if (count === 0) return false;
-      if (count < bestCount) {
-        bestCount = count;
-        bestRow = r;
-        bestMask.set(scratchMask);
-        if (count === 1) break;
-      }
-    }
-
-    if (bestRow === -1) return true;
-
-    const candidateIds = extractIdsFromMask(bestMask, 100);
-    const prevCells = new Int8Array(length);
-
-    for (let i = 0; i < candidateIds.length; i++) {
-      const id = candidateIds[i];
-      if (usedIds.has(id)) continue;
-      const word = dict.words[id];
-
-      for (let k = 0; k < length; k++) {
-        prevCells[k] = grid[bestRow * length + k];
-        const ch = word.charCodeAt(k) - 65;
-        grid[bestRow * length + k] = ch;
-        grid[k * length + bestRow] = ch;
-      }
-      assigned[bestRow] = id;
-      usedIds.add(id);
-      if (dfs()) return true;
-      usedIds.delete(id);
-      assigned[bestRow] = -1;
-      for (let k = 0; k < length; k++) {
-        grid[bestRow * length + k] = prevCells[k];
-        grid[k * length + bestRow] = prevCells[k];
-      }
-      if (nodes > maxNodes) return false;
-    }
-
-    return false;
-  };
-
-  if (!dfs()) return null;
-
-  return assigned.map((id, r) => (r === fixedIdx ? target : dict.words[id]));
-}
-
-/**
- * Generates an L x L English Word Square (every horizontal row AND every vertical column
- * is a verified word in VALID_WORDS[length]) anchored on `target`.
+ * Generates an asymmetric L x L English Crossword Square where EVERY horizontal row AND
+ * EVERY vertical column is a verified distinct word in VALID_WORDS[length], anchored on `target`.
  */
 export function buildCompletedWordSquare(
   target: string,
@@ -465,29 +435,22 @@ export function buildCompletedWordSquare(
 
   const dict = getBitsetDict(length);
 
-  // Ordered anchors: edge rows (0, L-1) first, then middle rows
-  const anchorIndices: number[] = [0, length - 1];
-  for (let r = 1; r < length - 1; r++) anchorIndices.push(r);
+  // Place target in interior rows/cols first (indices 1..L-2), which impose lighter start/end letter bottlenecks
+  const anchorIndices: number[] =
+    length === 6
+      ? [1, 4, 0]
+      : [
+          ...Array.from({ length: Math.max(0, length - 2) }, (_, i) => i + 1),
+          0,
+          length - 1,
+        ];
 
-  // Pass 0: Fast Symmetric MRV solver (<5ms for 98%+ of words)
-  for (const idx of anchorIndices) {
-    const symSolved = solveSymmetricMrv(cleanTarget, length, idx, dict, 3500);
-    if (symSolved && validateWordSquare(symSolved, length)) {
-      const res: CompletedWordSquare = {
-        length,
-        target: cleanTarget,
-        rows: symSolved,
-        cols: extractCols(symSolved, length),
-        targetPlacement: { orientation: 'row', index: idx },
-      };
-      SQUARE_CACHE.set(cacheKey, res);
-      return res;
-    }
-  }
+  const rowNodeBudget = length === 6 ? 900 : 1800;
+  const colNodeBudget = length === 6 ? 900 : 2200;
 
-  // Pass 1: horizontal row anchor with distinct words across rows & columns
+  // Pass 1: horizontal row anchor with strictly distinct rows & columns
   for (const rIdx of anchorIndices) {
-    const solved = solveWithFixedRow(cleanTarget, length, rIdx, dict, 1500, false);
+    const solved = solveWithFixedRow(cleanTarget, length, rIdx, dict, rowNodeBudget);
     if (solved && validateWordSquare(solved, length)) {
       const res: CompletedWordSquare = {
         length,
@@ -501,9 +464,9 @@ export function buildCompletedWordSquare(
     }
   }
 
-  // Pass 2: vertical column anchor (transpose) with distinct words
+  // Pass 2: vertical column anchor (transpose) with strictly distinct rows & columns
   for (const cIdx of anchorIndices) {
-    const solvedAsRow = solveWithFixedRow(cleanTarget, length, cIdx, dict, 1500, false);
+    const solvedAsRow = solveWithFixedRow(cleanTarget, length, cIdx, dict, colNodeBudget);
     if (solvedAsRow) {
       const transposed = transposeRows(solvedAsRow, length);
       if (validateWordSquare(transposed, length)) {
@@ -517,22 +480,6 @@ export function buildCompletedWordSquare(
         SQUARE_CACHE.set(cacheKey, res);
         return res;
       }
-    }
-  }
-
-  // Pass 3: deeper search allowing duplicate words if strictly needed
-  for (const rIdx of anchorIndices) {
-    const solved = solveWithFixedRow(cleanTarget, length, rIdx, dict, 3000, true);
-    if (solved && validateWordSquare(solved, length)) {
-      const res: CompletedWordSquare = {
-        length,
-        target: cleanTarget,
-        rows: solved,
-        cols: extractCols(solved, length),
-        targetPlacement: { orientation: 'row', index: rIdx },
-      };
-      SQUARE_CACHE.set(cacheKey, res);
-      return res;
     }
   }
 

@@ -10,9 +10,9 @@ interface BottomNavProps {
 
 const TABS: Array<{ id: AppTab; label: string; testId: string; aria: string }> = [
   { id: 'home', label: 'Streak', testId: 'nav-home', aria: 'Streak home screen' },
-  { id: 'puzzle', label: 'Puzzle', testId: 'nav-puzzle', aria: 'Puzzle board screen' },
-  { id: 'faith', label: 'Faith', testId: 'nav-faith', aria: 'Faith Study screen' },
-  { id: 'trivia', label: 'AI Trivia', testId: 'nav-trivia', aria: 'AI Trivia mode screen' },
+  { id: 'puzzle', label: 'Puzzle', testId: 'nav-puzzle', aria: 'Crossword puzzle screen' },
+  { id: 'faith', label: 'Faith', testId: 'nav-faith', aria: 'Faith Study Endless Sprint screen' },
+  { id: 'trivia', label: 'Trivia', testId: 'nav-trivia', aria: 'Brain Trivia mode screen' },
 ];
 
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onChangeTab }) => {
@@ -22,9 +22,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onChangeTab }) 
     <nav
       data-testid="bottom-nav"
       aria-label="Primary screen switcher"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200/80 dark:border-zinc-800/80 bg-[#F7F5F0]/95 dark:bg-[#111315]/95 backdrop-blur-md amoled-surface"
+      className="fixed inset-x-0 bottom-0 z-40 border-t wv-border wv-card backdrop-blur-md"
     >
-      <div className="relative mx-auto grid h-[60px] max-w-lg grid-cols-4 px-2">
+      <div className="relative mx-auto grid h-[62px] max-w-lg grid-cols-4 px-2">
         {/* Sliding Top Accent Pill */}
         <div
           aria-hidden="true"
@@ -34,7 +34,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onChangeTab }) 
             transform: `translateX(${activeIdx * 100}%)`,
           }}
         >
-          <span className="h-[3px] w-11 rounded-b-full wv-accent-btn" />
+          <span className="h-[3.5px] w-12 rounded-b-full wv-accent-btn" />
         </div>
 
         {TABS.map((tab) => {
@@ -50,37 +50,35 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onChangeTab }) 
                 e.currentTarget.blur();
                 onChangeTab(tab.id);
               }}
-              className={`relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-transform active:scale-95 whitespace-nowrap cursor-pointer ${
-                isActive
-                  ? 'wv-accent-text'
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+              className={`relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-bold transition-transform active:scale-95 whitespace-nowrap cursor-pointer ${
+                isActive ? 'wv-accent-text' : 'wv-text-muted hover:opacity-90'
               }`}
             >
               {tab.id === 'home' && (
                 <Flame
                   className={`h-5 w-5 ${isActive ? 'animate-flame-pulse' : ''}`}
-                  strokeWidth={isActive ? 2.4 : 1.9}
+                  strokeWidth={isActive ? 2.5 : 2}
                   aria-hidden="true"
                 />
               )}
               {tab.id === 'puzzle' && (
                 <Grid3X3
                   className="h-5 w-5"
-                  strokeWidth={isActive ? 2.4 : 1.9}
+                  strokeWidth={isActive ? 2.5 : 2}
                   aria-hidden="true"
                 />
               )}
               {tab.id === 'faith' && (
                 <BookOpen
                   className="h-5 w-5"
-                  strokeWidth={isActive ? 2.4 : 1.9}
+                  strokeWidth={isActive ? 2.5 : 2}
                   aria-hidden="true"
                 />
               )}
               {tab.id === 'trivia' && (
                 <Brain
                   className="h-5 w-5"
-                  strokeWidth={isActive ? 2.4 : 1.9}
+                  strokeWidth={isActive ? 2.5 : 2}
                   aria-hidden="true"
                 />
               )}

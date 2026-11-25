@@ -8,6 +8,45 @@ export type AnimationIntensity = 'full' | 'subtle' | 'reduced';
 export type DifficultyTier = 'casual' | 'balanced' | 'mastermind';
 export type StartingTab = 'home' | 'puzzle' | 'trivia' | 'faith';
 
+export type FiveDifficultyLevel =
+  | 'novice'
+  | 'beginner'
+  | 'intermediate'
+  | 'expert'
+  | 'legendary';
+
+export type SessionPlayMode = 'level_climb' | 'sprint';
+
+export const FIVE_LEVEL_ORDER: FiveDifficultyLevel[] = [
+  'novice',
+  'beginner',
+  'intermediate',
+  'expert',
+  'legendary',
+];
+
+export const FIVE_LEVEL_META: Record<
+  FiveDifficultyLevel,
+  { id: FiveDifficultyLevel; label: string; shortLabel: string; badge: string }
+> = {
+  novice: { id: 'novice', label: 'Novice', shortLabel: 'Novice', badge: 'Very Simple' },
+  beginner: { id: 'beginner', label: 'Beginner', shortLabel: 'Beginner', badge: 'Easy' },
+  intermediate: {
+    id: 'intermediate',
+    label: 'Intermediate',
+    shortLabel: 'Intermed.',
+    badge: 'Balanced',
+  },
+  expert: { id: 'expert', label: 'Expert', shortLabel: 'Expert', badge: 'Hard' },
+  legendary: { id: 'legendary', label: 'Legendary', shortLabel: 'Legend.', badge: 'Master' },
+};
+
+export function getNextFiveLevel(level: FiveDifficultyLevel): FiveDifficultyLevel | null {
+  const idx = FIVE_LEVEL_ORDER.indexOf(level);
+  if (idx === -1 || idx >= FIVE_LEVEL_ORDER.length - 1) return null;
+  return FIVE_LEVEL_ORDER[idx + 1];
+}
+
 export interface AppSettings {
   // General
   autoDetectLocation: boolean;
@@ -22,10 +61,11 @@ export interface AppSettings {
   themeMode: ThemeMode;
   accentColor: AccentColor;
   animationIntensity: AnimationIntensity;
-  // Audio & Haptics
+  // Audio, Haptics & Sensors
   soundEnabled: boolean;
   victoryFanfareEnabled: boolean;
   hapticsEnabled: boolean;
+  sensorsEnabled: boolean;
   // Account & Data
   cloudSyncEnabled: boolean;
   tutorialCompleted: boolean;
@@ -45,6 +85,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   soundEnabled: true,
   victoryFanfareEnabled: true,
   hapticsEnabled: true,
+  sensorsEnabled: true,
   cloudSyncEnabled: false,
   tutorialCompleted: false,
 };
@@ -55,7 +96,9 @@ export interface LegacyAppPreferences {
   highContrast?: boolean;
 }
 
-export function migrateLegacyPreferences(legacy: LegacyAppPreferences | null | undefined): Partial<AppSettings> {
+export function migrateLegacyPreferences(
+  legacy: LegacyAppPreferences | null | undefined
+): Partial<AppSettings> {
   if (!legacy || typeof legacy !== 'object') return {};
   const out: Partial<AppSettings> = {};
   if (typeof legacy.soundEnabled === 'boolean') {
@@ -66,7 +109,6 @@ export function migrateLegacyPreferences(legacy: LegacyAppPreferences | null | u
   } else if (legacy.darkMode === true) {
     out.themeMode = 'dark';
   } else if (legacy.darkMode === false) {
-    // Only apply legacy light preference if explicitly stored previously
     out.themeMode = 'light';
   }
   return out;
@@ -98,7 +140,9 @@ export interface DocumentThemeState {
   metaThemeColor: string;
 }
 
-export function resolveDocumentThemeState(settings: Pick<AppSettings, 'themeMode' | 'accentColor' | 'animationIntensity'>): DocumentThemeState {
+export function resolveDocumentThemeState(
+  settings: Pick<AppSettings, 'themeMode' | 'accentColor' | 'animationIntensity'>
+): DocumentThemeState {
   const isDarkClass =
     settings.themeMode === 'dark' ||
     settings.themeMode === 'amoled' ||
@@ -107,8 +151,8 @@ export function resolveDocumentThemeState(settings: Pick<AppSettings, 'themeMode
     settings.themeMode === 'amoled'
       ? '#000000'
       : isDarkClass
-      ? '#111315'
-      : '#F7F5F0';
+      ? '#0B1633'
+      : '#F6F1E7';
 
   return {
     isDarkClass,

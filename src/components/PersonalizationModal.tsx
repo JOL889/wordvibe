@@ -89,48 +89,28 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
     );
   };
 
-  const resolveServerLocation = async (coords?: { lat: number; lon: number }) => {
+  const resolveOfflineLocation = (coords?: { lat: number; lon: number }) => {
     const tz =
       typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
-    try {
-      const res = await fetch('/api/location/resolve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lat: coords?.lat,
-          lon: coords?.lon,
-          timezone: tz,
-        }),
-      });
-      if (!res.ok) throw new Error('Location resolve failed');
-      const data = (await res.json()) as { location?: UserLocationData };
-      if (data.location) {
-        onUpdateProfile({
-          ...profile,
-          locationEnabled: true,
-          locationOptOut: false,
-          location: data.location,
-        });
-        setCustomCity(data.location.city);
-        setCustomCc(data.location.countryCode);
-        setStatusMessage(
-          `Detected ${formatLocationLabel(data.location)} via ${data.location.source.toUpperCase()}.`
-        );
-        return;
-      }
-      throw new Error('Empty location');
-    } catch {
-      const fallbackLoc = guessLocationFromTimezone(tz);
-      onUpdateProfile({
-        ...profile,
-        locationEnabled: true,
-        locationOptOut: false,
-        location: fallbackLoc,
-      });
-      setCustomCity(fallbackLoc.city);
-      setCustomCc(fallbackLoc.countryCode);
-      setStatusMessage(`Set region to ${formatLocationLabel(fallbackLoc)} from timezone.`);
-    }
+    const fallbackLoc = guessLocationFromTimezone(tz);
+    const nextLoc: UserLocationData = coords
+      ? {
+          ...fallbackLoc,
+          source: 'gps',
+          updatedAt: Date.now(),
+        }
+      : fallbackLoc;
+    onUpdateProfile({
+      ...profile,
+      locationEnabled: true,
+      locationOptOut: false,
+      location: nextLoc,
+    });
+    setCustomCity(nextLoc.city);
+    setCustomCc(nextLoc.countryCode);
+    setStatusMessage(
+      `Region tuned to ${formatLocationLabel(nextLoc)} (${coords ? 'Device GPS + Timezone' : 'Offline Timezone'}).`
+    );
   };
 
   const handleAutoDetect = () => {
@@ -140,18 +120,21 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
     if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          void resolveServerLocation({
+          resolveOfflineLocation({
             lat: pos.coords.latitude,
             lon: pos.coords.longitude,
-          }).finally(() => setDetecting(false));
+          });
+          setDetecting(false);
         },
         () => {
-          void resolveServerLocation().finally(() => setDetecting(false));
+          resolveOfflineLocation();
+          setDetecting(false);
         },
-        { timeout: 5000, maximumAge: 600_000 }
+        { timeout: 4000, maximumAge: 600_000 }
       );
     } else {
-      void resolveServerLocation().finally(() => setDetecting(false));
+      resolveOfflineLocation();
+      setDetecting(false);
     }
   };
 
@@ -223,16 +206,16 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
       aria-labelledby="personalize-modal-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 overflow-y-auto"
     >
-      <div className="my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-stone-200 dark:border-zinc-800 bg-[#FAF9F6] dark:bg-zinc-900 shadow-2xl">
-        <div className="flex items-start justify-between gap-3 border-b border-stone-200 dark:border-zinc-800 px-5 py-4">
+      <div className="my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border-2 wv-border wv-card shadow-2xl">
+        <div className="flex items-start justify-between gap-3 border-b wv-border px-5 py-4">
           <div>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+            <div className="flex items-center gap-1.5 text-xs font-semibold wv-accent-text">
               <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Personalize WordVibe &amp; Live Location</span>
+              <span>Personalize WordVibe &amp; Offline Region</span>
             </div>
             <h2
               id="personalize-modal-title"
-              className="mt-0.5 font-display text-xl font-bold text-zinc-900 dark:text-zinc-50"
+              className="mt-0.5 font-display text-xl font-bold wv-text"
             >
               Your Taste, City &amp; Play Study
             </h2>
@@ -243,7 +226,7 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
             data-testid="close-personalization-btn"
             onClick={onClose}
             aria-label="Close personalization settings"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-500 hover:bg-stone-200/70 dark:text-zinc-400 dark:hover:bg-zinc-800 cursor-pointer"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl wv-text-muted hover:opacity-80 cursor-pointer"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -251,16 +234,16 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
 
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
           {/* 1. Location Awareness */}
-          <div className="rounded-xl border border-stone-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/60 p-4">
+          <div className="rounded-xl border wv-border wv-card-muted p-4">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5 text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                  <MapPin className="h-4 w-4 text-emerald-700 dark:text-emerald-400 shrink-0" aria-hidden="true" />
-                  <span>Use My Location When Online</span>
+                <div className="flex items-center gap-1.5 text-sm font-bold wv-text">
+                  <MapPin className="h-4 w-4 wv-accent-text shrink-0" aria-hidden="true" />
+                  <span>Use My Region (Offline GPS / Timezone)</span>
                 </div>
-                <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400">
+                <p className="mt-0.5 text-xs wv-text-muted">
                   Active region:{' '}
-                  <span data-testid="active-location-label" className="font-semibold text-zinc-900 dark:text-zinc-100">
+                  <span data-testid="active-location-label" className="font-semibold wv-text">
                     {activeLocationLabel}
                   </span>
                 </p>
@@ -273,8 +256,8 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
                 onClick={handleToggleLocation}
                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                   profile.locationEnabled && !profile.locationOptOut
-                    ? 'bg-emerald-700 text-white hover:bg-emerald-800'
-                    : 'border border-stone-300 dark:border-zinc-700 bg-stone-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
+                    ? 'wv-accent-btn'
+                    : 'border wv-border wv-card wv-text-muted'
                 }`}
               >
                 {profile.locationEnabled && !profile.locationOptOut ? 'Enabled' : 'Enable'}
@@ -287,7 +270,7 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
                 data-testid="detect-location-btn"
                 disabled={detecting}
                 onClick={handleAutoDetect}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 dark:bg-zinc-100 px-3 py-2 text-xs font-semibold text-white dark:text-zinc-900 transition-colors hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:opacity-60 cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-lg wv-accent-btn px-3 py-2 text-xs font-semibold disabled:opacity-60 cursor-pointer"
               >
                 {detecting ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
@@ -310,8 +293,8 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
                     onClick={() => handleApplyPreset(preset)}
                     className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
                       isSelected
-                        ? 'border-emerald-700 bg-emerald-50 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-200'
-                        : 'border-stone-200 dark:border-zinc-800 bg-[#FAF9F6] dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:border-stone-300'
+                        ? 'wv-accent-pill border'
+                        : 'wv-border wv-card wv-text-muted hover:opacity-90'
                     }`}
                   >
                     {preset.city}, {preset.countryCode}
@@ -327,7 +310,7 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
                 onChange={(e) => setCustomCity(e.target.value)}
                 placeholder="City (e.g. Austin)"
                 aria-label="Custom city name"
-                className="min-w-0 flex-1 rounded-lg border border-stone-200 dark:border-zinc-700 bg-[#FAF9F6] dark:bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-900 dark:text-zinc-100"
+                className="min-w-0 flex-1 rounded-lg border wv-border wv-card px-2.5 py-1.5 text-xs wv-text"
               />
               <input
                 type="text"
@@ -336,18 +319,18 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
                 placeholder="US"
                 maxLength={2}
                 aria-label="2-letter country code"
-                className="w-12 rounded-lg border border-stone-200 dark:border-zinc-700 bg-[#FAF9F6] dark:bg-zinc-900 px-2 py-1.5 text-center font-mono-tabular text-xs uppercase text-zinc-900 dark:text-zinc-100"
+                className="w-12 rounded-lg border wv-border wv-card px-2 py-1.5 text-center font-mono-tabular text-xs uppercase wv-text"
               />
               <button
                 type="submit"
-                className="rounded-lg border border-stone-300 dark:border-zinc-700 px-2.5 py-1.5 text-xs font-semibold text-zinc-800 dark:text-zinc-200 hover:bg-stone-100 dark:hover:bg-zinc-800 cursor-pointer whitespace-nowrap"
+                className="rounded-lg border wv-border wv-card px-2.5 py-1.5 text-xs font-semibold wv-text hover:opacity-90 cursor-pointer whitespace-nowrap"
               >
                 Set City
               </button>
             </form>
 
             {statusMessage && (
-              <p className="mt-2 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+              <p className="mt-2 text-[11px] font-medium wv-accent-text">
                 {statusMessage}
               </p>
             )}
@@ -356,11 +339,11 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
           {/* 2. User Interests */}
           <div>
             <div className="flex items-center justify-between gap-2">
-              <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-                <Compass className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" aria-hidden="true" />
+              <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider wv-text-muted">
+                <Compass className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
                 <span>Your Topics (Up to 5)</span>
               </h3>
-              <span className="font-mono-tabular text-[11px] text-zinc-500">
+              <span className="font-mono-tabular text-[11px] wv-text-muted">
                 {profile.selectedInterests.length}/5 selected
               </span>
             </div>
@@ -376,8 +359,8 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
                     onClick={() => handleToggleInterest(interest.id)}
                     className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
                       selected
-                        ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
-                        : 'border-stone-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/60 text-zinc-700 dark:text-zinc-300 hover:border-stone-300'
+                        ? 'wv-accent-btn border-transparent'
+                        : 'wv-border wv-card-muted wv-text-muted hover:opacity-90'
                     }`}
                   >
                     {selected && <Check className="h-3 w-3 shrink-0" aria-hidden="true" />}
@@ -388,10 +371,10 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
             </div>
           </div>
 
-          {/* 3. AI Difficulty & Clue Style */}
+          {/* 3. Challenge Pace */}
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-              AI Challenge Pace
+            <h3 className="text-xs font-bold uppercase tracking-wider wv-text-muted">
+              Challenge Pace
             </h3>
             <div className="mt-2 grid grid-cols-3 gap-2">
               {PACE_OPTIONS.map((opt) => {
@@ -404,14 +387,12 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
                     onClick={() => onUpdateProfile({ ...profile, challengePace: opt.id })}
                     className={`rounded-xl border p-2.5 text-left transition-colors cursor-pointer ${
                       active
-                        ? 'border-emerald-700 bg-emerald-50/70 dark:border-emerald-500 dark:bg-emerald-950/35'
-                        : 'border-stone-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/60 hover:border-stone-300'
+                        ? 'wv-accent-pill border-2'
+                        : 'wv-border wv-card-muted wv-text hover:opacity-90'
                     }`}
                   >
-                    <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                      {opt.label}
-                    </div>
-                    <div className="mt-0.5 text-[10px] leading-snug text-zinc-600 dark:text-zinc-400">
+                    <div className="text-xs font-bold">{opt.label}</div>
+                    <div className="mt-0.5 text-[10px] leading-snug opacity-80">
                       {opt.desc}
                     </div>
                   </button>
@@ -423,17 +404,17 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
           {/* 4. Learned Gameplay Insights */}
           <div
             data-testid="learned-insights-card"
-            className="rounded-xl border border-stone-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/60 p-4"
+            className="rounded-xl border wv-border wv-card-muted p-4"
           >
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                <Brain className="h-4 w-4 text-emerald-700 dark:text-emerald-400" aria-hidden="true" />
+              <div className="flex items-center gap-1.5 text-xs font-bold wv-text">
+                <Brain className="h-4 w-4 wv-accent-text" aria-hidden="true" />
                 <span>What WordVibe Learned About You</span>
               </div>
               <button
                 type="button"
                 onClick={onResetStudyStats}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 cursor-pointer"
+                className="inline-flex items-center gap-1 text-[11px] font-semibold wv-text-muted hover:opacity-80 cursor-pointer"
               >
                 <RotateCcw className="h-3 w-3" aria-hidden="true" />
                 <span>Reset Study</span>
@@ -441,70 +422,70 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
             </div>
 
             <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-              <div className="rounded-lg bg-stone-100/80 dark:bg-zinc-900 p-2">
-                <div className="font-mono-tabular text-sm font-bold text-zinc-900 dark:text-zinc-50">
+              <div className="rounded-lg border wv-border wv-card p-2">
+                <div className="font-mono-tabular text-sm font-bold wv-text">
                   {insights.favoriteLength}-Letter
                 </div>
-                <div className="text-[10px] text-zinc-500">Top Board</div>
+                <div className="text-[10px] wv-text-muted">Top Board</div>
               </div>
-              <div className="rounded-lg bg-stone-100/80 dark:bg-zinc-900 p-2">
-                <div className="font-mono-tabular text-sm font-bold text-emerald-700 dark:text-emerald-400">
+              <div className="rounded-lg border wv-border wv-card p-2">
+                <div className="font-mono-tabular text-sm font-bold wv-accent-text">
                   {profile.triviaAnswered > 0 ? `${insights.triviaAccuracy}%` : '—'}
                 </div>
-                <div className="text-[10px] text-zinc-500">Trivia Acc.</div>
+                <div className="text-[10px] wv-text-muted">Trivia Acc.</div>
               </div>
-              <div className="rounded-lg bg-stone-100/80 dark:bg-zinc-900 p-2">
-                <div className="font-mono-tabular text-sm font-bold text-zinc-900 dark:text-zinc-50">
+              <div className="rounded-lg border wv-border wv-card p-2">
+                <div className="font-mono-tabular text-sm font-bold wv-text">
                   {profile.totalPuzzlesStudied > 0 ? insights.avgGuesses : '—'}
                 </div>
-                <div className="text-[10px] text-zinc-500">Avg Guesses</div>
+                <div className="text-[10px] wv-text-muted">Avg Moves</div>
               </div>
             </div>
 
-            <p className="mt-2.5 text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-400">
+            <p className="mt-2.5 text-[11px] leading-relaxed wv-text-muted">
               {insights.topCategoryNames.length > 0
                 ? `Top studied puzzle themes: ${insights.topCategoryNames.join(', ')}. Peak window: ${insights.peakWindowLabel}.`
-                : `Play puzzles and AI Trivia so WordVibe can adapt difficulty (${insights.recommendedDifficulty} tier) and regional word picks.`}
+                : `Play puzzles and Trivia so WordVibe can adapt your recommended pace cleanly offline.`}
             </p>
           </div>
 
           {/* 5. Current Player & Device Context */}
           <div
             data-testid="user-research-card"
-            className="rounded-xl border border-stone-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/60 p-4 space-y-3"
+            className="rounded-xl border wv-border wv-card-muted p-4 space-y-3"
           >
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                <UserCheck className="h-4 w-4 text-emerald-700 dark:text-emerald-400" aria-hidden="true" />
+              <div className="flex items-center gap-1.5 text-xs font-bold wv-text">
+                <UserCheck className="h-4 w-4 wv-accent-text" aria-hidden="true" />
                 <span>Your Active Player Context</span>
               </div>
-              <span className="font-mono-tabular text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+              <span className="font-mono-tabular text-[10px] font-semibold wv-accent-text">
                 {dossier.skillTier} Tier
               </span>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-[11px]">
-              <div className="rounded-lg bg-stone-100/80 dark:bg-zinc-900 px-2.5 py-2">
-                <div className="text-[10px] text-zinc-500">Region &amp; Timezone</div>
-                <div className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+              <div className="rounded-lg border wv-border wv-card px-2.5 py-2">
+                <div className="text-[10px] wv-text-muted">Region &amp; Timezone</div>
+                <div className="font-semibold wv-text truncate">
                   {dossier.regionLabel} · {envSnapshot.timezone}
                 </div>
               </div>
-              <div className="rounded-lg bg-stone-100/80 dark:bg-zinc-900 px-2.5 py-2">
-                <div className="text-[10px] text-zinc-500">Language &amp; Window</div>
-                <div className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+              <div className="rounded-lg border wv-border wv-card px-2.5 py-2">
+                <div className="text-[10px] wv-text-muted">Language &amp; Window</div>
+                <div className="font-semibold wv-text truncate">
                   {dossier.locale} · {envSnapshot.dayOfWeek} {dossier.timeOfDay}
                 </div>
               </div>
-              <div className="rounded-lg bg-stone-100/80 dark:bg-zinc-900 px-2.5 py-2">
-                <div className="text-[10px] text-zinc-500">Device &amp; Input</div>
-                <div className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+              <div className="rounded-lg border wv-border wv-card px-2.5 py-2">
+                <div className="text-[10px] wv-text-muted">Device &amp; Input</div>
+                <div className="font-semibold wv-text truncate">
                   {dossier.deviceLabel} · {envSnapshot.inputMethod}
                 </div>
               </div>
-              <div className="rounded-lg bg-stone-100/80 dark:bg-zinc-900 px-2.5 py-2">
-                <div className="text-[10px] text-zinc-500">Active Focus</div>
-                <div className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+              <div className="rounded-lg border wv-border wv-card px-2.5 py-2">
+                <div className="text-[10px] wv-text-muted">Active Focus</div>
+                <div className="font-semibold wv-text truncate">
                   {dossier.focusLabel}
                 </div>
               </div>
@@ -512,7 +493,7 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <label className="block">
-                <span className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400">
+                <span className="text-[10px] font-semibold wv-text-muted">
                   Name (Optional)
                 </span>
                 <input
@@ -526,12 +507,12 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
                     })
                   }
                   placeholder="e.g. Alex"
-                  className="mt-1 w-full rounded-lg border border-stone-200 dark:border-zinc-700 bg-[#FAF9F6] dark:bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-900 dark:text-zinc-100"
+                  className="mt-1 w-full rounded-lg border wv-border wv-card px-2.5 py-1.5 text-xs wv-text"
                 />
               </label>
 
               <label className="block">
-                <span className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400">
+                <span className="text-[10px] font-semibold wv-text-muted">
                   Field or Vibe (Optional)
                 </span>
                 <input
@@ -545,18 +526,18 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
                     })
                   }
                   placeholder="e.g. Medicine, Music, Design"
-                  className="mt-1 w-full rounded-lg border border-stone-200 dark:border-zinc-700 bg-[#FAF9F6] dark:bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-900 dark:text-zinc-100"
+                  className="mt-1 w-full rounded-lg border wv-border wv-card px-2.5 py-1.5 text-xs wv-text"
                 />
               </label>
             </div>
           </div>
         </div>
 
-        <div className="border-t border-stone-200 dark:border-zinc-800 px-5 py-3 flex justify-end">
+        <div className="border-t wv-border px-5 py-3 flex justify-end">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg bg-zinc-900 dark:bg-zinc-100 px-4 py-2 text-xs font-semibold text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 cursor-pointer"
+            className="min-h-11 rounded-xl wv-accent-btn px-5 py-2 text-xs font-bold cursor-pointer"
           >
             Done
           </button>

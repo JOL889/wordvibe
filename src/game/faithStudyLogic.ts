@@ -6,7 +6,12 @@ import {
   type TriviaDifficulty,
   type TriviaQuestion,
 } from './triviaLogic';
-import { getBucketRemainingCount, pickZeroRepeatItem } from './zeroRepeatDeck';
+import {
+  getBucketRemainingCount,
+  getBucketSeenKeys,
+  markBucketKeySeen,
+  pickZeroRepeatItem,
+} from './zeroRepeatDeck';
 
 export type ReligionId =
   | 'christianity'
@@ -1026,31 +1031,51 @@ export function drawZeroRepeatFaithQuestion(params: {
     dedupMap.set(q.question.trim().toLowerCase(), q);
   }
   const allForReligion = Array.from(dedupMap.values());
-  const levelFiltered = allForReligion.filter((q) => q.difficulty === level);
-  const excludeSet = new Set(excludeIdsOrQuestions.map((s) => s.trim().toLowerCase()));
+  const globalSeenBucket = `faith:${religion}:seen_all`;
+  const alreadySeenGlobal = getBucketSeenKeys(globalSeenBucket);
+  const combinedExcludes = Array.from(
+    new Set([
+      ...excludeIdsOrQuestions,
+      ...alreadySeenGlobal,
+    ])
+  );
+  const excludeSet = new Set(combinedExcludes.map((s) => s.trim().toLowerCase()));
 
-  // First try unseen items at the requested level; if that level is exhausted, widen to other unseen items for this faith
+  const levelFiltered = allForReligion.filter((q) => q.difficulty === level);
   const primaryPool = levelFiltered.length > 0 ? levelFiltered : allForReligion;
+
   const remainingPrimary = getBucketRemainingCount(
     `faith:${religion}:${level}`,
-    primaryPool.filter((q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())),
-    (q) => q.id
+    primaryPool,
+    (q) => q.id,
+    combinedExcludes
   );
 
+  let chosen: (typeof bankItems)[number];
   if (remainingPrimary > 0) {
-    return pickZeroRepeatItem(
+    const filteredPrimary = primaryPool.filter(
+      (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
+    );
+    chosen = pickZeroRepeatItem(
       `faith:${religion}:${level}`,
-      primaryPool,
+      filteredPrimary.length > 0 ? filteredPrimary : primaryPool,
+      (q) => q.id,
+      combinedExcludes
+    );
+  } else {
+    const remainingAll = allForReligion.filter(
+      (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
+    );
+    chosen = pickZeroRepeatItem(
+      `faith:${religion}:all`,
+      remainingAll.length > 0 ? remainingAll : allForReligion,
       (q) => q.id,
       excludeIdsOrQuestions
     );
   }
 
-  return pickZeroRepeatItem(
-    `faith:${religion}:all`,
-    allForReligion,
-    (q) => q.id,
-    excludeIdsOrQuestions
-  );
+  markBucketKeySeen(globalSeenBucket, chosen.id);
+  markBucketKeySeen(globalSeenBucket, chosen.question);
+  return chosen;
 }
 

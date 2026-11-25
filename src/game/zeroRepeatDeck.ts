@@ -99,18 +99,40 @@ export function pickZeroRepeatItem<T>(
   return chosen;
 }
 
+export function getBucketSeenKeys(bucketKey: string): string[] {
+  const store = loadStore();
+  const bucket = store[bucketKey];
+  return bucket && Array.isArray(bucket.seen) ? [...bucket.seen] : [];
+}
+
+export function markBucketKeySeen(bucketKey: string, key: string): void {
+  const norm = normalizeKey(key);
+  if (!norm) return;
+  const store = loadStore();
+  const bucket = store[bucketKey] || { seen: [] };
+  if (!bucket.seen.includes(norm)) {
+    store[bucketKey] = {
+      seen: [...bucket.seen, norm],
+      lastKey: norm,
+    };
+    saveStore(store);
+  }
+}
+
 export function getBucketRemainingCount<T>(
   bucketKey: string,
   pool: readonly T[],
-  getKey: (item: T) => string
+  getKey: (item: T) => string,
+  extraExcludeKeys: readonly string[] = []
 ): number {
   const store = loadStore();
   const bucket = store[bucketKey];
-  if (!bucket || bucket.seen.length === 0) return pool.length;
-  const seenSet = new Set(bucket.seen.map(normalizeKey));
+  const seenSet = new Set((bucket?.seen || []).map(normalizeKey));
+  const extraSet = new Set(extraExcludeKeys.map(normalizeKey));
   let unseen = 0;
   for (const item of pool) {
-    if (!seenSet.has(normalizeKey(getKey(item)))) unseen++;
+    const k = normalizeKey(getKey(item));
+    if (!seenSet.has(k) && !extraSet.has(k)) unseen++;
   }
   return unseen;
 }

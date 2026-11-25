@@ -1,16 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  advanceCrosswordLevelClimb,
   applyCrosswordKey,
   applyUnlimitedCrosswordHint,
   createCrosswordBoard,
+  createCrosswordClimbState,
   CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD,
   CROSSWORD_LEVEL_CLIMB_TOTAL,
   getCrosswordProgressSummary,
+  isCleanCrosswordPass,
   unlockCrosswordLineClue,
 } from './crosswordLogic';
 import { FIVE_LEVEL_ORDER, getNextFiveLevel } from './settingsLogic';
-import { drawZeroRepeatTriviaQuestion, TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD, TRIVIA_LEVEL_CLIMB_TOTAL } from './triviaLogic';
+import {
+  advanceTriviaLevelClimb,
+  createTriviaClimbState,
+  drawZeroRepeatTriviaQuestion,
+  TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD,
+  TRIVIA_LEVEL_CLIMB_TOTAL,
+} from './triviaLogic';
 import { drawZeroRepeatFaithQuestion } from './faithStudyLogic';
 import { buildCompletedWordSquare, hasDistinctRowsAndCols, validateWordSquare } from './wordSquareLogic';
 import { clearZeroRepeatDeckForTest } from './zeroRepeatDeck';
@@ -119,6 +128,7 @@ test('board becomes won ONLY after every row and column has been completed indiv
       assert.equal(res.outcome, 'board_won');
       assert.equal(board.solvedRows.every(Boolean), true);
       assert.equal(board.solvedCols.every(Boolean), true);
+      assert.equal(isCleanCrosswordPass(board), true);
     }
   }
 });
@@ -149,7 +159,7 @@ test('unlimited ad hints and consonant/vowel + meaning clues work cleanly withou
   assert.equal(board.hintsUsed, 10);
 });
 
-test('5 difficulty tiers and Level Climb 8/10 progression constants match specification', () => {
+test('5 difficulty tiers and Level Climb 8/10 progression advance correctly for Trivia and Crossword', () => {
   assert.deepEqual(FIVE_LEVEL_ORDER, ['novice', 'beginner', 'intermediate', 'expert', 'legendary']);
   assert.equal(getNextFiveLevel('novice'), 'beginner');
   assert.equal(getNextFiveLevel('beginner'), 'intermediate');
@@ -160,19 +170,46 @@ test('5 difficulty tiers and Level Climb 8/10 progression constants match specif
   assert.equal(CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD, 8);
   assert.equal(TRIVIA_LEVEL_CLIMB_TOTAL, 10);
   assert.equal(TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD, 8);
+
+  // Trivia: 8/10 promotes Novice -> Beginner
+  let tClimb = createTriviaClimbState('novice');
+  for (let i = 0; i < 10; i++) {
+    tClimb = advanceTriviaLevelClimb(tClimb, i < 8);
+  }
+  assert.equal(tClimb.stageComplete, true);
+  assert.equal(tClimb.correctCount, 8);
+  assert.equal(tClimb.promotedToLevel, 'beginner');
+
+  // Trivia: 7/10 stays at Novice
+  let tFail = createTriviaClimbState('novice');
+  for (let i = 0; i < 10; i++) {
+    tFail = advanceTriviaLevelClimb(tFail, i < 7);
+  }
+  assert.equal(tFail.stageComplete, true);
+  assert.equal(tFail.correctCount, 7);
+  assert.equal(tFail.promotedToLevel, null);
+
+  // Crossword: 9/10 promotes Intermediate -> Expert
+  let cClimb = createCrosswordClimbState('intermediate');
+  for (let i = 0; i < 10; i++) {
+    cClimb = advanceCrosswordLevelClimb(cClimb, i !== 3);
+  }
+  assert.equal(cClimb.stageComplete, true);
+  assert.equal(cClimb.roundPassedCount, 9);
+  assert.equal(cClimb.promotedToLevel, 'expert');
 });
 
 test('zero-repeat trivia & faith draws produce zero repeats across draws even on fresh calls', () => {
   clearZeroRepeatDeckForTest();
   const seenTrivia = new Set<string>();
-  for (let i = 0; i < 6; i++) {
-    const q = drawZeroRepeatTriviaQuestion({ categoryId: 'general-knowledge', level: 'novice' });
+  for (let i = 0; i < 10; i++) {
+    const q = drawZeroRepeatTriviaQuestion({ categoryId: 'local-trending', level: 'novice' });
     assert.equal(seenTrivia.has(q.question), false, `Repeated trivia question: ${q.question}`);
     seenTrivia.add(q.question);
   }
 
   const seenFaith = new Set<string>();
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 8; i++) {
     const fq = drawZeroRepeatFaithQuestion({ religion: 'christianity', level: 'beginner' });
     assert.equal(seenFaith.has(fq.question), false, `Repeated faith question: ${fq.question}`);
     seenFaith.add(fq.question);

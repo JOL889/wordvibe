@@ -1,6 +1,11 @@
-import { FIVE_LEVEL_ORDER, type FiveDifficultyLevel } from './settingsLogic';
+import { FIVE_LEVEL_ORDER, getNextFiveLevel, type FiveDifficultyLevel } from './settingsLogic';
 import { CURATED_TRIVIA_BANK, type CuratedBankTriviaItem } from './triviaBank';
-import { pickZeroRepeatItem } from './zeroRepeatDeck';
+import {
+  getBucketRemainingCount,
+  getBucketSeenKeys,
+  markBucketKeySeen,
+  pickZeroRepeatItem,
+} from './zeroRepeatDeck';
 
 export type TriviaDifficulty =
   | FiveDifficultyLevel
@@ -26,15 +31,53 @@ export interface TriviaQuestion {
   groundingSources?: GroundingSourceLink[];
 }
 
-export const TRIVIA_ROUND_LENGTH = 5;
 export const TRIVIA_LEVEL_CLIMB_TOTAL = 10;
 export const TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD = 8;
 export const TRIVIA_BONUS_UNLOCK_HOURS = 24;
 
-export function computeFiftyFiftyIndices(correctIndex: number, seed = 0): [number, number] {
-  const wrong = [0, 1, 2, 3].filter((i) => i !== correctIndex);
-  const start = Math.abs(Math.floor(seed)) % wrong.length;
-  return [wrong[start], wrong[(start + 1) % wrong.length]];
+export interface TriviaClimbProgress {
+  currentLevel: FiveDifficultyLevel;
+  questionIndex: number; // 0..9 within current 10-question stage
+  correctCount: number; // >= 8 unlocks next difficulty tier
+  stageComplete: boolean;
+  promotedToLevel: FiveDifficultyLevel | null;
+}
+
+export function createTriviaClimbState(level: FiveDifficultyLevel = 'novice'): TriviaClimbProgress {
+  return {
+    currentLevel: level,
+    questionIndex: 0,
+    correctCount: 0,
+    stageComplete: false,
+    promotedToLevel: null,
+  };
+}
+
+export function advanceTriviaLevelClimb(
+  climb: TriviaClimbProgress,
+  isCorrect: boolean
+): TriviaClimbProgress {
+  if (climb.stageComplete) return climb;
+  const nextCorrect = climb.correctCount + (isCorrect ? 1 : 0);
+  const nextIndex = climb.questionIndex + 1;
+  if (nextIndex >= TRIVIA_LEVEL_CLIMB_TOTAL) {
+    const passed = nextCorrect >= TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD;
+    const nextLevel = passed ? getNextFiveLevel(climb.currentLevel) : null;
+    return {
+      currentLevel: climb.currentLevel,
+      questionIndex: TRIVIA_LEVEL_CLIMB_TOTAL,
+      correctCount: nextCorrect,
+      stageComplete: true,
+      promotedToLevel: nextLevel,
+    };
+  }
+  return {
+    ...climb,
+    questionIndex: nextIndex,
+    correctCount: nextCorrect,
+    stageComplete: false,
+    promotedToLevel: null,
+  };
 }
 
 export function normalizeToFiveLevel(diff: TriviaDifficulty): FiveDifficultyLevel {
@@ -230,25 +273,56 @@ export function drawZeroRepeatTriviaQuestion(params: {
 }): TriviaQuestion {
   const { categoryId, level, excludeTexts = [], context } = params;
   const basePool = filterBankForCategory(categoryId);
+  const exactOnly = basePool.filter((q) => q.level === level);
   const tierPool = getTierPoolWithNeighborFallback(basePool, level);
 
-  // Also include full-bank overflow of that tier only if the category tier is small,
-  // preserving category specificity first via exact matching.
-  const exactOnly = basePool.filter((q) => q.level === level);
-  const candidatePool = exactOnly.length > 0 ? exactOnly : tierPool;
+  const globalBucket = `trivia:${categoryId}:seen_all`;
+  const alreadySeenGlobal = getBucketSeenKeys(globalBucket);
+  const combinedExcludes = Array.from(new Set([...excludeTexts, ...alreadySeenGlobal]));
+  const excludeSet = new Set(combinedExcludes.map((t) => t.trim().toLowerCase()));
 
-  const excludeSet = new Set(excludeTexts.map((t) => t.trim().toLowerCase()));
-  const filteredPool = candidatePool.filter(
-    (q) => !excludeSet.has(q.question.trim().toLowerCase())
-  );
-  const effectivePool = filteredPool.length > 0 ? filteredPool : candidatePool;
+  const exactRemaining =
+    exactOnly.length > 0
+      ? getBucketRemainingCount(
+          `trivia:${categoryId}:${level}`,
+          exactOnly,
+          (q) => q.id,
+          combinedExcludes
+        )
+      : 0;
 
-  const picked = pickZeroRepeatItem(
-    `trivia:${categoryId}:${level}`,
-    effectivePool,
-    (q) => q.id,
-    excludeTexts
-  );
+  let chosen: CuratedBankTriviaItem;
+  if (exactRemaining > 0) {
+    const filteredExact = exactOnly.filter(
+      (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
+    );
+    chosen = pickZeroRepeatItem(
+      `trivia:${categoryId}:${level}`,
+      filteredExact.length > 0 ? filteredExact : exactOnly,
+      (q) => q.id,
+      combinedExcludes
+    );
+  } else {
+    const fallbackPool = tierPool.length > 0 ? tierPool : basePool;
+    const filteredFallback = fallbackPool.filter(
+      (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
+    );
+    const poolToUse =
+      filteredFallback.length > 0
+        ? filteredFallback
+        : basePool.filter(
+            (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
+          );
+    chosen = pickZeroRepeatItem(
+      `trivia:${categoryId}:${level}`,
+      poolToUse.length > 0 ? poolToUse : fallbackPool,
+      (q) => q.id,
+      excludeTexts
+    );
+  }
+
+  markBucketKeySeen(globalBucket, chosen.id);
+  markBucketKeySeen(globalBucket, chosen.question);
 
   let personalizationReason: string | undefined;
   if (categoryId === 'for-you-local') {
@@ -260,7 +334,7 @@ export function drawZeroRepeatTriviaQuestion(params: {
     personalizationReason = `Regional Highlight · ${context.locationLabel}`;
   }
 
-  return toTriviaQuestion(picked, personalizationReason);
+  return toTriviaQuestion(chosen, personalizationReason);
 }
 
 /**

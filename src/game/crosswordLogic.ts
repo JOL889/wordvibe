@@ -1,7 +1,7 @@
 import { SOLUTION_WORDS, VALID_WORDS, type WordLength } from '../data/words';
 import { getCategoryById } from '../data/categories';
 import { evaluateGuess, type TileState, type TypingDirection } from './puzzleLogic';
-import type { FiveDifficultyLevel } from './settingsLogic';
+import { getNextFiveLevel, FIVE_LEVEL_META, type FiveDifficultyLevel } from './settingsLogic';
 import { buildConsonantVowelMeaningClue } from './wordMeanings';
 import {
   buildCompletedWordSquare,
@@ -707,4 +707,61 @@ export function getCrosswordProgressSummary(board: CrosswordBoardState): {
     totalWords,
     solvedWordsCount: solvedRowsCount + solvedColsCount,
   };
+}
+
+export function createCrosswordClimbState(
+  level: FiveDifficultyLevel = 'novice'
+): CrosswordLevelClimbState {
+  return {
+    currentLevel: level,
+    roundIndex: 0,
+    roundPassedCount: 0,
+    stageComplete: false,
+    promotedToLevel: null,
+  };
+}
+
+export function isCleanCrosswordPass(board: CrosswordBoardState): boolean {
+  return board.status === 'won' && board.wrongChecks <= 4;
+}
+
+export function advanceCrosswordLevelClimb(
+  climb: CrosswordLevelClimbState,
+  passedCleanly: boolean
+): CrosswordLevelClimbState {
+  if (climb.stageComplete) return climb;
+  const nextPassed = climb.roundPassedCount + (passedCleanly ? 1 : 0);
+  const nextRound = climb.roundIndex + 1;
+  if (nextRound >= CROSSWORD_LEVEL_CLIMB_TOTAL) {
+    const promoted = nextPassed >= CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD;
+    const nextLevel = promoted ? getNextFiveLevel(climb.currentLevel) : null;
+    return {
+      currentLevel: climb.currentLevel,
+      roundIndex: CROSSWORD_LEVEL_CLIMB_TOTAL,
+      roundPassedCount: nextPassed,
+      stageComplete: true,
+      promotedToLevel: nextLevel,
+    };
+  }
+  return {
+    ...climb,
+    roundIndex: nextRound,
+    roundPassedCount: nextPassed,
+    stageComplete: false,
+    promotedToLevel: null,
+  };
+}
+
+export function formatCrosswordShareText(board: CrosswordBoardState): string {
+  const prog = getCrosswordProgressSummary(board);
+  const levelLabel = FIVE_LEVEL_META[board.level]?.label || board.level;
+  const category = getCategoryById(board.categoryId);
+  const rowBadges = board.solvedRows.map((s) => (s ? '🟩' : '⬜')).join('');
+  const colBadges = board.solvedCols.map((s) => (s ? '🟨' : '⬜')).join('');
+  return [
+    `WordVibe ${board.length}×${board.length} Crossword · ${levelLabel}`,
+    `${category.name} · ${prog.solvedWordsCount}/${prog.totalWords} linked words`,
+    `Rows ${rowBadges}`,
+    `Cols ${colBadges}`,
+  ].join('\n');
 }

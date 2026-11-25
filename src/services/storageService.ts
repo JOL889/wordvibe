@@ -45,6 +45,7 @@ export interface PuzzleRoundState {
   defaultHintText?: string;
   defaultHintWordCount?: HintClueWordCount;
   eliminatedLetters: string[];
+  fiftyFiftyUsed?: boolean;
   progressiveNudge?: string;
   faithReligion?: ReligionId;
   extraAttemptGranted: boolean;
@@ -178,6 +179,7 @@ function normalizeRound(parsed: Partial<PuzzleRoundState> | null): PuzzleRoundSt
         ? parsed.defaultHintWordCount
         : fallbackClue.wordCount,
     eliminatedLetters: Array.isArray(parsed.eliminatedLetters) ? parsed.eliminatedLetters : [],
+    fiftyFiftyUsed: Boolean(parsed.fiftyFiftyUsed),
     progressiveNudge: typeof parsed.progressiveNudge === 'string' ? parsed.progressiveNudge : undefined,
     faithReligion: isReligionId(parsed.faithReligion) ? parsed.faithReligion : undefined,
     extraAttemptGranted: Boolean(parsed.extraAttemptGranted),

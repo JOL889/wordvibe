@@ -34,6 +34,7 @@ import {
   pickFallbackTriviaQuestion,
   TRIVIA_CATEGORIES,
   TRIVIA_ROUND_LENGTH,
+  type TriviaDifficulty,
   type TriviaQuestion,
 } from '../game/triviaLogic';
 import { rewardedAdService, type RewardPlacement } from '../services/rewardedAdService';

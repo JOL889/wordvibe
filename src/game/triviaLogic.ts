@@ -26,9 +26,16 @@ export interface TriviaQuestion {
   groundingSources?: GroundingSourceLink[];
 }
 
+export const TRIVIA_ROUND_LENGTH = 5;
 export const TRIVIA_LEVEL_CLIMB_TOTAL = 10;
 export const TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD = 8;
 export const TRIVIA_BONUS_UNLOCK_HOURS = 24;
+
+export function computeFiftyFiftyIndices(correctIndex: number, seed = 0): [number, number] {
+  const wrong = [0, 1, 2, 3].filter((i) => i !== correctIndex);
+  const start = Math.abs(Math.floor(seed)) % wrong.length;
+  return [wrong[start], wrong[(start + 1) % wrong.length]];
+}
 
 export function normalizeToFiveLevel(diff: TriviaDifficulty): FiveDifficultyLevel {
   if (diff === 'novice' || diff === 'beginner' || diff === 'intermediate' || diff === 'expert' || diff === 'legendary') {

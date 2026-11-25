@@ -12,6 +12,7 @@ export type RewardPlacement =
   | 'save_streak'
   | 'unlock_category'
   | 'trivia_revive'
+  | 'trivia_fifty_fifty'
   | 'double_xp'
   | 'unlock_trivia_24h'
   | 'puzzle_word_trivia'
@@ -165,6 +166,14 @@ export const REWARD_PLACEMENTS: Record<RewardPlacement, RewardMeta> = {
     description: 'Watch a short rewarded ad to keep your active Trivia Streak Multiplier alive.',
     durationSeconds: 4,
     isOptionalPrompt: true,
+  },
+  trivia_fifty_fifty: {
+    placement: 'trivia_fifty_fifty',
+    title: 'Unlock 50/50 Split',
+    rewardLabel: '2 Wrong Options Eliminated',
+    description: 'Watch a brief 4-second sponsor preview to eliminate two wrong answers.',
+    durationSeconds: 4,
+    isOptionalPrompt: false,
   },
   double_xp: {
     placement: 'double_xp',

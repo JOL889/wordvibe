@@ -364,6 +364,21 @@ export function generateSmartHint(
   };
 }
 
+export function computeBoardFiftyFiftyElimination(
+  guesses: string[],
+  target: string,
+  alreadyEliminated: string[] = [],
+  count = 5
+): string[] {
+  const t = target.toUpperCase();
+  const keyStates = deriveKeyboardStates(guesses, t, alreadyEliminated);
+  const targetLetters = new Set(t.split(''));
+  const candidates = 'ETAOINSHRDLCUMWFGYPBVKJXQZ'
+    .split('')
+    .filter((ch) => !targetLetters.has(ch) && !keyStates[ch]);
+  return candidates.slice(0, Math.max(0, count));
+}
+
 export interface GridBoxHint {
   row: number;
   col: number;

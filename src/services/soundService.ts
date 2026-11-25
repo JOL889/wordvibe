@@ -95,6 +95,12 @@ class SoundService {
     this.triggerHaptic(14);
   }
 
+  public playFiftyFiftyWhoosh(): void {
+    this.playTone(620, 0.09, 'triangle', 0.045, 0);
+    this.playTone(440, 0.12, 'sine', 0.045, 0.07);
+    this.triggerHaptic(12);
+  }
+
   public playWinFanfare(): void {
     if (!this.victoryFanfareEnabled) return;
     const notes = [523.25, 659.25, 783.99, 1046.5];

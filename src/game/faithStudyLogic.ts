@@ -1015,6 +1015,7 @@ export function drawZeroRepeatFaithQuestion(params: {
   const traditionItems = profile.trivia.map((q, idx) => ({
     ...q,
     id: `faith-inline:${religion}:${idx}`,
+    funFact: q.funFact ?? '',
     category: `Faith Study · ${profile.name}`,
     difficulty: normalizeToFiveLevel(q.difficulty),
   }));

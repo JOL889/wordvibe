@@ -191,18 +191,33 @@ export const ProfileAuthModal: React.FC<ProfileAuthModalProps> = ({
                 </div>
               </div>
 
-              <label
-                htmlFor="profile-photo-input"
-                className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl wv-accent-btn px-3 py-2 text-xs font-bold cursor-pointer"
-              >
-                <Camera className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Gallery</span>
-              </label>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <label
+                  htmlFor="profile-photo-input"
+                  className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl wv-accent-btn px-3 py-2 text-xs font-bold cursor-pointer"
+                >
+                  <Camera className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Gallery</span>
+                </label>
+                {avatarType === 'photo' && avatarDataUrl && (
+                  <button
+                    type="button"
+                    data-testid="clear-profile-photo-btn"
+                    onClick={() => {
+                      setAvatarType('builtin');
+                      setAvatarDataUrl(undefined);
+                    }}
+                    className="text-[11px] font-semibold wv-text-muted hover:underline cursor-pointer"
+                  >
+                    Remove photo
+                  </button>
+                )}
+              </div>
               <input
                 id="profile-photo-input"
                 data-testid="profile-photo-input"
                 type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
+                accept="image/*"
                 onChange={handlePhotoChange}
                 className="sr-only"
               />
@@ -277,7 +292,12 @@ export const ProfileAuthModal: React.FC<ProfileAuthModalProps> = ({
               type="text"
               autoComplete="username"
               value={username}
-              onChange={(e) => setUsername(normalizeUsername(e.target.value))}
+              onChange={(e) =>
+                setUsername(
+                  e.target.value.replace(/^@+/, '').replace(/\s+/g, '_').slice(0, 24)
+                )
+              }
+              onBlur={() => setUsername((prev) => normalizeUsername(prev))}
               placeholder="e.g. Amara_Word"
               maxLength={24}
               className="w-full min-h-11 rounded-xl border wv-border wv-card-muted px-3 py-2 text-sm font-medium wv-text focus:outline-none"

@@ -129,7 +129,8 @@ export async function resizeImageFileToThumbnail(
   file: File,
   maxSize = 128
 ): Promise<string> {
-  if (!ALLOWED_IMAGE_MIME.has(file.type.toLowerCase())) {
+  const mime = (file.type || '').toLowerCase();
+  if (mime && (!mime.startsWith('image/') || mime.includes('svg'))) {
     throw new Error('Please choose a JPG, PNG, GIF, or WebP photo.');
   }
   if (file.size > 12 * 1024 * 1024) {

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Award,
   Check,
@@ -74,8 +74,21 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
   const [nameDraft, setNameDraft] = useState(playerName);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
 
-  const solvedCount = playerPuzzlesSolved ?? weeklyProgress.puzzlesSolved;
-  const triviaCount = playerTriviaCorrect ?? weeklyProgress.triviaCorrect;
+  useEffect(() => {
+    if (!open) {
+      setShareFeedback(null);
+      setEditingName(false);
+    }
+  }, [open]);
+
+  const solvedCount =
+    scope === 'weekly'
+      ? weeklyProgress.puzzlesSolved
+      : playerPuzzlesSolved ?? weeklyProgress.puzzlesSolved;
+  const triviaCount =
+    scope === 'weekly'
+      ? weeklyProgress.triviaCorrect
+      : playerTriviaCorrect ?? weeklyProgress.triviaCorrect;
   const streakCount = playerStreak ?? weeklyProgress.bestTriviaStreak;
   const effectiveName = userAccount?.username || playerName;
 
@@ -90,6 +103,7 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
         playerTriviaCorrect: triviaCount,
         playerStreak: streakCount,
         scope,
+        weekKey: weeklyProgress.weekKey,
         remoteEntries: remoteLeaderboardEntries,
       }),
     [
@@ -97,6 +111,7 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
       effectiveName,
       weeklyProgress.weeklyXp,
       weeklyProgress.totalXp,
+      weeklyProgress.weekKey,
       solvedCount,
       triviaCount,
       streakCount,
@@ -133,6 +148,8 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
       setShareFeedback('Rank summary copied to clipboard — ready to paste!');
     } else if (result === 'shared') {
       setShareFeedback('Shared weekly progress!');
+    } else if (result === 'failed') {
+      setShareFeedback('Clipboard blocked in this browser — share manually.');
     }
   };
 
@@ -146,6 +163,8 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
       setShareFeedback('Invite link & message copied to clipboard!');
     } else if (result === 'shared') {
       setShareFeedback('Invite sent!');
+    } else if (result === 'failed') {
+      setShareFeedback('Clipboard blocked in this browser — copy page URL to invite.');
     }
   };
 

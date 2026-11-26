@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ArrowDown,
   ArrowRight,
@@ -43,6 +43,9 @@ interface SummaryModalProps {
   canSaveStreak: boolean;
   canDoubleXp?: boolean;
   lastPuzzleXpEarned?: number;
+  weeklyRank?: number;
+  activeWeeklyPlayersCount?: number;
+  weeklyXp?: number;
   personalizedReason?: string;
   personalizedCulturalNote?: string;
   funFact?: string;
@@ -68,6 +71,9 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
   canSaveStreak,
   canDoubleXp = false,
   lastPuzzleXpEarned = 0,
+  weeklyRank,
+  activeWeeklyPlayersCount,
+  weeklyXp,
   personalizedReason,
   personalizedCulturalNote,
   funFact,
@@ -86,6 +92,13 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
   } | null>(null);
   const [shareNote, setShareNote] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!open) {
+      setShareNote(null);
+      setSelectedSummaryWord(null);
+    }
+  }, [open]);
+
   if (!open) return null;
 
   const isBoardWon = board.status === 'won';
@@ -103,7 +116,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="summary-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 overflow-y-auto"
     >
       <div className="my-auto w-full max-w-md rounded-2xl border-2 wv-border wv-card p-5 sm:p-6 shadow-2xl animate-modal-pop">
         <div className="flex items-start justify-between gap-4">
@@ -177,6 +190,25 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
                 </p>
               </div>
             </div>
+
+            {typeof weeklyRank === 'number' && typeof activeWeeklyPlayersCount === 'number' && (
+              <div
+                data-testid="summary-weekly-rank"
+                className="flex items-center justify-between gap-2 rounded-xl border wv-border wv-card-muted px-4 py-2.5 text-xs sm:text-sm"
+              >
+                <span className="inline-flex items-center gap-1.5 font-bold wv-text">
+                  <Crown className="h-4 w-4 shrink-0 wv-accent-text" aria-hidden="true" />
+                  <span>
+                    Rank #{weeklyRank} of {activeWeeklyPlayersCount} active players this week
+                  </span>
+                </span>
+                {typeof weeklyXp === 'number' && (
+                  <span className="font-mono-tabular font-bold wv-accent-text shrink-0">
+                    {weeklyXp.toLocaleString()} XP
+                  </span>
+                )}
+              </div>
+            )}
 
             {personalizedReason && (
               <div className="rounded-xl border wv-border wv-card-muted px-3.5 py-2.5 text-xs sm:text-sm">
@@ -396,6 +428,8 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
                         setShareNote('Score & rank copied to clipboard — ready to paste!');
                       } else if (res === 'shared') {
                         setShareNote('Progress shared!');
+                      } else if (res === 'failed') {
+                        setShareNote('Clipboard blocked in this browser — share manually.');
                       }
                     });
                   }}
@@ -415,6 +449,8 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
                           setShareNote('Invite message copied to clipboard!');
                         } else if (res === 'shared') {
                           setShareNote('Invite sent!');
+                        } else if (res === 'failed') {
+                          setShareNote('Clipboard blocked in this browser — copy URL to invite.');
                         }
                       });
                     }}

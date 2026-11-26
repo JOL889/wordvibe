@@ -1576,7 +1576,7 @@ export default function App() {
         playerName: effectivePlayerName,
         playerWeeklyXp: weeklyProgress.weeklyXp,
         playerTotalXp: Math.max(weeklyProgress.totalXp ?? 0, weeklyProgress.weeklyXp),
-        playerPuzzlesSolved: stats.gamesWon,
+        playerPuzzlesSolved: weeklyProgress.puzzlesSolved,
         playerTriviaCorrect: weeklyProgress.triviaCorrect,
         playerStreak: stats.currentStreak,
         scope: 'weekly',
@@ -1586,8 +1586,8 @@ export default function App() {
       effectivePlayerName,
       leaderboardPlayerId,
       stats.currentStreak,
-      stats.gamesWon,
       userAccount?.id,
+      weeklyProgress.puzzlesSolved,
       weeklyProgress.totalXp,
       weeklyProgress.triviaCorrect,
       weeklyProgress.weekKey,
@@ -1595,35 +1595,40 @@ export default function App() {
     ]
   );
 
-  const handleSharePuzzleProgress = useCallback(async () => {
-    const payload = buildPuzzleSharePayload({
-      username: userAccount?.username || playerProfile.displayName,
-      board: crosswordBoard,
-      weeklyXp: weeklyProgress.weeklyXp,
-      rank: leaderboardSummary.rank,
-      totalActivePlayers: leaderboardSummary.activeThisWeekCount,
-      streak: stats.currentStreak,
-      appUrl: getShareAppUrl(),
-    });
-    const status = await shareOrCopyMessage(payload);
-    if (status === 'shared') showToast('Progress shared!');
-    else if (status === 'copied') showToast('Message copied to clipboard!');
-    else if (status === 'failed') showToast('Unable to access clipboard');
-    return status;
-  }, [
-    crosswordBoard,
-    getShareAppUrl,
-    leaderboardSummary.activeThisWeekCount,
-    leaderboardSummary.rank,
-    playerProfile.displayName,
-    showToast,
-    stats.currentStreak,
-    userAccount?.username,
-    weeklyProgress.weeklyXp,
-  ]);
+  const handleSharePuzzleProgress = useCallback(
+    async (suppressToast = false) => {
+      const payload = buildPuzzleSharePayload({
+        username: userAccount?.username || playerProfile.displayName,
+        board: crosswordBoard,
+        weeklyXp: weeklyProgress.weeklyXp,
+        rank: leaderboardSummary.rank,
+        totalActivePlayers: leaderboardSummary.activeThisWeekCount,
+        streak: stats.currentStreak,
+        appUrl: getShareAppUrl(),
+      });
+      const status = await shareOrCopyMessage(payload);
+      if (!suppressToast) {
+        if (status === 'shared') showToast('Progress shared!');
+        else if (status === 'copied') showToast('Message copied to clipboard!');
+        else if (status === 'failed') showToast('Unable to access clipboard');
+      }
+      return status;
+    },
+    [
+      crosswordBoard,
+      getShareAppUrl,
+      leaderboardSummary.activeThisWeekCount,
+      leaderboardSummary.rank,
+      playerProfile.displayName,
+      showToast,
+      stats.currentStreak,
+      userAccount?.username,
+      weeklyProgress.weeklyXp,
+    ]
+  );
 
   const handleShareLeaderboardProgress = useCallback(
-    async (rank: number, activeCount: number, gradeLabel: string) => {
+    async (rank: number, activeCount: number, gradeLabel: string, suppressToast = true) => {
       const payload = buildLeaderboardSharePayload({
         username: userAccount?.username || playerProfile.displayName,
         weeklyXp: weeklyProgress.weeklyXp,
@@ -1634,9 +1639,11 @@ export default function App() {
         appUrl: getShareAppUrl(),
       });
       const status = await shareOrCopyMessage(payload);
-      if (status === 'shared') showToast('Weekly rank shared!');
-      else if (status === 'copied') showToast('Message copied to clipboard!');
-      else if (status === 'failed') showToast('Unable to access clipboard');
+      if (!suppressToast) {
+        if (status === 'shared') showToast('Weekly rank shared!');
+        else if (status === 'copied') showToast('Message copied to clipboard!');
+        else if (status === 'failed') showToast('Unable to access clipboard');
+      }
       return status;
     },
     [
@@ -1650,7 +1657,7 @@ export default function App() {
   );
 
   const handleInviteFriends = useCallback(
-    async (rank?: number, activeCount?: number) => {
+    async (rank?: number, activeCount?: number, suppressToast = false) => {
       const payload = buildInviteFriendsPayload({
         username: userAccount?.username || playerProfile.displayName,
         weeklyXp: weeklyProgress.weeklyXp,
@@ -1659,9 +1666,11 @@ export default function App() {
         appUrl: getShareAppUrl(),
       });
       const status = await shareOrCopyMessage(payload);
-      if (status === 'shared') showToast('Invite sent!');
-      else if (status === 'copied') showToast('Invite message copied to clipboard!');
-      else if (status === 'failed') showToast('Unable to access clipboard');
+      if (!suppressToast) {
+        if (status === 'shared') showToast('Invite sent!');
+        else if (status === 'copied') showToast('Invite message copied to clipboard!');
+        else if (status === 'failed') showToast('Unable to access clipboard');
+      }
       return status;
     },
     [
@@ -2239,12 +2248,15 @@ export default function App() {
         canSaveStreak={isStreakRecoverable}
         canDoubleXp={!puzzleDoubleXpClaimed && rewardedAdService.canShowOptionalPrompt()}
         lastPuzzleXpEarned={lastPuzzleXpEarned}
+        weeklyRank={leaderboardSummary.rank}
+        activeWeeklyPlayersCount={leaderboardSummary.activeThisWeekCount}
+        weeklyXp={weeklyProgress.weeklyXp}
         personalizedReason={personalizedMeta?.reason}
         personalizedCulturalNote={personalizedMeta?.culturalNote}
         funFact={solveFunFact}
         onClose={() => setSummaryOpen(false)}
-        onShare={handleSharePuzzleProgress}
-        onInviteFriends={() => handleInviteFriends()}
+        onShare={() => handleSharePuzzleProgress(true)}
+        onInviteFriends={() => handleInviteFriends(undefined, undefined, true)}
         onWatchAdSaveStreak={() => {
           setSummaryOpen(false);
           setActiveAdPlacement('save_streak');
@@ -2342,8 +2354,10 @@ export default function App() {
           setProfileModalMode(userAccount ? 'edit' : 'signup');
           setProfileModalOpen(true);
         }}
-        onShareProgress={handleShareLeaderboardProgress}
-        onInviteFriends={handleInviteFriends}
+        onShareProgress={(rank, activeCount, gradeLabel) =>
+          handleShareLeaderboardProgress(rank, activeCount, gradeLabel, true)
+        }
+        onInviteFriends={(rank, activeCount) => handleInviteFriends(rank, activeCount, true)}
         onClose={() => setWeeklyRankOpen(false)}
       />
 

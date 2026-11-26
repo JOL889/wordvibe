@@ -242,17 +242,21 @@ export function pickNextCategoryWord(params: {
 
 export function isCategoryAccessible(
   category: PuzzleCategory,
-  playsRemaining: Record<string, number>
+  playsRemaining: Record<string, number>,
+  permanentlyUnlocked: string[] = []
 ): boolean {
   if (!category.isPremium) return true;
+  if (permanentlyUnlocked.includes(category.id)) return true;
   return (playsRemaining[category.id] || 0) > 0;
 }
 
 export function getCategoryRemainingPlays(
   category: PuzzleCategory,
-  playsRemaining: Record<string, number>
+  playsRemaining: Record<string, number>,
+  permanentlyUnlocked: string[] = []
 ): number {
   if (!category.isPremium) return Infinity;
+  if (permanentlyUnlocked.includes(category.id)) return Infinity;
   return Math.max(0, playsRemaining[category.id] || 0);
 }
 
@@ -270,9 +274,12 @@ export function grantCategoryPlays(
 
 export function consumeCategoryPlay(
   category: PuzzleCategory,
-  playsRemaining: Record<string, number>
+  playsRemaining: Record<string, number>,
+  permanentlyUnlocked: string[] = []
 ): Record<string, number> {
-  if (!category.isPremium) return playsRemaining;
+  if (!category.isPremium || permanentlyUnlocked.includes(category.id)) {
+    return playsRemaining;
+  }
   const current = Math.max(0, playsRemaining[category.id] || 0);
   return {
     ...playsRemaining,

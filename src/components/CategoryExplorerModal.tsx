@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, Check, Compass, Film, Flame, Lock, Search, Tv, Unlock, X } from 'lucide-react';
+import { Calendar, Check, Compass, Film, Flame, Lock, Search, Tv, Unlock, X, Zap } from 'lucide-react';
 import {
   CATEGORIES,
   CATEGORY_GROUPS,
@@ -15,6 +15,7 @@ import {
   type DailyEntertainmentSpotlight,
 } from '../game/entertainmentLogic';
 import { getCategoryRemainingPlays } from '../game/puzzleLogic';
+import { formatNotEnoughXpMessage, XP_COSTS } from '../game/xpEconomyLogic';
 
 export type CategoryFilterTab = 'All' | 'Popular' | 'Unlocked' | CategoryGroup;
 
@@ -23,11 +24,14 @@ interface CategoryExplorerModalProps {
   initialTab?: CategoryFilterTab;
   activeCategoryId: string;
   playsRemaining: Record<string, number>;
+  permanentlyUnlockedCategories?: string[];
+  currentXp?: number;
   solvedByCategory: Record<string, number>;
   exploredCategories: string[];
   spotlight: DailyEntertainmentSpotlight;
   onClose: () => void;
   onSelectCategory: (category: PuzzleCategory) => void;
+  onUnlockCategoryWithXp?: (category: PuzzleCategory) => void;
 }
 
 export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
@@ -35,11 +39,14 @@ export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
   initialTab = 'All',
   activeCategoryId,
   playsRemaining,
+  permanentlyUnlockedCategories = [],
+  currentXp = 0,
   solvedByCategory,
   exploredCategories,
   spotlight,
   onClose,
   onSelectCategory,
+  onUnlockCategoryWithXp,
 }) => {
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState<CategoryFilterTab>(initialTab);
@@ -80,7 +87,10 @@ export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
     const q = query.trim().toLowerCase();
     return CATEGORIES.filter((cat) => {
       if (activeTab === 'Popular' && cat.popularityScore < 86) return false;
-      if (activeTab === 'Unlocked' && getCategoryRemainingPlays(cat, playsRemaining) <= 0) {
+      if (
+        activeTab === 'Unlocked' &&
+        getCategoryRemainingPlays(cat, playsRemaining, permanentlyUnlockedCategories) <= 0
+      ) {
         return false;
       }
       if (
@@ -106,7 +116,7 @@ export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
       }
       return 0;
     });
-  }, [activeTab, playsRemaining, query]);
+  }, [activeTab, permanentlyUnlockedCategories, playsRemaining, query]);
 
   const entertainmentShelves = useMemo(() => {
     return ENTERTAINMENT_SUBCOLLECTION_ORDER.map((shelf) => ({
@@ -132,8 +142,11 @@ export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
 
   const renderCategoryCard = (cat: PuzzleCategory, dailyTag?: string) => {
     const isActive = cat.id === activeCategoryId;
-    const plays = getCategoryRemainingPlays(cat, playsRemaining);
-    const isLocked = cat.isPremium && plays <= 0;
+    const isPermanentlyUnlocked =
+      !cat.isPremium || permanentlyUnlockedCategories.includes(cat.id);
+    const plays = getCategoryRemainingPlays(cat, playsRemaining, permanentlyUnlockedCategories);
+    const isLocked = cat.isPremium && !isPermanentlyUnlocked && plays <= 0;
+    const canAffordUnlock = currentXp >= XP_COSTS.PUZZLE_CATEGORY_UNLOCK;
     const solved = solvedByCategory[cat.id] || 0;
     const spec = getEntertainmentSpec(cat.id);
     const isHeroToday = cat.id === spotlight.heroCategoryId;
@@ -147,20 +160,24 @@ export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
         : spec?.subCollection || cat.group);
 
     return (
-      <button
+      <div
         key={cat.id}
-        type="button"
+        role="group"
+        aria-label={cat.name}
         data-category-id={cat.id}
-        onClick={() => onSelectCategory(cat)}
-        className={`group flex flex-col justify-between rounded-xl border p-3.5 text-left transition-colors cursor-pointer ${
+        className={`group flex flex-col justify-between rounded-xl border p-3.5 text-left transition-colors ${
           isActive
             ? 'wv-accent-pill'
             : isHeroToday
             ? 'border-[var(--wv-accent)]/60 wv-card-muted hover:border-[var(--wv-accent)]'
-            : 'wv-border wv-card-muted hover:opacity-90'
+            : 'wv-border wv-card-muted hover:opacity-95'
         }`}
       >
-        <div>
+        <button
+          type="button"
+          onClick={() => onSelectCategory(cat)}
+          className="w-full text-left cursor-pointer"
+        >
           <div className="flex items-start justify-between gap-2">
             <span className="font-display text-sm sm:text-base font-bold wv-text leading-snug">
               {cat.name}
@@ -186,9 +203,9 @@ export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
           <p className="mt-1 text-xs sm:text-sm leading-relaxed wv-text-muted line-clamp-2">
             {cat.tagline}
           </p>
-        </div>
+        </button>
 
-        <div className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-medium">
+        <div className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1.5 text-xs font-medium">
           <span
             className={
               isHeroToday || isFeaturedToday
@@ -202,10 +219,44 @@ export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
             ·
           </span>
           {cat.isPremium ? (
-            isLocked ? (
-              <span className="rounded-md wv-gold-pill px-2 py-0.5 text-[11px] font-extrabold">
-                Watch Ad · Unlock ({PREMIUM_UNLOCK_PLAYS} Plays)
+            isPermanentlyUnlocked ? (
+              <span
+                data-testid={`category-permanent-unlocked-${cat.id}`}
+                className="font-mono-tabular font-bold wv-accent-text"
+              >
+                Unlocked Forever · Unlimited
               </span>
+            ) : isLocked ? (
+              <div className="flex w-full flex-wrap items-center justify-between gap-1.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => onSelectCategory(cat)}
+                  className="rounded-md border wv-border wv-card px-2 py-1 text-[11px] font-bold wv-text hover:opacity-90 cursor-pointer"
+                >
+                  Watch Ad ({PREMIUM_UNLOCK_PLAYS} Plays)
+                </button>
+                {onUnlockCategoryWithXp && (
+                  <button
+                    type="button"
+                    data-testid={`unlock-category-xp-${cat.id}`}
+                    disabled={!canAffordUnlock}
+                    title={
+                      canAffordUnlock
+                        ? `Spend ${XP_COSTS.PUZZLE_CATEGORY_UNLOCK} XP to permanently unlock ${cat.name}`
+                        : formatNotEnoughXpMessage(XP_COSTS.PUZZLE_CATEGORY_UNLOCK)
+                    }
+                    onClick={() => onUnlockCategoryWithXp(cat)}
+                    className="inline-flex items-center gap-1 rounded-md wv-gold-pill px-2 py-1 text-[11px] font-extrabold disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Zap className="h-3 w-3" aria-hidden="true" />
+                    <span>
+                      {canAffordUnlock
+                        ? `Unlock Forever · ${XP_COSTS.PUZZLE_CATEGORY_UNLOCK} XP`
+                        : formatNotEnoughXpMessage(XP_COSTS.PUZZLE_CATEGORY_UNLOCK)}
+                    </span>
+                  </button>
+                )}
+              </div>
             ) : (
               <span className="font-mono-tabular font-semibold wv-accent-text">
                 Unlocked · {plays} {plays === 1 ? 'play' : 'plays'} left
@@ -225,7 +276,7 @@ export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
             </>
           )}
         </div>
-      </button>
+      </div>
     );
   };
 
@@ -266,12 +317,19 @@ export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border wv-accent-pill px-3.5 py-2 text-xs font-bold">
             <span>
-              Want a specific topic? Tap any locked topic below &amp; watch 1 short ad for{' '}
-              {PREMIUM_UNLOCK_PLAYS} plays!
+              Unlock locked topics permanently for {XP_COSTS.PUZZLE_CATEGORY_UNLOCK} XP (offline ready) or watch 1 ad for {PREMIUM_UNLOCK_PLAYS} plays!
             </span>
-            <span className="font-mono-tabular whitespace-nowrap">
-              {exploredCount}/{CATEGORIES.length} Explored
-            </span>
+            <div className="flex items-center gap-2 font-mono-tabular whitespace-nowrap">
+              <span
+                data-testid="category-explorer-xp-balance"
+                className="rounded-md wv-gold-pill px-2 py-0.5 text-[11px] font-extrabold"
+              >
+                {currentXp.toLocaleString()} XP
+              </span>
+              <span>
+                {exploredCount}/{CATEGORIES.length} Explored
+              </span>
+            </div>
           </div>
 
           <div className="relative mt-3">

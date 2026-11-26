@@ -13,6 +13,7 @@ import {
   Shuffle,
   Sparkles,
   Unlock,
+  Zap,
 } from 'lucide-react';
 import { getCategoryById, type PuzzleCategory } from '../data/categories';
 import {
@@ -23,6 +24,7 @@ import {
 } from '../game/crosswordLogic';
 import type { CursorDirection, TileState, TypingDirection } from '../game/puzzleLogic';
 import { getWordMeaningClue } from '../game/wordMeanings';
+import { formatNotEnoughXpMessage, XP_COSTS } from '../game/xpEconomyLogic';
 
 export interface SelectedDictionaryWord {
   word: string;
@@ -43,6 +45,8 @@ interface PuzzleGridProps {
   puzzleTimedOut?: boolean;
   featuredTopics?: PuzzleCategory[];
   categoryPlaysRemainingMap?: Record<string, number>;
+  permanentlyUnlockedCategories?: string[];
+  currentXp?: number;
   onChangeDirection: (dir: TypingDirection) => void;
   onSelectCell: (rowIdx: number, colIdx: number, explicitDirection?: TypingDirection) => void;
   onSelectDictWord?: (entry: SelectedDictionaryWord | null) => void;
@@ -52,8 +56,10 @@ interface PuzzleGridProps {
   onKey: (key: string) => void;
   onMoveCursor: (dir: CursorDirection) => void;
   onTriggerHint: () => void;
+  onSpendXpForHint?: () => void;
   onTriggerWordClue: () => void;
   onUnlockActiveClue?: (slotType: CrosswordSlotType, index: number) => void;
+  onSpendXpForClue?: (slotType: CrosswordSlotType, index: number) => void;
   onTriggerSkipBoard: () => void;
 }
 
@@ -118,6 +124,8 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
   puzzleTimedOut = false,
   featuredTopics = [],
   categoryPlaysRemainingMap = {},
+  permanentlyUnlockedCategories = [],
+  currentXp = 0,
   onChangeDirection,
   onSelectCell,
   onSelectDictWord,
@@ -127,8 +135,10 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
   onKey,
   onMoveCursor,
   onTriggerHint,
+  onSpendXpForHint,
   onTriggerWordClue,
   onUnlockActiveClue,
+  onSpendXpForClue,
   onTriggerSkipBoard,
 }) => {
   const [isDealing, setIsDealing] = useState(true);
@@ -683,7 +693,31 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
         </div>
       )}
 
-      {/* Lower Word Clue Section (Hidden/Locked Until User Watches Ad for This Word) */}
+      {/* Offline / Direct XP Hint Bar */}
+      {board.status === 'playing' && onSpendXpForHint && (
+        <div
+          data-testid="puzzle-xp-hint-bar"
+          className="flex w-full max-w-[390px] items-center justify-between gap-2 rounded-xl border wv-border wv-card px-3 py-1.5 text-xs shadow-xs"
+        >
+          <span className="font-semibold wv-text-muted truncate">
+            {currentXp >= XP_COSTS.PUZZLE_HINT
+              ? `Offline Hint Ready · Balance: ${currentXp.toLocaleString()} XP`
+              : `${formatNotEnoughXpMessage(XP_COSTS.PUZZLE_HINT)} (${currentXp.toLocaleString()} XP)`}
+          </span>
+          <button
+            type="button"
+            data-testid="puzzle-hint-xp-btn"
+            disabled={currentXp < XP_COSTS.PUZZLE_HINT}
+            onClick={onSpendXpForHint}
+            className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-lg wv-gold-pill px-2.5 py-1 text-xs font-extrabold transition-transform active:scale-95 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
+          >
+            <Zap className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Hint · {XP_COSTS.PUZZLE_HINT} XP</span>
+          </button>
+        </div>
+      )}
+
+      {/* Lower Word Clue Section (Hidden/Locked Until User Watches Ad or Spends 300 XP) */}
       {board.status === 'playing' && (
         <div
           data-testid="lower-word-clue-card"
@@ -700,7 +734,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
               <span>{activeLineLabel} Clue</span>
             </span>
             <span className="inline-flex items-center gap-1 rounded-md border wv-border wv-card-muted px-2 py-0.5 font-mono-tabular text-[11px] font-bold wv-text-muted">
-              {unlockedMainClue ? 'Unlocked' : 'Ad Locked'}
+              {unlockedMainClue ? 'Unlocked' : 'Locked'}
             </span>
           </div>
 
@@ -712,28 +746,52 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
               {unlockedMainClue}
             </p>
           ) : (
-            <div className="mt-1.5 flex items-center justify-between gap-2.5">
+            <div className="mt-1.5 space-y-2">
               <p
                 data-testid="lower-clue-locked-msg"
                 className="text-xs sm:text-sm font-medium leading-snug wv-text-muted"
               >
-                Watch a quick ad to unlock this {typingDirection === 'down' ? 'Down' : 'Across'} clue.
+                Watch an ad or spend {XP_COSTS.PUZZLE_CLUE} XP to unlock this{' '}
+                {typingDirection === 'down' ? 'Down' : 'Across'} clue.
               </p>
-              <button
-                type="button"
-                data-testid="unlock-active-clue-btn"
-                onClick={() => {
-                  if (onUnlockActiveClue) {
-                    onUnlockActiveClue(activeSlotType, activeSlotIndex);
-                  } else {
-                    onTriggerWordClue();
-                  }
-                }}
-                className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl wv-accent-btn px-3 py-1.5 text-xs font-bold transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
-              >
-                <Play className="h-3 w-3 fill-current" aria-hidden="true" />
-                <span>Watch Ad to Unlock Clue</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  data-testid="unlock-active-clue-btn"
+                  onClick={() => {
+                    if (onUnlockActiveClue) {
+                      onUnlockActiveClue(activeSlotType, activeSlotIndex);
+                    } else {
+                      onTriggerWordClue();
+                    }
+                  }}
+                  className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-xl wv-accent-btn px-3 py-1.5 text-xs font-bold transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
+                >
+                  <Play className="h-3 w-3 fill-current" aria-hidden="true" />
+                  <span>Watch Ad to Unlock Clue</span>
+                </button>
+                {onSpendXpForClue && (
+                  <button
+                    type="button"
+                    data-testid="unlock-active-clue-xp-btn"
+                    disabled={currentXp < XP_COSTS.PUZZLE_CLUE}
+                    onClick={() => onSpendXpForClue(activeSlotType, activeSlotIndex)}
+                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded-xl wv-gold-pill px-3 py-1.5 text-xs font-extrabold transition-transform active:scale-95 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
+                  >
+                    <Zap className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Unlock · {XP_COSTS.PUZZLE_CLUE} XP</span>
+                  </button>
+                )}
+              </div>
+              {onSpendXpForClue && currentXp < XP_COSTS.PUZZLE_CLUE && (
+                <p
+                  data-testid="clue-xp-insufficient-msg"
+                  className="text-[11px] font-semibold wv-text-muted"
+                >
+                  {formatNotEnoughXpMessage(XP_COSTS.PUZZLE_CLUE)} (Balance:{' '}
+                  {currentXp.toLocaleString()} XP)
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -912,6 +970,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
           </div>
           <div className="mt-2 grid grid-cols-3 gap-1.5">
             {featuredTopics.slice(0, 3).map((topic) => {
+              const isPermanent = permanentlyUnlockedCategories.includes(topic.id);
               const plays = topic.isPremium ? categoryPlaysRemainingMap[topic.id] || 0 : -1;
               const isSelected = topic.id === board.categoryId;
               return (
@@ -931,7 +990,12 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
                   </span>
                   <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold opacity-90">
                     {topic.isPremium ? (
-                      plays > 0 ? (
+                      isPermanent ? (
+                        <>
+                          <Unlock className="h-3 w-3 shrink-0" aria-hidden="true" />
+                          <span>Forever</span>
+                        </>
+                      ) : plays > 0 ? (
                         <>
                           <Unlock className="h-3 w-3 shrink-0" aria-hidden="true" />
                           <span>{plays} left</span>
@@ -939,7 +1003,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
                       ) : (
                         <>
                           <Play className="h-3 w-3 shrink-0" aria-hidden="true" />
-                          <span>Ad (+5)</span>
+                          <span>Ad / 300 XP</span>
                         </>
                       )
                     ) : (

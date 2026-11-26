@@ -1,38 +1,15 @@
 import type { SoundMode } from '../game/settingsLogic';
 
-const AMBIENT_MELODY_NOTES = [
-  261.63, // C4
-  329.63, // E4
-  392.0, // G4
-  440.0, // A4
-  392.0, // G4
-  329.63, // E4
-  293.66, // D4
-  349.23, // F4
-  440.0, // A4
-  523.25, // C5
-  440.0, // A4
-  392.0, // G4
-];
-
 class SoundService {
   private ctx: AudioContext | null = null;
   private soundMode: SoundMode = 'on';
-  private bgMusicEnabled = true;
   private victoryFanfareEnabled = true;
   private hapticsEnabled = true;
 
-  private musicTimerId: number | null = null;
-  private musicStep = 0;
   private lastFeedbackAt = 0;
 
   public setSoundMode(mode: SoundMode): void {
     this.soundMode = mode;
-    if (mode !== 'on') {
-      this.stopBackgroundLoop();
-    } else if (this.bgMusicEnabled && this.ctx && this.ctx.state === 'running') {
-      this.startBackgroundLoop();
-    }
   }
 
   public getSoundMode(): SoundMode {
@@ -45,19 +22,6 @@ class SoundService {
 
   public isEnabled(): boolean {
     return this.soundMode === 'on';
-  }
-
-  public setBgMusicEnabled(val: boolean): void {
-    this.bgMusicEnabled = val;
-    if (!val || this.soundMode !== 'on') {
-      this.stopBackgroundLoop();
-    } else if (this.ctx && this.ctx.state === 'running') {
-      this.startBackgroundLoop();
-    }
-  }
-
-  public isBgMusicEnabled(): boolean {
-    return this.bgMusicEnabled;
   }
 
   public setVictoryFanfareEnabled(val: boolean): void {
@@ -78,14 +42,7 @@ class SoundService {
       this.ctx = new AudioCtx();
     }
     if (this.ctx.state === 'suspended') {
-      this.ctx
-        .resume()
-        .then(() => {
-          if (this.soundMode === 'on' && this.bgMusicEnabled) {
-            this.startBackgroundLoop();
-          }
-        })
-        .catch(() => {});
+      this.ctx.resume().catch(() => {});
     }
     return this.ctx;
   }
@@ -118,47 +75,6 @@ class SoundService {
     osc.stop(now + durationSec + 0.03);
   }
 
-  private scheduleMusicBeat = (): void => {
-    if (this.soundMode !== 'on' || !this.bgMusicEnabled) {
-      this.stopBackgroundLoop();
-      return;
-    }
-    if (typeof document !== 'undefined' && document.hidden) {
-      return;
-    }
-    const ctx = this.getContext();
-    if (!ctx || ctx.state !== 'running') return;
-
-    const note = AMBIENT_MELODY_NOTES[this.musicStep % AMBIENT_MELODY_NOTES.length];
-    const bass = note * 0.5;
-    this.playTone(note, 0.52, 'sine', 0.018, 0);
-    if (this.musicStep % 3 === 0) {
-      this.playTone(bass, 0.95, 'triangle', 0.014, 0.02);
-    }
-    this.musicStep = (this.musicStep + 1) % AMBIENT_MELODY_NOTES.length;
-  };
-
-  public startBackgroundLoop(): void {
-    if (typeof window === 'undefined') return;
-    if (this.soundMode !== 'on' || !this.bgMusicEnabled) return;
-    if (this.musicTimerId !== null) return;
-
-    const ctx = this.getContext();
-    if (!ctx) return;
-
-    // Schedule gentle continuous loop repeating every 680ms
-    this.scheduleMusicBeat();
-    this.musicTimerId = window.setInterval(this.scheduleMusicBeat, 680);
-  }
-
-  public stopBackgroundLoop(): void {
-    if (typeof window === 'undefined') return;
-    if (this.musicTimerId !== null) {
-      window.clearInterval(this.musicTimerId);
-      this.musicTimerId = null;
-    }
-  }
-
   private markFeedback(): void {
     this.lastFeedbackAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
   }
@@ -172,9 +88,6 @@ class SoundService {
     this.markFeedback();
     if (this.soundMode === 'on') {
       this.playTone(540, 0.04, 'sine', 0.036);
-      if (this.bgMusicEnabled) {
-        this.startBackgroundLoop();
-      }
       if (this.hapticsEnabled) {
         this.triggerHaptic(10);
       }
@@ -188,7 +101,6 @@ class SoundService {
     this.markFeedback();
     if (this.soundMode === 'on') {
       this.playTone(460, 0.045, 'triangle', 0.04);
-      if (this.bgMusicEnabled) this.startBackgroundLoop();
       if (this.hapticsEnabled) this.triggerHaptic(8);
     } else if (this.soundMode === 'mute') {
       this.triggerHaptic(12);
@@ -320,8 +232,8 @@ class SoundService {
   }
 
   /**
-   * Attaches global pointer/visibility delegation so tapping any interactive icon/button
-   * produces sound ('on'), vibration ('mute'), or total silence ('off'), and music pauses when backgrounded.
+   * Attaches global pointer delegation so tapping any interactive icon/button
+   * produces SFX ('on'), vibration ('mute'), or total silence ('off').
    */
   public attachGlobalTapFeedback(): () => void {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
@@ -341,21 +253,10 @@ class SoundService {
       this.playUiTap();
     };
 
-    const handleVisibility = () => {
-      if (document.hidden) {
-        this.stopBackgroundLoop();
-      } else if (this.soundMode === 'on' && this.bgMusicEnabled && this.ctx?.state === 'running') {
-        this.startBackgroundLoop();
-      }
-    };
-
     document.addEventListener('pointerdown', handlePointerDown, { capture: true, passive: true });
-    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown, { capture: true });
-      document.removeEventListener('visibilitychange', handleVisibility);
-      this.stopBackgroundLoop();
     };
   }
 }

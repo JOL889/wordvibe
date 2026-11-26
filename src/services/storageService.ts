@@ -70,6 +70,7 @@ export interface PuzzleRoundState {
 export interface CategoryProgressState {
   activeCategoryId: string;
   playsRemaining: Record<string, number>;
+  permanentlyUnlockedCategories: string[];
   solvedByCategory: Record<string, number>;
   exploredCategories: string[];
   /** dateKey -> categoryId -> wordLength -> array of words already served today */
@@ -348,6 +349,7 @@ export function loadCategoryProgress(): CategoryProgressState {
   const defaults: CategoryProgressState = {
     activeCategoryId: 'general-classic',
     playsRemaining: {},
+    permanentlyUnlockedCategories: [],
     solvedByCategory: {},
     exploredCategories: ['general-classic'],
     usedWordsByDate: {},
@@ -357,9 +359,13 @@ export function loadCategoryProgress(): CategoryProgressState {
     window.localStorage.getItem(CATEGORY_PROGRESS_KEY),
     {}
   );
+  const rawPermanent = Array.isArray(parsed.permanentlyUnlockedCategories)
+    ? parsed.permanentlyUnlockedCategories.filter((id): id is string => typeof id === 'string')
+    : [];
   return {
     activeCategoryId: parsed.activeCategoryId || 'general-classic',
     playsRemaining: parsed.playsRemaining || {},
+    permanentlyUnlockedCategories: Array.from(new Set(rawPermanent)),
     solvedByCategory: parsed.solvedByCategory || {},
     exploredCategories:
       Array.isArray(parsed.exploredCategories) && parsed.exploredCategories.length > 0
@@ -563,6 +569,7 @@ export interface PersistentTriviaState {
   bestStreak: number;
   freeHintLastDateKey: string;
   bonusUnlockUntil: Record<string, number>;
+  mastermindUnlocked: boolean;
   recentQuestions: string[];
 }
 
@@ -610,6 +617,7 @@ export function loadTriviaState(): PersistentTriviaState {
     bestStreak: 0,
     freeHintLastDateKey: '',
     bonusUnlockUntil: {},
+    mastermindUnlocked: false,
     recentQuestions: [],
   };
   if (typeof window === 'undefined') return defaults;
@@ -620,6 +628,7 @@ export function loadTriviaState(): PersistentTriviaState {
   return {
     ...defaults,
     ...parsed,
+    mastermindUnlocked: Boolean(parsed.mastermindUnlocked),
     bonusUnlockUntil:
       parsed.bonusUnlockUntil && typeof parsed.bonusUnlockUntil === 'object'
         ? parsed.bonusUnlockUntil

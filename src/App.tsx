@@ -116,6 +116,12 @@ import {
 } from './game/userAccountLogic';
 import { buildCuratedWordFunFact } from './game/wordTriviaLogic';
 import {
+  formatNotEnoughXpMessage,
+  getSpendableXpBalance,
+  spendPlayerXp,
+  XP_COSTS,
+} from './game/xpEconomyLogic';
+import {
   hydrateLocalUserAccountFromIdb,
   loadLocalUserAccount,
   saveLocalUserAccount,
@@ -125,6 +131,7 @@ import {
   attachDeviceSensorListeners,
   triggerHapticPulse,
 } from './services/deviceSensorService';
+import { musicPlayer } from './services/musicPlayer';
 import { rewardedAdService, type RewardPlacement } from './services/rewardedAdService';
 import { soundService } from './services/soundService';
 import {
@@ -204,7 +211,11 @@ export default function App() {
     const progress = loadCategoryProgress();
     const savedBoard = loadSavedCrosswordBoard();
     const cat = getCategoryById(savedBoard?.categoryId || progress.activeCategoryId);
-    const accessibleCat = isCategoryAccessible(cat, progress.playsRemaining)
+    const accessibleCat = isCategoryAccessible(
+      cat,
+      progress.playsRemaining,
+      progress.permanentlyUnlockedCategories
+    )
       ? cat
       : getCategoryById('general-classic');
 
@@ -362,9 +373,22 @@ export default function App() {
   );
 
   const categoryPlaysRemaining = useMemo(
-    () => getCategoryRemainingPlays(activeCategory, categoryProgress.playsRemaining),
-    [activeCategory, categoryProgress.playsRemaining]
+    () =>
+      getCategoryRemainingPlays(
+        activeCategory,
+        categoryProgress.playsRemaining,
+        categoryProgress.permanentlyUnlockedCategories
+      ),
+    [
+      activeCategory,
+      categoryProgress.permanentlyUnlockedCategories,
+      categoryProgress.playsRemaining,
+    ]
   );
+
+  const weeklyProgressRef = useRef(weeklyProgress);
+  weeklyProgressRef.current = weeklyProgress;
+  const currentSpendableXp = getSpendableXpBalance(weeklyProgress);
 
   const showToast = useCallback((msg: string, durationMs = 2400) => {
     if (toastTimerRef.current) {
@@ -434,12 +458,22 @@ export default function App() {
     }
   }, []);
 
-  // Global tap feedback across every interactive icon/button + pause looping audio when tab hidden
+  // Global tap feedback across every interactive icon/button + independent procedural music lifecycle
   useEffect(() => {
-    return soundService.attachGlobalTapFeedback();
+    const detachTaps = soundService.attachGlobalTapFeedback();
+    const detachMusic = musicPlayer.attachLifecycleListeners();
+    return () => {
+      detachTaps();
+      detachMusic();
+    };
   }, []);
 
-  // Sync theme, accent, animation intensity, 3-state soundMode, background loop, fanfare & haptics immediately
+  // Pause procedural background music whenever a rewarded ad preview is active
+  useEffect(() => {
+    musicPlayer.setPausedForAd(Boolean(activeAdPlacement));
+  }, [activeAdPlacement]);
+
+  // Sync theme, accent, animation intensity, independent Sound SFX & Music, fanfare & haptics immediately
   useEffect(() => {
     const themeState = resolveDocumentThemeState(appSettings);
     document.documentElement.classList.toggle('dark', themeState.isDarkClass);
@@ -452,9 +486,9 @@ export default function App() {
     }
     const mode: SoundMode = appSettings.soundMode || (appSettings.soundEnabled ? 'on' : 'off');
     soundService.setSoundMode(mode);
-    soundService.setBgMusicEnabled(appSettings.bgMusicEnabled);
     soundService.setVictoryFanfareEnabled(appSettings.victoryFanfareEnabled);
     soundService.setHapticsEnabled(appSettings.hapticsEnabled);
+    musicPlayer.setEnabled(appSettings.bgMusicEnabled);
     saveAppSettings(appSettings);
   }, [appSettings]);
 
@@ -730,7 +764,14 @@ export default function App() {
         trackerMode,
         faithReligion,
       } = params;
-      if (!forcedTarget && !isCategoryAccessible(nextCategory, categoryProgress.playsRemaining)) {
+      if (
+        !forcedTarget &&
+        !isCategoryAccessible(
+          nextCategory,
+          categoryProgress.playsRemaining,
+          categoryProgress.permanentlyUnlockedCategories
+        )
+      ) {
         promptUnlockCategory(nextCategory);
         return false;
       }
@@ -782,7 +823,11 @@ export default function App() {
             activeCategoryId: nextCategory.id,
             playsRemaining: forcedTarget
               ? prev.playsRemaining
-              : consumeCategoryPlay(nextCategory, prev.playsRemaining),
+              : consumeCategoryPlay(
+                  nextCategory,
+                  prev.playsRemaining,
+                  prev.permanentlyUnlockedCategories
+                ),
             exploredCategories: prev.exploredCategories.includes(nextCategory.id)
               ? prev.exploredCategories
               : [...prev.exploredCategories, nextCategory.id],
@@ -796,7 +841,13 @@ export default function App() {
 
       return true;
     },
-    [categoryProgress.playsRemaining, crosswordClimb.roundIndex, dateKey, promptUnlockCategory]
+    [
+      categoryProgress.permanentlyUnlockedCategories,
+      categoryProgress.playsRemaining,
+      crosswordClimb.roundIndex,
+      dateKey,
+      promptUnlockCategory,
+    ]
   );
 
   const dealNextSessionBoard = useCallback(
@@ -952,7 +1003,11 @@ export default function App() {
 
   const handleSelectCategory = useCallback(
     (category: PuzzleCategory) => {
-      const remaining = getCategoryRemainingPlays(category, categoryProgress.playsRemaining);
+      const remaining = getCategoryRemainingPlays(
+        category,
+        categoryProgress.playsRemaining,
+        categoryProgress.permanentlyUnlockedCategories
+      );
       if (category.isPremium && remaining <= 0) {
         setActiveTab('puzzle');
         window.scrollTo({ top: 0, behavior: 'instant' });
@@ -973,12 +1028,28 @@ export default function App() {
     },
     [
       activateNewBoard,
+      categoryProgress.permanentlyUnlockedCategories,
       categoryProgress.playsRemaining,
       crosswordBoard.length,
       modeConfig.puzzleLevelNumber,
       promptUnlockCategory,
       showToast,
     ]
+  );
+
+  const trySpendXp = useCallback(
+    (cost: number): boolean => {
+      const result = spendPlayerXp(weeklyProgressRef.current, cost);
+      if (!result.success) {
+        showToast(result.errorMessage || formatNotEnoughXpMessage(cost), 2600);
+        return false;
+      }
+      weeklyProgressRef.current = result.state;
+      setWeeklyProgress(result.state);
+      pushFloatingReward(`-${cost} XP`, 'xp');
+      return true;
+    },
+    [pushFloatingReward, showToast]
   );
 
   const recordBoardVictory = useCallback(
@@ -1062,6 +1133,152 @@ export default function App() {
       triggerConfetti,
     ]
   );
+
+  const handleSpendXpForPuzzleHint = useCallback(() => {
+    if (crosswordBoard.status !== 'playing') return;
+    const hintRes = applyUnlimitedCrosswordHint(
+      crosswordBoard,
+      cursorRef.current.row,
+      cursorRef.current.col
+    );
+    if (!hintRes) {
+      showToast('All tiles on this board are already revealed!');
+      return;
+    }
+    if (!trySpendXp(XP_COSTS.PUZZLE_HINT)) return;
+    soundService.playHintChime();
+    setCrosswordBoard(hintRes.board);
+    if (hintRes.board.status === 'won') {
+      recordBoardVictory(hintRes.board);
+    } else {
+      showToast(
+        `Hint revealed "${hintRes.letter}" at Row ${hintRes.revealedRow + 1}, Col ${
+          hintRes.revealedCol + 1
+        }! (-${XP_COSTS.PUZZLE_HINT} XP)`,
+        3200
+      );
+    }
+  }, [crosswordBoard, recordBoardVictory, showToast, trySpendXp]);
+
+  const handleSpendXpForPuzzleClue = useCallback(
+    (slotType: CrosswordSlotType, index: number) => {
+      if (crosswordBoard.status !== 'playing') return;
+      const clueKey = `${slotType}-${index}`;
+      if (crosswordBoard.unlockedClues[clueKey]) {
+        setCluePanelOpen(true);
+        return;
+      }
+      if (!trySpendXp(XP_COSTS.PUZZLE_CLUE)) return;
+      soundService.playHintChime();
+      const res = unlockCrosswordLineClue(
+        crosswordBoard,
+        slotType,
+        index,
+        boardCategory.name
+      );
+      setCrosswordBoard(res.board);
+      setCluePanelOpen(true);
+      showToast(`Clue unlocked (-${XP_COSTS.PUZZLE_CLUE} XP)!`, 2800);
+    },
+    [boardCategory.name, crosswordBoard, showToast, trySpendXp]
+  );
+
+  const handleSpendXpUnlockCategory = useCallback(
+    (category: PuzzleCategory) => {
+      if (
+        !category.isPremium ||
+        categoryProgress.permanentlyUnlockedCategories.includes(category.id)
+      ) {
+        handleSelectCategory(category);
+        return;
+      }
+      if (!trySpendXp(XP_COSTS.PUZZLE_CATEGORY_UNLOCK)) return;
+      soundService.playHintChime();
+      const nextPermanent = Array.from(
+        new Set([...categoryProgress.permanentlyUnlockedCategories, category.id])
+      );
+      const freshBoard = createCrosswordBoard({
+        length: crosswordBoard.length,
+        level: modeConfig.puzzleLevelNumber,
+        categoryId: category.id,
+      });
+      const firstCell = getFirstEditableCell(freshBoard);
+      cursorRef.current = firstCell;
+      setActiveRow(firstCell.row);
+      setActiveCol(firstCell.col);
+      setSelectedDictWord(null);
+      setPuzzleTimedOut(false);
+      setSummaryOpen(false);
+      setCategoryExplorerOpen(false);
+      setActiveTab('puzzle');
+      window.scrollTo({ top: 0, behavior: 'instant' });
+
+      const freshLimit = getCrosswordRoundTimeLimitSeconds(
+        freshBoard.length,
+        modeConfig.puzzleLevelNumber,
+        crosswordClimb.roundIndex
+      );
+      puzzleTimeLeftRef.current = freshLimit;
+      setPuzzleTimeLeftSec(freshLimit);
+      setCrosswordBoard(freshBoard);
+
+      setCategoryProgress((prev) =>
+        recordUsedCategoryWord(
+          {
+            ...prev,
+            activeCategoryId: category.id,
+            permanentlyUnlockedCategories: nextPermanent,
+            exploredCategories: prev.exploredCategories.includes(category.id)
+              ? prev.exploredCategories
+              : [...prev.exploredCategories, category.id],
+          },
+          dateKey,
+          category.id,
+          freshBoard.length,
+          freshBoard.solution.target
+        )
+      );
+      showToast(
+        `${category.name} unlocked forever! (-${XP_COSTS.PUZZLE_CATEGORY_UNLOCK} XP)`,
+        3200
+      );
+    },
+    [
+      categoryProgress.permanentlyUnlockedCategories,
+      crosswordBoard.length,
+      crosswordClimb.roundIndex,
+      dateKey,
+      handleSelectCategory,
+      modeConfig.puzzleLevelNumber,
+      showToast,
+      trySpendXp,
+    ]
+  );
+
+  const handleSpendXpUnlockMastermind = useCallback((): boolean => {
+    if (triviaState.mastermindUnlocked) {
+      setTriviaState((prev) => ({ ...prev, selectedCategoryId: 'mastermind-vault' }));
+      return true;
+    }
+    if (!trySpendXp(XP_COSTS.TRIVIA_MASTERMIND_UNLOCK)) return false;
+    soundService.playHintChime();
+    setTriviaState((prev) => ({
+      ...prev,
+      mastermindUnlocked: true,
+      selectedCategoryId: 'mastermind-vault',
+    }));
+    showToast(
+      `Mastermind Vault unlocked forever! (-${XP_COSTS.TRIVIA_MASTERMIND_UNLOCK} XP)`,
+      3200
+    );
+    return true;
+  }, [showToast, triviaState.mastermindUnlocked, trySpendXp]);
+
+  const handleSpendXpTriviaSolve = useCallback((): boolean => {
+    if (!trySpendXp(XP_COSTS.TRIVIA_SOLVE)) return false;
+    showToast(`Question solved (-${XP_COSTS.TRIVIA_SOLVE} XP)`, 2400);
+    return true;
+  }, [showToast, trySpendXp]);
 
   const triggerLineShake = useCallback(
     (type: 'row' | 'col', index: number) => {
@@ -1556,7 +1773,11 @@ export default function App() {
       const cat = getCategoryById(categoryId);
       setActiveTab('puzzle');
       window.scrollTo({ top: 0, behavior: 'instant' });
-      const remaining = getCategoryRemainingPlays(cat, categoryProgress.playsRemaining);
+      const remaining = getCategoryRemainingPlays(
+        cat,
+        categoryProgress.playsRemaining,
+        categoryProgress.permanentlyUnlockedCategories
+      );
       if (cat.isPremium && remaining <= 0) {
         promptUnlockCategory(cat);
         return;
@@ -1572,6 +1793,7 @@ export default function App() {
     },
     [
       activateNewBoard,
+      categoryProgress.permanentlyUnlockedCategories,
       categoryProgress.playsRemaining,
       crosswordBoard.length,
       modeConfig.puzzleLevelNumber,
@@ -1964,10 +2186,10 @@ export default function App() {
           handleUpdateSettings({ soundMode: nextMode, soundEnabled: nextMode === 'on' });
           showToast(
             nextMode === 'on'
-              ? 'Sound & Music On'
+              ? 'Sound Effects On'
               : nextMode === 'mute'
-              ? 'Muted — Vibrate Only'
-              : 'Sound & Vibration Off'
+              ? 'Sound Muted — Vibrate Only'
+              : 'Sound Effects & Vibration Off'
           );
         }}
         onOpenStats={() => setSummaryOpen(true)}
@@ -2078,6 +2300,8 @@ export default function App() {
             streak={triviaState.streak}
             bestStreak={triviaState.bestStreak}
             bonusUnlockUntil={triviaState.bonusUnlockUntil}
+            mastermindUnlocked={triviaState.mastermindUnlocked}
+            currentXp={currentSpendableXp}
             recentQuestions={triviaState.recentQuestions}
             playerProfile={playerProfile}
             refreshSignal={refreshSignal}
@@ -2127,6 +2351,8 @@ export default function App() {
               showToast(`Promoted to ${formatLevelLabel(safeLv)}!`, 3200);
             }}
             onUnlockBonusCategory={() => setActiveAdPlacement('unlock_trivia_24h')}
+            onSpendXpUnlockMastermind={handleSpendXpUnlockMastermind}
+            onSpendXpSolve={handleSpendXpTriviaSolve}
             onRequestAdPlacement={handleRequestAdPlacement}
             onAnswerRecorded={handleTriviaAnswerRecorded}
             onRoundCompleted={handleTriviaRoundCompleted}
@@ -2184,6 +2410,8 @@ export default function App() {
               puzzleTimedOut={modeConfig.puzzleSessionMode === 'level_climb' && puzzleTimedOut}
               featuredTopics={featuredTopics}
               categoryPlaysRemainingMap={categoryProgress.playsRemaining}
+              permanentlyUnlockedCategories={categoryProgress.permanentlyUnlockedCategories}
+              currentXp={currentSpendableXp}
               onChangeDirection={(dir) => {
                 setTypingDirection(dir);
                 triggerHapticPulse(8, effectiveHapticsEnabled);
@@ -2199,6 +2427,7 @@ export default function App() {
               onKey={handleCrosswordKey}
               onMoveCursor={handleMoveCursor}
               onTriggerHint={() => setActiveAdPlacement('hint')}
+              onSpendXpForHint={handleSpendXpForPuzzleHint}
               onTriggerWordClue={() => setClueSlotModalOpen(true)}
               onUnlockActiveClue={(slotType, index) => {
                 const slot = { slotType, index };
@@ -2206,6 +2435,7 @@ export default function App() {
                 setPendingClueSlot(slot);
                 setActiveAdPlacement('puzzle_clue');
               }}
+              onSpendXpForClue={handleSpendXpForPuzzleClue}
               onTriggerSkipBoard={() => {
                 if (crosswordBoard.status === 'playing') {
                   recordPuzzleBoardOutcome(crosswordBoard, false);
@@ -2285,11 +2515,14 @@ export default function App() {
         initialTab={categoryExplorerInitialTab}
         activeCategoryId={activeCategory.id}
         playsRemaining={categoryProgress.playsRemaining}
+        permanentlyUnlockedCategories={categoryProgress.permanentlyUnlockedCategories}
+        currentXp={currentSpendableXp}
         solvedByCategory={categoryProgress.solvedByCategory}
         exploredCategories={categoryProgress.exploredCategories}
         spotlight={spotlight}
         onClose={() => setCategoryExplorerOpen(false)}
         onSelectCategory={handleSelectCategory}
+        onUnlockCategoryWithXp={handleSpendXpUnlockCategory}
       />
 
       <SummaryModal
@@ -2459,6 +2692,7 @@ export default function App() {
         activeRow={activeRow}
         activeCol={activeCol}
         typingDirection={typingDirection}
+        currentXp={currentSpendableXp}
         onCancel={() => {
           setClueSlotModalOpen(false);
           setPendingClueSlot(null);
@@ -2488,6 +2722,25 @@ export default function App() {
 
           setActiveAdPlacement('puzzle_clue');
         }}
+        onSpendXpSlot={(slotType, index) => {
+          setClueSlotModalOpen(false);
+          if (slotType === 'row') {
+            setTypingDirection('across');
+            const openC = crosswordBoard.lockedCells[index].findIndex((locked) => !locked);
+            const nextC = openC >= 0 ? openC : 0;
+            cursorRef.current = { row: index, col: nextC };
+            setActiveRow(index);
+            setActiveCol(nextC);
+          } else {
+            setTypingDirection('down');
+            const openR = crosswordBoard.lockedCells.findIndex((rowArr) => !rowArr[index]);
+            const nextR = openR >= 0 ? openR : 0;
+            cursorRef.current = { row: nextR, col: index };
+            setActiveRow(nextR);
+            setActiveCol(index);
+          }
+          handleSpendXpForPuzzleClue(slotType, index);
+        }}
       />
 
       <RewardedAdModal
@@ -2499,6 +2752,60 @@ export default function App() {
               ? `Row ${pendingClueSlot.index + 1} Across`
               : `Col ${pendingClueSlot.index + 1} Down`
             : pendingCategoryForAd?.name || activeCategory.name
+        }
+        xpCost={
+          activeAdPlacement === 'hint'
+            ? XP_COSTS.PUZZLE_HINT
+            : activeAdPlacement === 'puzzle_clue' || activeAdPlacement === 'puzzle_word_trivia'
+            ? XP_COSTS.PUZZLE_CLUE
+            : activeAdPlacement === 'unlock_category'
+            ? XP_COSTS.PUZZLE_CATEGORY_UNLOCK
+            : activeAdPlacement === 'unlock_trivia_24h'
+            ? XP_COSTS.TRIVIA_MASTERMIND_UNLOCK
+            : undefined
+        }
+        currentXp={currentSpendableXp}
+        xpActionLabel={
+          activeAdPlacement === 'hint'
+            ? 'Reveal Letter Hint Offline'
+            : activeAdPlacement === 'puzzle_clue' || activeAdPlacement === 'puzzle_word_trivia'
+            ? 'Unlock Word Clue Offline'
+            : activeAdPlacement === 'unlock_category'
+            ? `Unlock ${pendingCategoryForAd?.name || activeCategory.name} Forever`
+            : activeAdPlacement === 'unlock_trivia_24h'
+            ? 'Unlock Mastermind Forever'
+            : undefined
+        }
+        onSpendXp={
+          activeAdPlacement === 'hint'
+            ? () => {
+                setActiveAdPlacement(null);
+                handleSpendXpForPuzzleHint();
+              }
+            : activeAdPlacement === 'puzzle_clue' || activeAdPlacement === 'puzzle_word_trivia'
+            ? () => {
+                const chosen = pendingClueSlotRef.current || {
+                  slotType: typingDirection === 'down' ? ('col' as const) : ('row' as const),
+                  index: typingDirection === 'down' ? activeCol : activeRow,
+                };
+                setActiveAdPlacement(null);
+                pendingClueSlotRef.current = null;
+                setPendingClueSlot(null);
+                handleSpendXpForPuzzleClue(chosen.slotType, chosen.index);
+              }
+            : activeAdPlacement === 'unlock_category'
+            ? () => {
+                const targetCat = pendingCategoryForAd || activeCategory;
+                setActiveAdPlacement(null);
+                setPendingCategoryForAd(null);
+                handleSpendXpUnlockCategory(targetCat);
+              }
+            : activeAdPlacement === 'unlock_trivia_24h'
+            ? () => {
+                setActiveAdPlacement(null);
+                handleSpendXpUnlockMastermind();
+              }
+            : undefined
         }
         onCancel={() => {
           setActiveAdPlacement(null);

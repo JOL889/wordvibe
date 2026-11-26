@@ -1,10 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle2, PlayCircle, Sparkles, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, PlayCircle, Sparkles, X, Zap } from 'lucide-react';
+import { formatNotEnoughXpMessage } from '../game/xpEconomyLogic';
 import { rewardedAdService, type RewardPlacement } from '../services/rewardedAdService';
 
 interface RewardedAdModalProps {
   placement: RewardPlacement | null;
   contextLabel?: string;
+  xpCost?: number;
+  currentXp?: number;
+  xpActionLabel?: string;
+  onSpendXp?: () => void;
   onCancel: () => void;
   onRewardEarned: (placement: RewardPlacement) => void;
 }
@@ -12,6 +17,10 @@ interface RewardedAdModalProps {
 export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   placement,
   contextLabel,
+  xpCost,
+  currentXp = 0,
+  xpActionLabel,
+  onSpendXp,
   onCancel,
   onRewardEarned,
 }) => {
@@ -208,6 +217,39 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
         <p className="mt-2.5 truncate font-mono-tabular text-xs wv-text-muted opacity-70">
           Ad Unit: {activeUnitId}
         </p>
+
+        {typeof xpCost === 'number' && xpCost > 0 && onSpendXp && (
+          <div
+            data-testid="reward-modal-xp-alternative"
+            className="mt-3 rounded-xl border wv-border wv-card-muted p-3"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-bold wv-text">
+                  {xpActionLabel || `Instant Unlock (Works Offline)`}
+                </p>
+                <p
+                  data-testid="reward-modal-xp-status"
+                  className="font-mono-tabular text-xs wv-text-muted"
+                >
+                  {currentXp >= xpCost
+                    ? `Balance: ${currentXp.toLocaleString()} XP`
+                    : `${formatNotEnoughXpMessage(xpCost)} (Have ${currentXp.toLocaleString()} XP)`}
+                </p>
+              </div>
+              <button
+                type="button"
+                data-testid="reward-modal-spend-xp-btn"
+                disabled={currentXp < xpCost}
+                onClick={onSpendXp}
+                className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl wv-gold-pill px-3.5 py-1.5 text-xs font-extrabold transition-transform active:scale-95 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
+              >
+                <Zap className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Spend {xpCost} XP</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 flex items-center justify-end gap-2.5">
           {!completed && (

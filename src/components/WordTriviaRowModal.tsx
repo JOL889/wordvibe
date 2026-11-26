@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowRight, BookOpen, X } from 'lucide-react';
+import { ArrowDown, ArrowRight, BookOpen, X, Zap } from 'lucide-react';
 import type { CrosswordBoardState, CrosswordSlotType } from '../game/crosswordLogic';
 import type { TypingDirection } from '../game/puzzleLogic';
+import { formatNotEnoughXpMessage, XP_COSTS } from '../game/xpEconomyLogic';
 
 interface WordTriviaRowModalProps {
   open: boolean;
@@ -9,8 +10,10 @@ interface WordTriviaRowModalProps {
   activeRow: number;
   activeCol: number;
   typingDirection: TypingDirection;
+  currentXp?: number;
   onCancel: () => void;
   onConfirmSlot: (slotType: CrosswordSlotType, index: number) => void;
+  onSpendXpSlot?: (slotType: CrosswordSlotType, index: number) => void;
 }
 
 export const WordTriviaRowModal: React.FC<WordTriviaRowModalProps> = ({
@@ -19,8 +22,10 @@ export const WordTriviaRowModal: React.FC<WordTriviaRowModalProps> = ({
   activeRow,
   activeCol,
   typingDirection,
+  currentXp = 0,
   onCancel,
   onConfirmSlot,
+  onSpendXpSlot,
 }) => {
   const [slotType, setSlotType] = useState<CrosswordSlotType>(
     typingDirection === 'down' ? 'col' : 'row'
@@ -196,7 +201,13 @@ export const WordTriviaRowModal: React.FC<WordTriviaRowModalProps> = ({
           </div>
         </div>
 
-        <div className="mt-5 flex items-center justify-end gap-2.5">
+        {onSpendXpSlot && currentXp < XP_COSTS.PUZZLE_CLUE && (
+          <p className="mt-3 text-right text-xs font-semibold wv-text-muted">
+            {formatNotEnoughXpMessage(XP_COSTS.PUZZLE_CLUE)} (Balance: {currentXp.toLocaleString()} XP)
+          </p>
+        )}
+
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
           <button
             type="button"
             onClick={onCancel}
@@ -204,6 +215,18 @@ export const WordTriviaRowModal: React.FC<WordTriviaRowModalProps> = ({
           >
             Cancel
           </button>
+          {onSpendXpSlot && (
+            <button
+              type="button"
+              data-testid="confirm-trivia-row-xp-btn"
+              disabled={currentXp < XP_COSTS.PUZZLE_CLUE}
+              onClick={() => onSpendXpSlot(slotType, slotIndex)}
+              className="inline-flex items-center gap-1.5 rounded-xl wv-gold-pill px-4 py-2 text-xs sm:text-sm font-extrabold disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
+            >
+              <Zap className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>{XP_COSTS.PUZZLE_CLUE} XP · {selectedLabel}</span>
+            </button>
+          )}
           <button
             type="button"
             data-testid="confirm-trivia-row-btn"

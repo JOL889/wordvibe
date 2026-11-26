@@ -91,9 +91,9 @@ const SOUND_MODES: Array<{
   sub: string;
   Icon: typeof Volume2;
 }> = [
-  { id: 'on', label: 'On', sub: 'Sound + Loop', Icon: Volume2 },
+  { id: 'on', label: 'On', sub: 'Sound SFX', Icon: Volume2 },
   { id: 'mute', label: 'Mute', sub: 'Vibrate Only', Icon: Vibrate },
-  { id: 'off', label: 'Off', sub: 'Total Silence', Icon: VolumeX },
+  { id: 'off', label: 'Off', sub: 'Silent SFX', Icon: VolumeX },
 ];
 
 interface ToggleRowProps {
@@ -448,17 +448,42 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </section>
 
-          {/* 4. Audio, Haptics & Phone Sensors */}
-          <section className="rounded-2xl border wv-border wv-card-muted p-3.5 space-y-2 amoled-surface">
+          {/* 4. Sound & Music + Haptics & Motion */}
+          <section
+            data-testid="settings-sound-music-section"
+            className="rounded-2xl border wv-border wv-card-muted p-3.5 space-y-2 amoled-surface"
+          >
             <h3 className="flex items-center gap-1.5 px-1 pb-1 text-xs font-bold uppercase tracking-wider wv-accent-text">
               <Volume2 className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Sound Mode, Music Loop &amp; Motion</span>
+              <span>Sound &amp; Music</span>
             </h3>
 
-            {/* 3-State Sound Mode Selector */}
-            <div className="px-1 pb-1">
+            <ToggleRow
+              testId="setting-sound-sfx-toggle"
+              label="Sound"
+              description="All in-game SFX: taps, tile flips, error shakes, chimes & alerts"
+              checked={activeSoundMode === 'on'}
+              onToggle={() => {
+                const nextMode: SoundMode = activeSoundMode === 'on' ? 'off' : 'on';
+                onUpdateSettings({
+                  soundMode: nextMode,
+                  soundEnabled: nextMode === 'on',
+                });
+              }}
+            />
+
+            <ToggleRow
+              testId="setting-bg-music"
+              label="Music"
+              description="Calm Web Audio instrumental soundtrack (pauses during ads & background)"
+              checked={settings.bgMusicEnabled}
+              onToggle={() => onUpdateSettings({ bgMusicEnabled: !settings.bgMusicEnabled })}
+            />
+
+            {/* 3-State Sound Feedback Mode Selector */}
+            <div className="px-1 pt-1 pb-1">
               <span className="text-xs sm:text-sm font-semibold wv-text-muted">
-                Icon Tap &amp; Audio Mode
+                Tap &amp; Vibration Profile
               </span>
               <div
                 role="group"
@@ -497,14 +522,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <ToggleRow
-              testId="setting-bg-music"
-              label="Looping Background Game Music"
-              description="Plays a calm game melody continuously on loop while Sound is On"
-              checked={settings.bgMusicEnabled}
-              onToggle={() => onUpdateSettings({ bgMusicEnabled: !settings.bgMusicEnabled })}
-            />
-
-            <ToggleRow
               testId="setting-fanfare"
               label="Victory Fanfare"
               description="Celebration chord on solved words & achievements"
@@ -517,7 +534,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <ToggleRow
               testId="setting-haptics"
               label="Vibration on Taps (when Sound is On)"
-              description="Mute mode always vibrates gently; Off mode disables all vibration"
+              description="Mute mode always vibrates gently; Off mode disables tap SFX & vibration"
               checked={settings.hapticsEnabled}
               onToggle={() => onUpdateSettings({ hapticsEnabled: !settings.hapticsEnabled })}
             />
@@ -533,7 +550,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="flex items-center gap-2 px-3 py-1 text-xs wv-text-muted">
               <Music className="h-3.5 w-3.5 wv-accent-text shrink-0" aria-hidden="true" />
               <span>
-                On = Tap sound + looping music · Mute = Vibrate only · Off = Totally silent
+                Sound &amp; Music are completely independent — toggle either anytime.
               </span>
             </div>
 

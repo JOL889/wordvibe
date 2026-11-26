@@ -258,10 +258,12 @@ export function getTriviaCategoryById(id: string): TriviaCategorySpec {
 export function isTriviaCategoryUnlocked(
   categoryId: string,
   unlockExpiryMap: Record<string, number>,
-  nowMs: number = Date.now()
+  nowMs: number = Date.now(),
+  mastermindUnlocked: boolean = false
 ): boolean {
   const spec = getTriviaCategoryById(categoryId);
   if (!spec.isBonusLocked) return true;
+  if (spec.id === 'mastermind-vault' && mastermindUnlocked) return true;
   const expiresAt = unlockExpiryMap[spec.id] || 0;
   return expiresAt > nowMs;
 }

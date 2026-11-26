@@ -17,14 +17,12 @@ import {
 } from 'lucide-react';
 import { getCategoryById, type PuzzleCategory } from '../data/categories';
 import {
-  formatActiveWordLetterStats,
-  getCrosswordProgressSummary,
   type CrosswordBoardState,
   type CrosswordSlotType,
 } from '../game/crosswordLogic';
 import type { CursorDirection, TileState, TypingDirection } from '../game/puzzleLogic';
 import { getWordMeaningClue } from '../game/wordMeanings';
-import { formatNotEnoughXpMessage, XP_COSTS } from '../game/xpEconomyLogic';
+import { XP_COSTS } from '../game/xpEconomyLogic';
 
 export interface SelectedDictionaryWord {
   word: string;
@@ -153,14 +151,11 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
   }, [boardAnimKey]);
 
   const L = board.length;
-  const progress = getCrosswordProgressSummary(board);
   const unlockedClueCount = Object.keys(board.unlockedClues).length;
 
   const category = getCategoryById(board.categoryId);
   const safeRow = Math.min(L - 1, Math.max(0, activeRow));
   const safeCol = Math.min(L - 1, Math.max(0, activeCol));
-  const activeWord =
-    typingDirection === 'across' ? board.solution.rows[safeRow] : board.solution.cols[safeCol];
   const activeSlotType: CrosswordSlotType = typingDirection === 'down' ? 'col' : 'row';
   const activeSlotIndex = typingDirection === 'down' ? safeCol : safeRow;
   const activeClueKey = `${activeSlotType}-${activeSlotIndex}`;
@@ -171,7 +166,6 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
       : `Col ${safeCol + 1} Down`;
   const activeLineSolved =
     typingDirection === 'across' ? board.solvedRows[safeRow] : board.solvedCols[safeCol];
-  const activeWordStats = formatActiveWordLetterStats(activeWord, typingDirection);
 
   const focusDeviceKeyboard = () => {
     const input = deviceInputRef.current;
@@ -283,7 +277,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
 
   return (
     <div className="mx-auto my-0.5 flex w-full max-w-md flex-col items-center gap-1.5 px-2.5 sm:px-3 select-none">
-      {/* Top Active Line Letter Breakdown (Stats Only — Main Clue Locked Below Until Ad) */}
+      {/* Top Active Line Prompt */}
       {board.status === 'playing' && (
         <div
           data-testid="active-line-clue"
@@ -298,49 +292,55 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
               )}
               <span>{activeLineLabel}</span>
             </span>
-            <span className="font-mono-tabular text-xs font-bold wv-text-muted">
-              {activeLineSolved ? 'Solved ✓' : `${L} letters`}
+            <span className="text-xs font-bold wv-text-muted">
+              {activeLineSolved ? 'Solved ✓' : 'Active Line'}
             </span>
           </div>
           <p
             data-testid="active-line-letter-stats"
-            className="mt-0.5 text-sm font-bold leading-snug wv-text"
+            className="mt-0.5 text-sm font-semibold leading-snug wv-text"
           >
-            {activeWordStats}
+            {activeLineSolved
+              ? 'Word complete! Tap another row or column.'
+              : 'Fill letters across or down, then check your word.'}
           </p>
         </div>
       )}
 
-      {/* Across & Down Individual Word Progress Pill Strip */}
+      {/* Across & Down Direction Quick Strip */}
       <div
         data-testid="crossword-progress-bar"
         className="flex w-full max-w-[390px] items-center justify-between gap-2 rounded-xl border wv-border wv-card px-3 py-1 text-xs sm:text-sm shadow-xs"
       >
-        <div className="flex items-center gap-1.5 font-bold wv-text">
-          <ArrowRight className="h-4 w-4 wv-accent-text" aria-hidden="true" />
+        <button
+          type="button"
+          onClick={() => {
+            onChangeDirection('across');
+            focusDeviceKeyboard();
+          }}
+          className={`flex items-center gap-1.5 font-bold cursor-pointer ${
+            typingDirection === 'across' ? 'wv-accent-text' : 'wv-text-muted hover:opacity-85'
+          }`}
+        >
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
           <span>Across</span>
-          <span
-            data-testid="crossword-solved-rows-count"
-            className="font-mono-tabular wv-accent-text"
-          >
-            {progress.solvedRowsCount}/{L}
-          </span>
-        </div>
+        </button>
 
-        <span className="font-mono-tabular text-xs font-bold wv-text-muted">
-          {progress.solvedWordsCount}/{progress.totalWords} Words
-        </span>
+        <span className="text-xs font-semibold wv-text-muted">Linked Crossword</span>
 
-        <div className="flex items-center gap-1.5 font-bold wv-text">
-          <ArrowDown className="h-4 w-4 wv-accent-text" aria-hidden="true" />
+        <button
+          type="button"
+          onClick={() => {
+            onChangeDirection('down');
+            focusDeviceKeyboard();
+          }}
+          className={`flex items-center gap-1.5 font-bold cursor-pointer ${
+            typingDirection === 'down' ? 'wv-accent-text' : 'wv-text-muted hover:opacity-85'
+          }`}
+        >
+          <ArrowDown className="h-4 w-4" aria-hidden="true" />
           <span>Down</span>
-          <span
-            data-testid="crossword-solved-cols-count"
-            className="font-mono-tabular wv-accent-text"
-          >
-            {progress.solvedColsCount}/{L}
-          </span>
-        </div>
+        </button>
       </div>
 
       {/* Tactile L x L Linked Crossword Board (Phone-motion parallax surface) */}
@@ -372,7 +372,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}
-          aria-label="Crossword letter input — press Enter on your keyboard to verify the active word"
+          aria-label="Crossword letter input"
           disabled={board.status !== 'playing'}
           defaultValue={INPUT_SENTINEL}
           onFocus={(e) => resetSentinel(e.currentTarget)}
@@ -594,14 +594,10 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
           })}
         </div>
 
-        {/* Keyboard Tip */}
+        {/* Gentle play prompt */}
         {board.status === 'playing' && (
-          <p className="mt-3 text-center text-xs font-medium wv-text-muted">
-            Type Across or Down from any box · Press{' '}
-            <kbd className="rounded border wv-border wv-card-muted px-1.5 py-0.5 font-mono-tabular text-xs font-bold wv-text">
-              Enter
-            </kbd>{' '}
-            on your keyboard to verify line
+          <p className="mt-3 text-center text-sm font-medium wv-text-muted">
+            Tap any square to spell Across or Down.
           </p>
         )}
       </div>
@@ -701,8 +697,8 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
         >
           <span className="font-semibold wv-text-muted truncate">
             {currentXp >= XP_COSTS.PUZZLE_HINT
-              ? `Offline Hint Ready · Balance: ${currentXp.toLocaleString()} XP`
-              : `${formatNotEnoughXpMessage(XP_COSTS.PUZZLE_HINT)} (${currentXp.toLocaleString()} XP)`}
+              ? 'Reveal a letter with XP'
+              : 'Earn Practice XP to unlock XP Hints'}
           </span>
           <button
             type="button"
@@ -783,15 +779,6 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
                   </button>
                 )}
               </div>
-              {onSpendXpForClue && currentXp < XP_COSTS.PUZZLE_CLUE && (
-                <p
-                  data-testid="clue-xp-insufficient-msg"
-                  className="text-[11px] font-semibold wv-text-muted"
-                >
-                  {formatNotEnoughXpMessage(XP_COSTS.PUZZLE_CLUE)} (Balance:{' '}
-                  {currentXp.toLocaleString()} XP)
-                </p>
-              )}
             </div>
           )}
         </div>
@@ -806,10 +793,10 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 text-xs sm:text-sm font-extrabold wv-accent-text">
               <Clock className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>Time&apos;s Up! Climb reset to 1/5</span>
+              <span>Time&apos;s Up! 0 XP · Advancing...</span>
             </div>
             <p className="text-xs wv-text-muted">
-              Beat all 5 shrinking-timer puzzles in a row to level up.
+              Unanswered puzzle · Climb resets to 1/5 with a fresh 15s-scaled round.
             </p>
           </div>
           <button
@@ -957,7 +944,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider wv-accent-text">
               <Compass className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>Featured Topics · Ad or 300 XP</span>
+              <span>Featured Topics</span>
             </div>
             <button
               type="button"
@@ -965,7 +952,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
               onClick={onOpenTopicsExplorer}
               className="text-xs font-bold wv-accent-text hover:underline cursor-pointer whitespace-nowrap"
             >
-              All 100 Topics →
+              All Topics →
             </button>
           </div>
           <div className="mt-2 grid grid-cols-3 gap-1.5">

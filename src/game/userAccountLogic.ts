@@ -60,6 +60,19 @@ export interface RegistrationValidationResult {
   };
 }
 
+export interface SignInFormInput {
+  email: string;
+  password: string;
+}
+
+export interface SignInValidationResult {
+  valid: boolean;
+  errors: Partial<Record<'email' | 'password', string>>;
+  normalized: {
+    email: string;
+  };
+}
+
 const VALID_RASTER_DATA_URL_RE = /^data:image\/(jpeg|jpg|png|webp);base64,[A-Za-z0-9+/=]+$/i;
 const USERNAME_RE = /^[a-zA-Z0-9._]{3,24}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -75,12 +88,35 @@ export function normalizeUsername(raw: string): string {
   return raw.trim().replace(/^@+/, '').replace(/\s+/g, '_').slice(0, 24);
 }
 
+export function normalizeEmailKey(raw: string): string {
+  return raw.trim().toLowerCase().slice(0, 96);
+}
+
+export function validateSignInInput(input: SignInFormInput): SignInValidationResult {
+  const email = normalizeEmailKey(input.email);
+  const password = input.password;
+  const errors: SignInValidationResult['errors'] = {};
+
+  if (!EMAIL_RE.test(email)) {
+    errors.email = 'Please enter a valid email address.';
+  }
+  if (password.length < 6) {
+    errors.password = 'Password must be at least 6 characters.';
+  }
+
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors,
+    normalized: { email },
+  };
+}
+
 export function validateRegistrationInput(
   input: RegistrationFormInput
 ): RegistrationValidationResult {
   const realName = input.realName.trim().replace(/\s+/g, ' ').slice(0, 48);
   const username = normalizeUsername(input.username);
-  const email = input.email.trim().toLowerCase().slice(0, 96);
+  const email = normalizeEmailKey(input.email);
   const password = input.password;
 
   const errors: RegistrationValidationResult['errors'] = {};

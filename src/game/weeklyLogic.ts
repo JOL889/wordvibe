@@ -459,6 +459,10 @@ export type WeeklyEventInput =
       attemptsUsed: number;
       wordLength: 4 | 5 | 6;
       categoryId: string;
+      isOnline?: boolean;
+      timedOut?: boolean;
+      baseXp?: number;
+      xpAwardedOverride?: number;
     }
   | {
       type: 'trivia_answered';
@@ -467,6 +471,9 @@ export type WeeklyEventInput =
       streakAfter: number;
       xpAwarded: number;
       categoryId: string;
+      isOnline?: boolean;
+      timedOut?: boolean;
+      baseXp?: number;
     }
   | {
       type: 'trivia_round_completed';
@@ -512,31 +519,47 @@ export function applyWeeklyActivityEvent(
 
   if (event.type === 'puzzle_completed') {
     addCategory(event.categoryId);
-    if (event.won) {
-      const lengthBonus = event.wordLength === 6 ? 40 : event.wordLength === 5 ? 25 : 15;
-      const attemptBonus = Math.max(10, (7 - event.attemptsUsed) * 18);
-      const dailyBonus = event.mode === 'daily' ? 60 : 25;
-      baseXp = dailyBonus + lengthBonus + attemptBonus;
+    if (event.timedOut) {
+      baseXp = 0;
+    } else if (event.won) {
+      if (typeof event.xpAwardedOverride === 'number') {
+        baseXp = Math.max(0, Math.round(event.xpAwardedOverride));
+      } else {
+        const lengthBonus = event.wordLength === 6 ? 40 : event.wordLength === 5 ? 25 : 15;
+        const attemptBonus = Math.max(10, (7 - event.attemptsUsed) * 18);
+        const dailyBonus = event.mode === 'daily' ? 60 : 25;
+        baseXp = dailyBonus + lengthBonus + attemptBonus;
+      }
       next.puzzlesSolved += 1;
       if (event.mode === 'daily') {
         next.dailyPuzzlesWon += 1;
       }
+    } else if (event.isOnline) {
+      // Online wrong / forfeited answer awards 0 XP
+      baseXp = 0;
     } else {
-      // Participation effort XP for trying a puzzle
-      baseXp = 20;
+      // Offline wrong answer awards 40% of base XP rounded to nearest integer
+      const fallbackBase = event.mode === 'sprint' ? 10 : 30;
+      baseXp = Math.max(0, Math.round((event.baseXp ?? fallbackBase) * 0.4));
     }
   } else if (event.type === 'trivia_answered') {
     addCategory(event.categoryId);
     next.triviaAnswered += 1;
-    if (event.correct) {
-      baseXp = Math.max(10, Math.round(event.xpAwarded));
+    if (event.timedOut) {
+      baseXp = 0;
+    } else if (event.correct) {
+      baseXp = Math.max(0, Math.round(event.xpAwarded));
       next.triviaCorrect += 1;
       next.bestTriviaStreak = Math.max(next.bestTriviaStreak, event.streakAfter);
       if (event.difficulty === 'hard') {
         next.hardTriviaSolved += 1;
       }
+    } else if (event.isOnline) {
+      // Online wrong answer awards 0 XP
+      baseXp = 0;
     } else {
-      baseXp = 5;
+      // Offline wrong answer awards 40% of base XP rounded to nearest integer
+      baseXp = Math.max(0, Math.round((event.baseXp ?? 15) * 0.4));
     }
   } else if (event.type === 'trivia_round_completed') {
     addCategory(event.categoryId);

@@ -1,10 +1,9 @@
 import React from 'react';
 import {
   BarChart3,
-  Coins,
-  Crown,
   HelpCircle,
   Settings,
+  Trophy,
   Vibrate,
   Volume2,
   VolumeX,
@@ -122,7 +121,7 @@ export const Header: React.FC<HeaderProps> = ({
           </a>
         </nav>
 
-        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           <PWAInstallButton compact />
 
           <button
@@ -132,21 +131,13 @@ export const Header: React.FC<HeaderProps> = ({
               e.currentTarget.blur();
               onOpenWeeklyRank();
             }}
-            aria-label={`Leaderboard Rank ${leaderboardRank ? `#${leaderboardRank}, ` : ''}${weeklyGradeId}, ${weeklyXp} XP, ${bonusCoins} coins. Open leaderboard and grading.`}
-            title="Leaderboard Rank, XP & Coins"
-            className="inline-flex h-10 items-center gap-1 sm:gap-1.5 rounded-xl border wv-border wv-card-muted px-2 sm:px-2.5 text-xs sm:text-sm font-bold wv-text transition-transform active:scale-95 whitespace-nowrap cursor-pointer"
+            aria-label={`${weeklyXp} XP. Open leaderboard and rewards.`}
+            title="Leaderboard & Rewards"
+            className="inline-flex h-10 items-center gap-1.5 rounded-xl border wv-border wv-card-muted px-2.5 sm:px-3 text-sm font-bold wv-text transition-transform active:scale-95 whitespace-nowrap cursor-pointer"
           >
-            <Crown className="h-3.5 w-3.5 wv-accent-text shrink-0" aria-hidden="true" />
-            <span data-testid="header-rank-mobile" className="font-mono-tabular sm:hidden">
-              {leaderboardRank ? `#${leaderboardRank}·` : `${weeklyGradeId}·`}
-              {weeklyXp}
-            </span>
-            <span data-testid="header-rank-desktop" className="font-mono-tabular hidden sm:inline">
-              {leaderboardRank ? `#${leaderboardRank} · ` : ''}Rank {weeklyGradeId} · {weeklyXp} XP
-            </span>
-            <span className="inline-flex items-center gap-0.5 border-l wv-border pl-1.5 font-mono-tabular wv-accent-text">
-              <Coins className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span data-testid="header-coins-count">{bonusCoins}</span>
+            <Trophy className="h-4 w-4 wv-accent-text shrink-0" aria-hidden="true" />
+            <span data-testid="header-rank-value" className="font-mono-tabular">
+              {weeklyXp.toLocaleString()} XP
             </span>
           </button>
 
@@ -171,7 +162,7 @@ export const Header: React.FC<HeaderProps> = ({
             }}
             aria-label="View statistics and streaks"
             title="Statistics"
-            className="inline-flex h-10 w-8 sm:w-10 items-center justify-center rounded-xl wv-text-muted transition-colors hover:opacity-80 cursor-pointer"
+            className="hidden sm:inline-flex h-10 w-10 items-center justify-center rounded-xl wv-text-muted transition-colors hover:opacity-80 cursor-pointer"
           >
             <BarChart3 className="h-[18px] w-[18px]" aria-hidden="true" />
           </button>
@@ -198,35 +189,6 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden sm:inline font-mono-tabular">{SOUND_SHORT_LABEL[soundMode]}</span>
           </button>
 
-          {onOpenProfile && (
-            <button
-              type="button"
-              data-testid="header-profile-btn"
-              onClick={(e) => {
-                e.currentTarget.blur();
-                onOpenProfile();
-              }}
-              aria-label={
-                userAccount ? `Edit profile for @${userAccount.username}` : 'Create player profile'
-              }
-              title={userAccount ? `@${userAccount.username} · Edit Profile` : 'Create Profile'}
-              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border wv-border wv-card-muted px-1.5 sm:px-2 text-xs font-bold wv-text transition-colors hover:opacity-85 cursor-pointer"
-            >
-              <UserAvatar
-                avatarType={userAccount?.avatarType}
-                builtinAvatarId={userAccount?.builtinAvatarId}
-                avatarDataUrl={userAccount?.avatarDataUrl}
-                alt={userAccount?.username || 'Profile'}
-                size="xs"
-              />
-              {userAccount && (
-                <span className="hidden lg:inline max-w-[90px] truncate font-semibold">
-                  @{userAccount.username}
-                </span>
-              )}
-            </button>
-          )}
-
           <button
             type="button"
             data-testid="open-settings-btn"
@@ -236,10 +198,46 @@ export const Header: React.FC<HeaderProps> = ({
             }}
             aria-label="Open WordVibe settings"
             title="Settings & Themes"
-            className="inline-flex h-10 w-8 sm:w-10 items-center justify-center rounded-xl wv-text transition-transform active:scale-90 hover:opacity-80 cursor-pointer"
+            className="inline-flex h-10 w-9 sm:w-10 items-center justify-center rounded-xl wv-text transition-transform active:scale-90 hover:opacity-80 cursor-pointer"
           >
-            <Settings className="h-[19px] w-[19px]" aria-hidden="true" />
+            <Settings className="h-5 w-5" aria-hidden="true" />
           </button>
+
+          {onOpenProfile && (
+            <button
+              type="button"
+              data-testid="header-profile-btn"
+              onClick={(e) => {
+                e.currentTarget.blur();
+                onOpenProfile();
+              }}
+              aria-label={
+                userAccount
+                  ? `Open profile for ${userAccount.realName || userAccount.username}`
+                  : 'Sign in or view profile'
+              }
+              title={
+                userAccount
+                  ? `${userAccount.realName || userAccount.username} · View Profile`
+                  : 'Sign In / Profile'
+              }
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full border-2 border-[var(--wv-accent)] wv-card-muted p-0.5 lg:pr-3 text-sm font-bold wv-text shadow-sm ring-2 ring-[var(--wv-accent)]/30 transition-transform active:scale-95 hover:opacity-95 cursor-pointer"
+            >
+              <UserAvatar
+                avatarType={userAccount?.avatarType}
+                builtinAvatarId={userAccount?.builtinAvatarId}
+                avatarDataUrl={userAccount?.avatarDataUrl}
+                alt={userAccount?.realName || userAccount?.username || 'Profile'}
+                size="sm"
+                className="border-0"
+              />
+              {userAccount && (
+                <span className="hidden lg:inline max-w-[100px] truncate font-bold">
+                  @{userAccount.username}
+                </span>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </header>

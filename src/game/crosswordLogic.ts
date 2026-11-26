@@ -153,22 +153,33 @@ function scoreWordComplexity(word: string): number {
   return score;
 }
 
+const FILTERED_POOL_CACHE = new WeakMap<readonly string[], Partial<Record<FiveDifficultyLevel, string[]>>>();
+
 function filterWordsByLevel(pool: readonly string[], level: FiveDifficultyLevel): string[] {
   if (pool.length <= 8) return [...pool];
+  let byLevel = FILTERED_POOL_CACHE.get(pool);
+  if (!byLevel) {
+    byLevel = {};
+    FILTERED_POOL_CACHE.set(pool, byLevel);
+  }
+  const cached = byLevel[level];
+  if (cached) return cached;
+
   const sorted = [...pool].sort((a, b) => scoreWordComplexity(a) - scoreWordComplexity(b));
   const n = sorted.length;
-  if (level === 'novice') return sorted.slice(0, Math.max(8, Math.ceil(n * 0.4)));
-  if (level === 'beginner') {
-    return sorted.slice(Math.floor(n * 0.15), Math.max(10, Math.ceil(n * 0.58)));
+  let result: string[];
+  if (level === 'novice') result = sorted.slice(0, Math.max(8, Math.ceil(n * 0.4)));
+  else if (level === 'beginner') {
+    result = sorted.slice(Math.floor(n * 0.15), Math.max(10, Math.ceil(n * 0.58)));
+  } else if (level === 'intermediate') {
+    result = sorted.slice(Math.floor(n * 0.3), Math.max(10, Math.ceil(n * 0.78)));
+  } else if (level === 'expert') {
+    result = sorted.slice(Math.floor(n * 0.55));
+  } else {
+    result = sorted.slice(Math.floor(n * 0.72));
   }
-  if (level === 'intermediate') {
-    return sorted.slice(Math.floor(n * 0.3), Math.max(10, Math.ceil(n * 0.78)));
-  }
-  if (level === 'expert') {
-    return sorted.slice(Math.floor(n * 0.55));
-  }
-  // legendary
-  return sorted.slice(Math.floor(n * 0.72));
+  byLevel[level] = result;
+  return result;
 }
 
 function anchorCountForDifficulty(length: WordLength, levelNumber: number): number {
@@ -251,11 +262,38 @@ function pickCrosswordSolution(params: {
     return !retiredIds.has(pid) && !queuedIds.has(pid);
   };
 
+  const precomputedForLen = getPrecomputedTargetsForLength(length);
+  const freshPrecomputed = precomputedForLen.filter(isAvailablePuzzleWord);
+  const globalSeen = getBucketSeenKeys(globalBucket);
+  const retiredTargetWords = Array.from(retiredIds)
+    .filter((id) => id.startsWith(`puzzle:${length}:`))
+    .map((id) => id.slice(`puzzle:${length}:`.length));
+  const queuedTargetWords = Array.from(queuedIds)
+    .filter((id) => id.startsWith(`puzzle:${length}:`))
+    .map((id) => id.slice(`puzzle:${length}:`.length));
+
+  // Zero-repeat draw from precomputed verified asymmetric words first for 6x6 (<1ms) so 5x5 -> 6x6 never lags
+  if (length === 6) {
+    const sixPool = freshPrecomputed.length > 0 ? freshPrecomputed : precomputedForLen;
+    if (sixPool.length > 0) {
+      const guaranteedPick = pickZeroRepeatItem(
+        `crossword:precomputed:6`,
+        sixPool,
+        (w) => w,
+        [...globalSeen, ...retiredTargetWords, ...queuedTargetWords]
+      );
+      const builtSix = buildCompletedWordSquare(guaranteedPick, 6);
+      if (builtSix) {
+        markBucketKeySeen(globalBucket, builtSix.target);
+        return builtSix;
+      }
+    }
+  }
+
   const category = getCategoryById(categoryId);
   const catWords =
     length === 4 ? category.words4 : length === 6 ? category.words6 : category.words5;
   const globalPool = SOLUTION_WORDS[length];
-  const precomputedForLen = getPrecomputedTargetsForLength(length);
   const rawMergedPool = Array.from(
     new Set([...catWords, ...filterWordsByLevel(globalPool, band), ...precomputedForLen])
   );
@@ -266,18 +304,11 @@ function pickCrosswordSolution(params: {
     sq.rows.every((w) => hasCuratedWordMeaning(w)) &&
     sq.cols.every((w) => hasCuratedWordMeaning(w));
 
-  const retiredTargetWords = Array.from(retiredIds)
-    .filter((id) => id.startsWith(`puzzle:${length}:`))
-    .map((id) => id.slice(`puzzle:${length}:`.length));
-  const queuedTargetWords = Array.from(queuedIds)
-    .filter((id) => id.startsWith(`puzzle:${length}:`))
-    .map((id) => id.slice(`puzzle:${length}:`.length));
-
   // Try zero-repeat target draws (excluding retiredIds, queuedIds, and seen boards) preferring curated meanings
-  const globalSeen = getBucketSeenKeys(globalBucket);
   const tried: string[] = [...globalSeen, ...retiredTargetWords, ...queuedTargetWords];
-  const maxAttempts = length === 6 ? 5 : 10;
   let backupBuilt: CompletedWordSquare | null = null;
+
+  const maxAttempts = length === 6 ? 1 : 10;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const pickedWord = pickZeroRepeatItem(
       `crossword:${categoryId}:${length}:${levelNumber}`,
@@ -298,7 +329,6 @@ function pickCrosswordSolution(params: {
   }
 
   // Zero-repeat draw from precomputed verified asymmetric words (skipping retired & queued)
-  const freshPrecomputed = precomputedForLen.filter(isAvailablePuzzleWord);
   if (freshPrecomputed.length > 0) {
     const guaranteedPick = pickZeroRepeatItem(
       `crossword:precomputed:${length}`,
@@ -321,7 +351,7 @@ function pickCrosswordSolution(params: {
   // Procedural fallback across VALID_WORDS[length] when curated/precomputed pools are retired or exhausted
   const dictWords = Array.from(VALID_WORDS[length]);
   const stepOffset = (retiredIds.size * 31 + levelNumber * 17) % Math.max(1, dictWords.length);
-  const procCap = length === 6 ? 12 : 30;
+  const procCap = length === 6 ? 2 : 30;
   for (let i = 0; i < Math.min(dictWords.length, procCap); i++) {
     const candidate = dictWords[(stepOffset + i * 7) % dictWords.length];
     if (!isAvailablePuzzleWord(candidate)) continue;

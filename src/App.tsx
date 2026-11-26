@@ -14,7 +14,8 @@ import { HowToPlayModal, type HelpSectionTab } from './components/HowToPlayModal
 import { ModeControls } from './components/ModeControls';
 import { OfflineBanner } from './components/OfflineBanner';
 import { PersonalizationModal } from './components/PersonalizationModal';
-import { ProfileAuthModal } from './components/ProfileAuthModal';
+import { ProfileAuthModal, type ProfileAuthMode } from './components/ProfileAuthModal';
+import { ProfileViewModal } from './components/ProfileViewModal';
 import { PuzzleGrid, type SelectedDictionaryWord } from './components/PuzzleGrid';
 import { RewardedAdModal } from './components/RewardedAdModal';
 import { RewardedDock } from './components/RewardedDock';
@@ -92,9 +93,11 @@ import {
 import {
   createTriviaClimbState,
   TRIVIA_BONUS_UNLOCK_HOURS,
+  TRIVIA_QUESTION_TIME_LIMIT_SEC,
   type TriviaClimbProgress,
   type TriviaQuestion,
 } from './game/triviaLogic';
+import { isSwipeIgnoredTarget, resolveSwipeTabChange } from './game/navigationLogic';
 import { recordModeOutcome } from './game/retirementQueueLogic';
 import { gatherUserEnvironmentDetails } from './game/userResearchLogic';
 import {
@@ -112,6 +115,8 @@ import {
   buildInviteFriendsPayload,
   buildLeaderboardSharePayload,
   buildPuzzleSharePayload,
+  normalizeEmailKey,
+  verifyPasswordLocal,
   type LocalUserAccount,
 } from './game/userAccountLogic';
 import { buildCuratedWordFunFact } from './game/wordTriviaLogic';
@@ -122,6 +127,8 @@ import {
   XP_COSTS,
 } from './game/xpEconomyLogic';
 import {
+  calculateOfflineWrongXp,
+  calculateVerifiedRoundXp,
   recordVerifiedOnlineRound,
   shouldAutoFlushBatch,
   type ClaimConfirmationReceipt,
@@ -145,12 +152,17 @@ import {
   signOutFirebaseSession,
   submitVerifiedRewardClaim,
   subscribeFirebaseAuth,
+  updateFirebaseDisplayName,
 } from './services/firebaseSyncService';
 import {
+  clearActiveLocalUserAccount,
   hydrateLocalUserAccountFromIdb,
+  loadEmailProgressBundle,
   loadLocalUserAccount,
+  saveEmailProgressBundle,
   saveLocalUserAccount,
   shareOrCopyMessage,
+  type EmailProgressBundle,
 } from './services/accountStorageService';
 import {
   attachDeviceSensorListeners,
@@ -355,8 +367,8 @@ export default function App() {
   const isOnlineRef = useRef(isOnline);
   isOnlineRef.current = isOnline;
 
-  const [profileModalMode, setProfileModalMode] = useState<'signup' | 'edit'>(() =>
-    loadLocalUserAccount() ? 'edit' : 'signup'
+  const [profileModalMode, setProfileModalMode] = useState<ProfileAuthMode>(() =>
+    loadLocalUserAccount() ? 'edit' : 'signin'
   );
   const [profileModalOpen, setProfileModalOpen] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -364,6 +376,16 @@ export default function App() {
     if (params.get('autostart') === '1') return false;
     return loadLocalUserAccount() === null;
   });
+  const [profileViewOpen, setProfileViewOpen] = useState<boolean>(false);
+  const [authModalError, setAuthModalError] = useState<string | null>(null);
+  const [swipeTransitionDir, setSwipeTransitionDir] = useState<'left' | 'right' | null>(null);
+  const swipeTouchStartRef = useRef<{
+    x: number;
+    y: number;
+    time: number;
+    ignored: boolean;
+  } | null>(null);
+  const swipeAnimTimerRef = useRef<number | null>(null);
 
   const [cluePanelOpen, setCluePanelOpen] = useState<boolean>(
     () => Object.keys(initialBoot.board.unlockedClues).length > 0
@@ -397,6 +419,8 @@ export default function App() {
   const confettiTimerRef = useRef<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
   const summaryTimerRef = useRef<number | null>(null);
+  const puzzleTimeoutAdvanceRef = useRef<number | null>(null);
+  const autoAdvanceTimeoutBoardRef = useRef<() => void>(() => {});
   const rewardIdRef = useRef<number>(1);
   const resolvedBoardIdsRef = useRef<Set<string>>(new Set());
   const puzzleTimeLeftRef = useRef<number>(puzzleTimeLeftSec);
@@ -646,8 +670,10 @@ export default function App() {
     return () => {
       if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
       if (summaryTimerRef.current) window.clearTimeout(summaryTimerRef.current);
+      if (puzzleTimeoutAdvanceRef.current) window.clearTimeout(puzzleTimeoutAdvanceRef.current);
       if (achievementTimerRef.current) window.clearTimeout(achievementTimerRef.current);
       if (confettiTimerRef.current) window.clearTimeout(confettiTimerRef.current);
+      if (swipeAnimTimerRef.current) window.clearTimeout(swipeAnimTimerRef.current);
     };
   }, []);
 
@@ -693,6 +719,59 @@ export default function App() {
     };
   }, []);
 
+  const buildEmailProgressBundle = useCallback(
+    (acct: LocalUserAccount): EmailProgressBundle => ({
+      email: normalizeEmailKey(acct.email),
+      account: acct,
+      stats,
+      weeklyProgress,
+      faithProgress,
+      triviaState,
+      playerProfile,
+      modeConfig,
+      categoryProgress,
+      appSettings,
+      crosswordClimb,
+      triviaClimb,
+      updatedAt: Date.now(),
+    }),
+    [
+      appSettings,
+      categoryProgress,
+      crosswordClimb,
+      faithProgress,
+      modeConfig,
+      playerProfile,
+      stats,
+      triviaClimb,
+      triviaState,
+      weeklyProgress,
+    ]
+  );
+
+  const applyEmailProgressBundle = useCallback((bundle: EmailProgressBundle) => {
+    setStats(bundle.stats);
+    setWeeklyProgress(bundle.weeklyProgress);
+    setFaithProgress(bundle.faithProgress);
+    setTriviaState(bundle.triviaState);
+    setPlayerProfile(bundle.playerProfile);
+    setModeConfig(bundle.modeConfig);
+    setCategoryProgress(bundle.categoryProgress);
+    setAppSettings(bundle.appSettings);
+    setCrosswordClimb(bundle.crosswordClimb);
+    setTriviaClimb(bundle.triviaClimb);
+    setUserAccount(bundle.account);
+  }, []);
+
+  // Keep user progress synced to their email vault automatically
+  useEffect(() => {
+    if (!userAccount?.email) return;
+    const timer = window.setTimeout(() => {
+      void saveEmailProgressBundle(buildEmailProgressBundle(userAccount));
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [buildEmailProgressBundle, userAccount]);
+
   // Persist verified online reward state cleanly
   useEffect(() => {
     saveVerifiedRewardState(verifiedState);
@@ -728,17 +807,17 @@ export default function App() {
         showToast(outcome.message, 2600);
       }
     } catch (err) {
-      const rawMsg = err instanceof Error ? err.message : 'Unable to sync Verified XP.';
+      const rawMsg = err instanceof Error ? err.message : 'Unable to sync progress.';
       const isPermDenied = rawMsg.includes('Missing or insufficient permissions');
       const friendlyMsg = isPermDenied
-        ? 'Cloud sync paused — verify your sign-in session and XP rules for users/{uid}.'
+        ? 'Cloud sync paused — verify your signed-in session.'
         : rawMsg;
       setSyncStatusMessage(friendlyMsg);
       if (!silent) {
         showToast(
           isPermDenied
             ? 'Sync paused — check your signed-in session.'
-            : 'Sync paused — will retry after cooldown.',
+            : 'Sync paused — please try again shortly.',
           3200
         );
       }
@@ -811,10 +890,16 @@ export default function App() {
     (params: {
       mode: VerifiedRoundMode;
       won: boolean;
+      sessionMode?: SessionPlayMode;
+      timeRemainingSec?: number;
+      timeTotalSec?: number;
       accuracyRatio?: number;
       difficultyWeight?: number;
       streak?: number;
     }) => {
+      if (params.mode === 'faith' || !params.won) {
+        return;
+      }
       const onlineNow =
         typeof navigator !== 'undefined' ? navigator.onLine : isOnlineRef.current;
       const signedInNow = Boolean(firebaseUserRef.current);
@@ -823,6 +908,9 @@ export default function App() {
         isSignedIn: signedInNow,
         mode: params.mode,
         won: params.won,
+        sessionMode: params.sessionMode,
+        timeRemainingSec: params.timeRemainingSec,
+        timeTotalSec: params.timeTotalSec,
         accuracyRatio: params.accuracyRatio,
         difficultyWeight: params.difficultyWeight,
         streak: params.streak,
@@ -864,7 +952,8 @@ export default function App() {
     weeklyRankOpen ||
     personalizationOpen ||
     settingsOpen ||
-    profileModalOpen;
+    profileModalOpen ||
+    profileViewOpen;
 
   const recordPuzzleBoardOutcome = useCallback(
     (board: CrosswordBoardState, won: boolean) => {
@@ -894,9 +983,17 @@ export default function App() {
         setPuzzleTimeLeftSec(0);
         setPuzzleTimedOut(true);
         soundService.playInvalidShake();
+        // Do NOT auto-complete/auto-answer the board and award 0 XP
         recordPuzzleBoardOutcome(crosswordBoard, false);
         setCrosswordClimb((prev) => advanceCrosswordLevelClimb(prev, false));
-        showToast("Time's up! Level Climb reset to Puzzle 1/5.", 3400);
+        showToast("Time's up! Unanswered · 0 XP — Advancing...", 2600);
+        if (puzzleTimeoutAdvanceRef.current) {
+          window.clearTimeout(puzzleTimeoutAdvanceRef.current);
+        }
+        puzzleTimeoutAdvanceRef.current = window.setTimeout(() => {
+          puzzleTimeoutAdvanceRef.current = null;
+          autoAdvanceTimeoutBoardRef.current();
+        }, 1200);
         return;
       }
       const nextVal = current - 1;
@@ -973,6 +1070,10 @@ export default function App() {
 
       if (summaryTimerRef.current) {
         window.clearTimeout(summaryTimerRef.current);
+      }
+      if (puzzleTimeoutAdvanceRef.current) {
+        window.clearTimeout(puzzleTimeoutAdvanceRef.current);
+        puzzleTimeoutAdvanceRef.current = null;
       }
 
       const safeLv = normalizeLevelNumber(nextLevelNumber, 1);
@@ -1255,6 +1356,9 @@ export default function App() {
       setShowWinBurst(true);
       window.setTimeout(() => setShowWinBurst(false), 1200);
 
+      const isFaithBoard = wonBoard.trackerMode === 'faith';
+      const onlineNow =
+        typeof navigator !== 'undefined' ? navigator.onLine : isOnlineRef.current;
       const statMode = modeConfig.puzzleSessionMode === 'sprint' ? 'sprint' : 'daily';
       setStats((prev) =>
         updateStatsOnCompletion(prev, {
@@ -1273,25 +1377,66 @@ export default function App() {
           length: wonBoard.length,
         })
       );
-      const xpDelta = recordWeeklyEvent({
-        type: 'puzzle_completed',
-        won: true,
-        mode: statMode,
-        attemptsUsed: Math.max(1, wonBoard.wrongChecks + 1),
-        wordLength: wonBoard.length,
-        categoryId: wonBoard.categoryId,
-      });
-      queueVerifiedOnlineRound({
-        mode: 'puzzle',
-        won: true,
-        accuracyRatio: Math.max(0.25, 1 - wonBoard.wrongChecks * 0.15),
-        difficultyWeight: Math.min(1, modeConfig.puzzleLevelNumber / 20),
-        streak: stats.currentStreak + 1,
-      });
-      const earned = xpDelta || 120;
+
+      const accRatio = Math.max(0.25, 1 - wonBoard.wrongChecks * 0.15);
+      const diffWeight = Math.min(1, modeConfig.puzzleLevelNumber / 20);
+
+      let earned = 0;
+      if (isFaithBoard) {
+        // Faith Mode Online awards 0 online XP and never syncs to online leaderboard;
+        // Offline Faith progress remains local Practice XP only.
+        if (!onlineNow) {
+          const offlineFaithXp = modeConfig.puzzleSessionMode === 'sprint' ? 10 : 25;
+          earned = offlineFaithXp;
+          recordWeeklyEvent({
+            type: 'puzzle_completed',
+            won: true,
+            mode: statMode,
+            attemptsUsed: Math.max(1, wonBoard.wrongChecks + 1),
+            wordLength: wonBoard.length,
+            categoryId: wonBoard.categoryId,
+            isOnline: false,
+            xpAwardedOverride: offlineFaithXp,
+          });
+          pushFloatingReward(`+${offlineFaithXp} Offline XP`, 'xp');
+        } else {
+          pushFloatingReward('Practice · 0 Online XP', 'xp');
+        }
+      } else {
+        earned = calculateVerifiedRoundXp({
+          mode: 'puzzle',
+          won: true,
+          sessionMode: modeConfig.puzzleSessionMode,
+          timeRemainingSec: puzzleTimeLeftRef.current,
+          timeTotalSec: roundTimeTotalSec,
+          accuracyRatio: accRatio,
+          difficultyWeight: diffWeight,
+        });
+        recordWeeklyEvent({
+          type: 'puzzle_completed',
+          won: true,
+          mode: statMode,
+          attemptsUsed: Math.max(1, wonBoard.wrongChecks + 1),
+          wordLength: wonBoard.length,
+          categoryId: wonBoard.categoryId,
+          isOnline: onlineNow,
+          xpAwardedOverride: earned,
+        });
+        queueVerifiedOnlineRound({
+          mode: 'puzzle',
+          won: true,
+          sessionMode: modeConfig.puzzleSessionMode,
+          timeRemainingSec: puzzleTimeLeftRef.current,
+          timeTotalSec: roundTimeTotalSec,
+          accuracyRatio: accRatio,
+          difficultyWeight: diffWeight,
+          streak: stats.currentStreak + 1,
+        });
+        pushFloatingReward(`+${earned} XP`, 'xp');
+      }
+
       setLastPuzzleXpEarned(earned);
       setPuzzleDoubleXpClaimed(false);
-      pushFloatingReward(`+${earned} XP`, 'xp');
 
       setCategoryProgress((prev) => ({
         ...prev,
@@ -1326,12 +1471,14 @@ export default function App() {
     },
     [
       dateKey,
+      modeConfig.puzzleLevelNumber,
       modeConfig.puzzleSessionMode,
       pushFloatingReward,
       puzzleTimedOut,
       queueVerifiedOnlineRound,
       recordPuzzleBoardOutcome,
       recordWeeklyEvent,
+      roundTimeTotalSec,
       showToast,
       stats.currentStreak,
       triggerConfetti,
@@ -1558,7 +1705,8 @@ export default function App() {
         weeklyRankOpen ||
         personalizationOpen ||
         settingsOpen ||
-        profileModalOpen
+        profileModalOpen ||
+        profileViewOpen
       ) {
         return;
       }
@@ -1644,6 +1792,8 @@ export default function App() {
       summaryOpen,
       triggerLineShake,
       typingDirection,
+      profileModalOpen,
+      profileViewOpen,
       weeklyRankOpen,
     ]
   );
@@ -1661,6 +1811,7 @@ export default function App() {
         setPersonalizationOpen(false);
         setSettingsOpen(false);
         setClueSlotModalOpen(false);
+        setProfileViewOpen(false);
         if (profileModalMode === 'edit') {
           setProfileModalOpen(false);
         }
@@ -1688,7 +1839,8 @@ export default function App() {
         weeklyRankOpen ||
         personalizationOpen ||
         settingsOpen ||
-        profileModalOpen
+        profileModalOpen ||
+        profileViewOpen
       ) {
         return;
       }
@@ -1734,6 +1886,7 @@ export default function App() {
     personalizationOpen,
     profileModalMode,
     profileModalOpen,
+    profileViewOpen,
     settingsOpen,
     summaryOpen,
     weeklyRankOpen,
@@ -2206,12 +2359,18 @@ export default function App() {
   const handleTriviaAnswerRecorded = useCallback(
     (params: {
       correct: boolean;
+      timedOut?: boolean;
       difficulty: TriviaQuestion['difficulty'];
       streakAfter: number;
       xpAwarded: number;
+      baseXp?: number;
+      timeRemainingSec?: number;
+      sessionMode?: SessionPlayMode;
       categoryId: string;
       questionText: string;
     }) => {
+      const onlineNow =
+        typeof navigator !== 'undefined' ? navigator.onLine : isOnlineRef.current;
       setPlayerProfile((prev) =>
         recordTriviaStudySignal(prev, {
           categoryId: params.categoryId,
@@ -2229,21 +2388,29 @@ export default function App() {
       recordWeeklyEvent({
         type: 'trivia_answered',
         correct: params.correct,
+        timedOut: params.timedOut,
+        isOnline: onlineNow,
         difficulty: params.difficulty,
         streakAfter: params.streakAfter,
         xpAwarded: params.xpAwarded,
+        baseXp: params.baseXp,
         categoryId: `trivia:${params.categoryId}`,
       });
-      queueVerifiedOnlineRound({
-        mode: 'trivia',
-        won: params.correct,
-        accuracyRatio: params.correct ? 0.85 : 0,
-        difficultyWeight:
-          params.difficulty === 'hard' ? 0.9 : params.difficulty === 'intermediate' ? 0.55 : 0.25,
-        streak: params.streakAfter,
-      });
+      if (params.correct && !params.timedOut) {
+        queueVerifiedOnlineRound({
+          mode: 'trivia',
+          won: true,
+          sessionMode: params.sessionMode ?? modeConfig.triviaSessionMode,
+          timeRemainingSec: params.timeRemainingSec,
+          timeTotalSec: TRIVIA_QUESTION_TIME_LIMIT_SEC,
+          accuracyRatio: 0.85,
+          difficultyWeight:
+            params.difficulty === 'hard' ? 0.9 : params.difficulty === 'intermediate' ? 0.55 : 0.25,
+          streak: params.streakAfter,
+        });
+      }
     },
-    [queueVerifiedOnlineRound, recordWeeklyEvent]
+    [modeConfig.triviaSessionMode, queueVerifiedOnlineRound, recordWeeklyEvent]
   );
 
   const handleTriviaRoundCompleted = useCallback(
@@ -2253,9 +2420,9 @@ export default function App() {
       roundXpEarned: number;
       categoryId: string;
     }) => {
-      if (params.correctCount >= 5) {
+      if (params.correctCount >= 5 && params.roundXpEarned > 0) {
         triggerConfetti();
-        pushFloatingReward(`+${params.roundXpEarned || 120} XP`, 'xp');
+        pushFloatingReward(`+${params.roundXpEarned} XP`, 'xp');
       }
       recordWeeklyEvent({
         type: 'trivia_round_completed',
@@ -2321,6 +2488,8 @@ export default function App() {
 
   const handleFaithAnswerRecorded = useCallback(
     (correct: boolean, religion: ReligionId) => {
+      const onlineNow =
+        typeof navigator !== 'undefined' ? navigator.onLine : isOnlineRef.current;
       setPlayerProfile((prev) =>
         recordTriviaStudySignal(prev, {
           categoryId: 'faith-study',
@@ -2333,23 +2502,32 @@ export default function App() {
           faithTriviaCorrect: prev.faithTriviaCorrect + 1,
         }));
       }
-      recordWeeklyEvent({
-        type: 'trivia_answered',
-        correct,
-        difficulty: 'intermediate',
-        streakAfter: correct ? 1 : 0,
-        xpAwarded: correct ? 35 : 5,
-        categoryId: `faith:${religion}`,
-      });
-      queueVerifiedOnlineRound({
-        mode: 'faith',
-        won: correct,
-        accuracyRatio: correct ? 0.8 : 0,
-        difficultyWeight: 0.45,
-      });
+      // Online Faith mode awards 0 online XP and never syncs to Firestore/leaderboard;
+      // Offline Faith mode records local Practice XP only (including 40% on wrong answers).
+      if (!onlineNow) {
+        const offlineBase = 35;
+        recordWeeklyEvent({
+          type: 'trivia_answered',
+          correct,
+          isOnline: false,
+          difficulty: 'intermediate',
+          streakAfter: correct ? 1 : 0,
+          xpAwarded: correct ? offlineBase : calculateOfflineWrongXp(offlineBase),
+          baseXp: offlineBase,
+          categoryId: `faith:${religion}`,
+        });
+      }
     },
-    [queueVerifiedOnlineRound, recordWeeklyEvent]
+    [recordWeeklyEvent]
   );
+
+  autoAdvanceTimeoutBoardRef.current = () => {
+    if (crosswordBoard.trackerMode === 'faith') {
+      handlePlayFaithPuzzle(personalizedMeta?.faithReligion || faithProgress.activeReligion);
+      return;
+    }
+    handleRetryTimedRound();
+  };
 
   const handlePlayPersonalizedPuzzle = useCallback(
     (explicitLength?: WordLength) => {
@@ -2421,6 +2599,57 @@ export default function App() {
     [crosswordBoard.lockedCells, crosswordBoard.status, crosswordBoard.userGrid]
   );
 
+  const switchTabWithSwipe = useCallback(
+    (nextTab: AppTab, direction: 'left' | 'right') => {
+      if (nextTab === activeTab) return;
+      setSwipeTransitionDir(direction);
+      setActiveTab(nextTab);
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      if (swipeAnimTimerRef.current) window.clearTimeout(swipeAnimTimerRef.current);
+      swipeAnimTimerRef.current = window.setTimeout(() => {
+        setSwipeTransitionDir(null);
+        swipeAnimTimerRef.current = null;
+      }, 260);
+    },
+    [activeTab]
+  );
+
+  const handleSignOutUnified = useCallback(async () => {
+    setAuthBusy(true);
+    try {
+      if (userAccount?.email) {
+        await saveEmailProgressBundle(buildEmailProgressBundle(userAccount));
+      }
+      await clearActiveLocalUserAccount();
+      try {
+        await signOutFirebaseSession();
+      } catch {
+        // Ignore offline Firebase signout failure
+      }
+      setUserAccount(null);
+      setProfileViewOpen(false);
+      setWeeklyRankOpen(false);
+      setAuthModalError(null);
+      setProfileModalMode('signin');
+      setProfileModalOpen(true);
+      showToast('Signed out. Sign in anytime to restore your progress.', 2600);
+    } finally {
+      setAuthBusy(false);
+    }
+  }, [buildEmailProgressBundle, showToast, userAccount]);
+
+  const anyModalBlockingSwipe =
+    Boolean(activeAdPlacement) ||
+    clueSlotModalOpen ||
+    summaryOpen ||
+    helpOpen ||
+    categoryExplorerOpen ||
+    weeklyRankOpen ||
+    personalizationOpen ||
+    settingsOpen ||
+    profileModalOpen ||
+    profileViewOpen;
+
   return (
     <div
       id="top"
@@ -2449,10 +2678,7 @@ export default function App() {
         onOpenWeeklyRank={handleOpenWeeklyRankModal}
         onOpenHelp={() => openHelpModal('rules')}
         onOpenSettings={() => setSettingsOpen(true)}
-        onOpenProfile={() => {
-          setProfileModalMode(userAccount ? 'edit' : 'signup');
-          setProfileModalOpen(true);
-        }}
+        onOpenProfile={() => setProfileViewOpen(true)}
         onNavigateSection={handleNavigateHeaderSection}
       />
 
@@ -2484,13 +2710,58 @@ export default function App() {
               {achievementBanner.title}
             </p>
             <p className="font-mono-tabular text-xs wv-text-muted">
-              +{achievementBanner.xpReward} XP · +{achievementBanner.coinReward} Coins
+              +{achievementBanner.xpReward} XP
             </p>
           </div>
         </div>
       )}
 
-      <main className="flex-1 flex flex-col items-center pb-[72px]">
+      <main
+        data-testid="main-swipe-container"
+        onTouchStart={(e) => {
+          if (e.touches.length !== 1 || anyModalBlockingSwipe) {
+            swipeTouchStartRef.current = null;
+            return;
+          }
+          const targetEl = e.target as HTMLElement | null;
+          const ignored = isSwipeIgnoredTarget({
+            tagName: targetEl?.tagName,
+            isContentEditable: targetEl?.isContentEditable,
+            closestHorizontalScroll: Boolean(
+              targetEl?.closest('[data-no-swipe="true"], .overflow-x-auto')
+            ),
+          });
+          swipeTouchStartRef.current = {
+            x: e.touches[0].clientX,
+            y: e.touches[0].clientY,
+            time: Date.now(),
+            ignored,
+          };
+        }}
+        onTouchEnd={(e) => {
+          const start = swipeTouchStartRef.current;
+          swipeTouchStartRef.current = null;
+          if (!start || start.ignored || anyModalBlockingSwipe) return;
+          const changed = e.changedTouches[0];
+          if (!changed) return;
+          const resolution = resolveSwipeTabChange({
+            currentTab: activeTab,
+            deltaX: changed.clientX - start.x,
+            deltaY: changed.clientY - start.y,
+            durationMs: Date.now() - start.time,
+          });
+          if (resolution.nextTab && resolution.direction) {
+            switchTabWithSwipe(resolution.nextTab, resolution.direction);
+          }
+        }}
+        className={`flex-1 flex flex-col items-center pb-[78px] ${
+          swipeTransitionDir === 'left'
+            ? 'animate-swipe-from-right'
+            : swipeTransitionDir === 'right'
+            ? 'animate-swipe-from-left'
+            : ''
+        }`}
+      >
         {activeTab === 'home' ? (
           <StreakHomeView
             stats={stats}
@@ -2541,6 +2812,7 @@ export default function App() {
             showScriptureReferences={appSettings.showScriptureReferences}
             completedToday={faithProgress.completedSessionsByDate[dateKey] || []}
             refreshSignal={refreshSignal}
+            isOnline={isOnline}
             onChangeReligion={handleChangeFaithReligion}
             onPlayFaithPuzzle={handlePlayFaithPuzzle}
             onFaithAnswerRecorded={handleFaithAnswerRecorded}
@@ -2560,6 +2832,7 @@ export default function App() {
             recentQuestions={triviaState.recentQuestions}
             playerProfile={playerProfile}
             refreshSignal={refreshSignal}
+            isOnline={isOnline}
             isPaused={
               Boolean(activeAdPlacement) ||
               helpOpen ||
@@ -2567,7 +2840,8 @@ export default function App() {
               weeklyRankOpen ||
               personalizationOpen ||
               settingsOpen ||
-              profileModalOpen
+              profileModalOpen ||
+              profileViewOpen
             }
             onOpenPersonalize={() => setPersonalizationOpen(true)}
             onSelectCategory={(catId) =>
@@ -2744,7 +3018,7 @@ export default function App() {
 
       {/* Non-blocking Floating Toast Banner */}
       <div
-        className="fixed top-[60px] left-1/2 -translate-x-1/2 z-[75] pointer-events-none px-4"
+        className="fixed top-[62px] left-1/2 -translate-x-1/2 z-40 pointer-events-none px-4"
         aria-live="polite"
       >
         {toast && (
@@ -2866,7 +3140,8 @@ export default function App() {
           setPersonalizationOpen(true);
         }}
         onOpenEditProfile={() => {
-          setProfileModalMode(userAccount ? 'edit' : 'signup');
+          setAuthModalError(null);
+          setProfileModalMode(userAccount ? 'edit' : 'signin');
           setProfileModalOpen(true);
         }}
         onShareApp={() => void handleInviteFriends()}
@@ -2905,8 +3180,8 @@ export default function App() {
             setLeaderboardCache(res.cache);
             showToast(
               res.fromCache
-                ? 'Using cached leaderboard (30-min quota guard).'
-                : 'Leaderboard refreshed (1 Firestore read)!',
+                ? 'Leaderboard is up to date.'
+                : 'Leaderboard refreshed!',
               2400
             );
           } catch (err) {
@@ -2925,48 +3200,7 @@ export default function App() {
             );
           }
         }}
-        onStartGuestSession={async () => {
-          setAuthBusy(true);
-          setAuthNotice(null);
-          try {
-            const res = await ensureAnonymousSession();
-            if (res.error) setAuthNotice(res.error);
-            else showToast('Guest online session active!', 2200);
-          } finally {
-            setAuthBusy(false);
-          }
-        }}
-        onLinkGoogleAccount={async () => {
-          setAuthBusy(true);
-          setAuthNotice(null);
-          try {
-            const res = await signInOrLinkGoogle();
-            if (res.error) setAuthNotice(res.error);
-            else showToast('Google account linked for Verified Rewards!', 2600);
-          } finally {
-            setAuthBusy(false);
-          }
-        }}
-        onLinkEmailAccount={async (email, password, isCreate) => {
-          setAuthBusy(true);
-          setAuthNotice(null);
-          try {
-            const res = await signInOrLinkEmail(email, password, isCreate);
-            if (res.error) setAuthNotice(res.error);
-            else showToast('Email account linked for Verified Rewards!', 2600);
-          } finally {
-            setAuthBusy(false);
-          }
-        }}
-        onSignOutFirebase={async () => {
-          setAuthBusy(true);
-          try {
-            await signOutFirebaseSession();
-            setAuthNotice('Signed out. Playing with offline Practice XP.');
-          } finally {
-            setAuthBusy(false);
-          }
-        }}
+        onSignOutFirebase={handleSignOutUnified}
         onSubmitRewardClaim={async (input: RewardClaimInput) => {
           const res = await submitVerifiedRewardClaim({
             state: verifiedStateRef.current,
@@ -2989,7 +3223,14 @@ export default function App() {
         }}
         onOpenEditProfile={() => {
           setWeeklyRankOpen(false);
-          setProfileModalMode(userAccount ? 'edit' : 'signup');
+          setAuthModalError(null);
+          setProfileModalMode(userAccount ? 'edit' : 'signin');
+          setProfileModalOpen(true);
+        }}
+        onOpenUnifiedAuth={() => {
+          setWeeklyRankOpen(false);
+          setAuthModalError(null);
+          setProfileModalMode('signin');
           setProfileModalOpen(true);
         }}
         onShareProgress={(rank, activeCount, gradeLabel) =>
@@ -2999,21 +3240,212 @@ export default function App() {
         onClose={() => setWeeklyRankOpen(false)}
       />
 
+      <ProfileViewModal
+        open={profileViewOpen}
+        userAccount={userAccount}
+        playerProfile={playerProfile}
+        stats={stats}
+        weeklyProgress={weeklyProgress}
+        verifiedXp={verifiedState.verifiedRewardXp}
+        weeklyRank={leaderboardSummary.rank}
+        gradeLabel={weeklyGradeInfo.current.tierName}
+        faithTraditionName={getFaithTradition(faithProgress.activeReligion).name}
+        faithSessionsCount={faithProgress.faithTriviaCorrect}
+        firebaseSignedIn={Boolean(firebaseUser)}
+        firebaseEmail={firebaseUser?.email || null}
+        isOnline={isOnline}
+        isSyncing={isSyncingScore}
+        onClose={() => setProfileViewOpen(false)}
+        onEditProfile={() => {
+          setProfileViewOpen(false);
+          setAuthModalError(null);
+          setProfileModalMode(userAccount ? 'edit' : 'signin');
+          setProfileModalOpen(true);
+        }}
+        onSyncProgress={() => performVerifiedFlush(false)}
+        onSignOut={handleSignOutUnified}
+      />
+
       <ProfileAuthModal
         open={profileModalOpen}
         mode={profileModalMode}
         existingAccount={userAccount}
-        onSaveAccount={async (acct) => {
-          await saveLocalUserAccount(acct);
-          setUserAccount(acct);
-          setPlayerProfile((prev) => ({
-            ...prev,
-            displayName: acct.username,
-          }));
+        authError={authModalError}
+        authBusy={authBusy}
+        onSaveAccount={async (acct, passwordPlain) => {
+          setAuthModalError(null);
+          setAuthBusy(true);
+          try {
+            if (isOnlineRef.current && acct.email && passwordPlain && profileModalMode !== 'edit') {
+              const fbRes = await signInOrLinkEmail(acct.email, passwordPlain, true);
+              if (fbRes.user) {
+                await updateFirebaseDisplayName(acct.username);
+              }
+            } else if (isOnlineRef.current && profileModalMode === 'edit') {
+              await updateFirebaseDisplayName(acct.username);
+            }
+            await saveLocalUserAccount(acct);
+            setUserAccount(acct);
+            setPlayerProfile((prev) => ({
+              ...prev,
+              displayName: acct.username,
+            }));
+            setVerifiedState((prev) => ({
+              ...prev,
+              displayName: acct.username,
+            }));
+            await saveEmailProgressBundle(
+              buildEmailProgressBundle({
+                ...acct,
+              })
+            );
+            setProfileModalOpen(false);
+            showToast(
+              profileModalMode === 'edit' ? 'Profile updated!' : `Welcome, @${acct.username}!`
+            );
+          } finally {
+            setAuthBusy(false);
+          }
+        }}
+        onSignInWithEmail={async (emailInput, passwordInput) => {
+          setAuthModalError(null);
+          setAuthBusy(true);
+          try {
+            const cleanEmail = normalizeEmailKey(emailInput);
+            const bundle = await loadEmailProgressBundle(cleanEmail);
+            const localOk = bundle?.account.passwordHash
+              ? await verifyPasswordLocal(
+                  passwordInput,
+                  bundle.account.passwordSalt,
+                  bundle.account.passwordHash
+                )
+              : false;
+
+            let fbSuccess = false;
+            let fbUserResult: User | null = null;
+            let fbErrorMsg: string | undefined;
+            if (isOnlineRef.current) {
+              const fbRes = await signInOrLinkEmail(cleanEmail, passwordInput, false);
+              if (fbRes.user) {
+                fbSuccess = true;
+                fbUserResult = fbRes.user;
+              } else {
+                fbErrorMsg = fbRes.error;
+              }
+            }
+
+            if (bundle && (localOk || fbSuccess)) {
+              applyEmailProgressBundle(bundle);
+              await saveLocalUserAccount(bundle.account);
+              setVerifiedState((prev) => ({
+                ...prev,
+                displayName: bundle.account.username,
+              }));
+              setProfileModalOpen(false);
+              showToast(`Welcome back, @${bundle.account.username}!`);
+              return null;
+            }
+
+            if (fbSuccess && fbUserResult) {
+              const fallbackName =
+                fbUserResult.displayName || cleanEmail.split('@')[0] || 'Player';
+              const cleanHandle =
+                fallbackName.replace(/[^a-zA-Z0-9._]/g, '_').slice(0, 24) || 'Player';
+              const now = Date.now();
+              const hydratedAccount: LocalUserAccount = {
+                id: `user:${cleanHandle.toLowerCase()}`,
+                realName: fallbackName,
+                username: cleanHandle,
+                email: cleanEmail,
+                passwordHash: '',
+                passwordSalt: '',
+                avatarType: 'builtin',
+                builtinAvatarId: 'crown',
+                createdAt: now,
+                updatedAt: now,
+              };
+              await saveLocalUserAccount(hydratedAccount);
+              setUserAccount(hydratedAccount);
+              setPlayerProfile((prev) => ({
+                ...prev,
+                displayName: hydratedAccount.username,
+              }));
+              setVerifiedState((prev) => ({
+                ...prev,
+                displayName: hydratedAccount.username,
+              }));
+              await saveEmailProgressBundle(buildEmailProgressBundle(hydratedAccount));
+              setProfileModalOpen(false);
+              showToast(`Welcome back, @${hydratedAccount.username}!`);
+              return null;
+            }
+
+            if (bundle && !localOk) {
+              return 'Incorrect email or password.';
+            }
+            return fbErrorMsg || 'No account found for that email. Tap Create Account to sign up.';
+          } finally {
+            setAuthBusy(false);
+          }
+        }}
+        onContinueWithGoogle={async () => {
+          setAuthModalError(null);
+          setAuthBusy(true);
+          try {
+            const res = await signInOrLinkGoogle();
+            if (res.domainUnauthorized) {
+              return 'Google sign-in is unavailable on this preview URL. Use Email or Continue as Guest.';
+            }
+            if (res.error || !res.user) {
+              return res.error || 'Unable to sign in with Google.';
+            }
+            const googleEmail = normalizeEmailKey(res.user.email || '');
+            const existingBundle = googleEmail
+              ? await loadEmailProgressBundle(googleEmail)
+              : null;
+            if (existingBundle) {
+              applyEmailProgressBundle(existingBundle);
+              await saveLocalUserAccount(existingBundle.account);
+              setProfileModalOpen(false);
+              showToast(`Welcome back, @${existingBundle.account.username}!`);
+              return null;
+            }
+            const display = res.user.displayName || googleEmail.split('@')[0] || 'Player';
+            const handle = display.replace(/[^a-zA-Z0-9._]/g, '_').slice(0, 24) || 'Player';
+            const now = Date.now();
+            const googleAccount: LocalUserAccount = {
+              id: `user:${handle.toLowerCase()}`,
+              realName: display,
+              username: handle,
+              email: googleEmail,
+              passwordHash: '',
+              passwordSalt: '',
+              avatarType: 'builtin',
+              builtinAvatarId: 'crown',
+              createdAt: now,
+              updatedAt: now,
+            };
+            await saveLocalUserAccount(googleAccount);
+            setUserAccount(googleAccount);
+            setPlayerProfile((prev) => ({ ...prev, displayName: googleAccount.username }));
+            setVerifiedState((prev) => ({ ...prev, displayName: googleAccount.username }));
+            if (googleEmail) {
+              await saveEmailProgressBundle(buildEmailProgressBundle(googleAccount));
+            }
+            setProfileModalOpen(false);
+            showToast(`Signed in as @${googleAccount.username}!`);
+            return null;
+          } finally {
+            setAuthBusy(false);
+          }
+        }}
+        onContinueAsGuest={async () => {
+          setAuthModalError(null);
           setProfileModalOpen(false);
-          showToast(
-            profileModalMode === 'edit' ? 'Profile updated!' : `Welcome, @${acct.username}!`
-          );
+          if (isOnlineRef.current) {
+            void ensureAnonymousSession().catch(() => {});
+          }
+          showToast('Playing as Guest');
         }}
         onClose={() => {
           if (profileModalMode === 'edit') {

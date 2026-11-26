@@ -327,8 +327,9 @@
 
   html {
     font-family: var(--font-sans);
-    font-size: 16.5px;
+    font-size: 17px;
     scroll-behavior: smooth;
+    overflow-x: clip;
   }
 
   body {
@@ -337,6 +338,7 @@
       radial-gradient(circle at 50% -10%, var(--wv-bg-glow), transparent 60%),
       radial-gradient(circle at 85% 95%, var(--wv-accent-soft), transparent 55%);
     color: var(--wv-text);
+    overflow-x: clip;
     transition: background-color 220ms ease, color 220ms ease;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -705,6 +707,36 @@ html[data-anim='reduced'] *::after {
   transition-duration: 0.01ms !important;
 }
 
+@keyframes swipe-from-left {
+  0% {
+    opacity: 0.72;
+    transform: translateX(-28px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes swipe-from-right {
+  0% {
+    opacity: 0.72;
+    transform: translateX(28px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-swipe-from-left {
+  animation: swipe-from-left 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-swipe-from-right {
+  animation: swipe-from-right 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-stage-enter,
   .animate-tile-deal,
@@ -718,7 +750,9 @@ html[data-anim='reduced'] *::after {
   .animate-confetti-fall,
   .animate-confetti-burst,
   .animate-caret-breathe,
-  .animate-pop {
+  .animate-pop,
+  .animate-swipe-from-left,
+  .animate-swipe-from-right {
     animation: none !important;
     transition: none !important;
   }

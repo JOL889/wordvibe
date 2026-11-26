@@ -134,7 +134,7 @@ function getBitsetDict(length: WordLength): BitsetDict {
     (a, b) =>
       Number(hasCuratedWordMeaning(b)) - Number(hasCuratedWordMeaning(a)) ||
       commonLetterScore(b) - commonLetterScore(a) ||
-      a.localeCompare(b)
+      (a < b ? -1 : a > b ? 1 : 0)
   );
   const wordCount = words.length;
   const numChunks = (wordCount + 31) >>> 5;
@@ -456,18 +456,19 @@ export function buildCompletedWordSquare(
 
   const dict = getBitsetDict(length);
 
-  // Place target in interior rows/cols first (indices 1..L-2), which impose lighter start/end letter bottlenecks
+  // Place target in interior rows/cols first (indices 1..L-2), which impose lighter start/end letter bottlenecks.
+  // For length === 6, keep fallback DFS strictly capped so switching 5x5 -> 6x6 never stalls the UI thread.
   const anchorIndices: number[] =
     length === 6
-      ? [1, 4, 0]
+      ? [1]
       : [
           ...Array.from({ length: Math.max(0, length - 2) }, (_, i) => i + 1),
           0,
           length - 1,
         ];
 
-  const rowNodeBudget = length === 6 ? 900 : 1800;
-  const colNodeBudget = length === 6 ? 900 : 2200;
+  const rowNodeBudget = length === 6 ? 250 : 1800;
+  const colNodeBudget = length === 6 ? 250 : 2200;
 
   // Pass 1: horizontal row anchor with strictly distinct rows & columns
   for (const rIdx of anchorIndices) {

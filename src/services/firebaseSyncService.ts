@@ -8,6 +8,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  updateProfile,
   type User,
 } from 'firebase/auth';
 import {
@@ -174,6 +175,52 @@ export interface AuthActionResult {
   user: User | null;
   error?: string;
   providerDisabled?: boolean;
+  domainUnauthorized?: boolean;
+}
+
+function formatFriendlyAuthError(error: unknown, fallbackMessage: string): {
+  error: string;
+  providerDisabled?: boolean;
+  domainUnauthorized?: boolean;
+} {
+  const code = (error as { code?: string })?.code || '';
+  const rawMessage = error instanceof Error ? error.message : '';
+
+  if (
+    code === 'auth/unauthorized-domain' ||
+    rawMessage.includes('auth/unauthorized-domain')
+  ) {
+    return {
+      domainUnauthorized: true,
+      error:
+        'Google sign-in is paused on this preview domain — playing smoothly in Guest / Local Preview mode.',
+    };
+  }
+  if (code === 'auth/operation-not-allowed' || code === 'auth/admin-restricted-operation') {
+    return {
+      providerDisabled: true,
+      error: 'Online provider sign-in is unavailable here — continuing in Local Practice mode.',
+    };
+  }
+  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+    return { error: 'Sign-in window closed before completion.' };
+  }
+  if (code === 'auth/popup-blocked') {
+    return { error: 'Pop-ups are blocked — sign in with email or continue as guest.' };
+  }
+  if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+    return { error: 'Incorrect email or password.' };
+  }
+  if (code === 'auth/email-already-in-use') {
+    return { error: 'That email is already registered — switch to Sign In.' };
+  }
+  if (code === 'auth/weak-password') {
+    return { error: 'Password must be at least 6 characters.' };
+  }
+  if (code === 'auth/network-request-failed') {
+    return { error: 'You are offline — your progress continues saving locally.' };
+  }
+  return { error: fallbackMessage };
 }
 
 export async function ensureAnonymousSession(): Promise<AuthActionResult> {
@@ -187,18 +234,8 @@ export async function ensureAnonymousSession(): Promise<AuthActionResult> {
     const cred = await signInAnonymously(auth);
     return { user: cred.user };
   } catch (error) {
-    const code = (error as { code?: string })?.code || '';
-    if (code === 'auth/operation-not-allowed' || code === 'auth/admin-restricted-operation') {
-      return {
-        user: null,
-        providerDisabled: true,
-        error: 'Enable Anonymous Auth in Firebase Console (or sign in with Google) to earn Verified XP.',
-      };
-    }
-    return {
-      user: null,
-      error: error instanceof Error ? error.message : 'Unable to start Firebase guest session.',
-    };
+    const formatted = formatFriendlyAuthError(error, 'Unable to start guest online session.');
+    return { user: null, ...formatted };
   }
 }
 
@@ -220,10 +257,8 @@ export async function signInOrLinkGoogle(): Promise<AuthActionResult> {
     const res = await signInWithPopup(auth, googleProvider);
     return { user: res.user };
   } catch (error) {
-    return {
-      user: null,
-      error: error instanceof Error ? error.message : 'Google sign-in canceled or failed.',
-    };
+    const formatted = formatFriendlyAuthError(error, 'Google sign-in could not be completed.');
+    return { user: null, ...formatted };
   }
 }
 
@@ -256,18 +291,19 @@ export async function signInOrLinkEmail(
       : await signInWithEmailAndPassword(auth, cleanEmail, password);
     return { user: res.user };
   } catch (error) {
-    const code = (error as { code?: string })?.code || '';
-    if (code === 'auth/operation-not-allowed') {
-      return {
-        user: null,
-        providerDisabled: true,
-        error: 'Enable Email/Password sign-in in Firebase Console Authentication settings.',
-      };
-    }
-    return {
-      user: null,
-      error: error instanceof Error ? error.message : 'Email authentication failed.',
-    };
+    const formatted = formatFriendlyAuthError(error, 'Email sign-in failed — check your details.');
+    return { user: null, ...formatted };
+  }
+}
+
+export async function updateFirebaseDisplayName(displayName: string): Promise<void> {
+  if (!auth.currentUser) return;
+  const clean = sanitizeLeaderboardDisplayName(displayName);
+  if (!clean) return;
+  try {
+    await updateProfile(auth.currentUser, { displayName: clean });
+  } catch {
+    // Non-fatal: Firestore displayName still updates on next sync
   }
 }
 
@@ -459,7 +495,7 @@ export async function flushVerifiedBatchToFirestore(
       synced: false,
       flaggedTamper: false,
       cooldownRemainingMs: cooldownLeft,
-      message: `Sync cooldown active (${mins}m left to protect daily quota).`,
+      message: `Recently synced — try again in ${mins}m.`,
     };
   }
 

@@ -54,24 +54,37 @@ export const TRIVIA_LEVEL_CLIMB_TOTAL = 5;
 export const TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD = 5;
 export const TRIVIA_BONUS_UNLOCK_HOURS = 24;
 
-const TRIVIA_CLIMB_QUESTION_BASE_SEC = [28, 23, 18, 14, 10] as const;
+export const TRIVIA_QUESTION_TIME_LIMIT_SEC = 15;
+export const TRIVIA_TIMED_MAX_XP = 15;
+export const TRIVIA_TIMED_MIN_XP = 3;
+export const TRIVIA_SPRINT_ONLINE_XP = 5;
 
 /**
- * Returns the countdown time limit (seconds) for a Trivia Level Climb question (1..5).
- * Shrinks concurrently as the player approaches the 5th question to level up.
+ * Returns the fixed 15-second countdown time limit per Trivia Level Climb question.
  */
 export function getTriviaQuestionTimeLimitSeconds(
-  levelNumber: number,
-  questionIndex: number
+  _levelNumber?: number,
+  _questionIndex?: number
 ): number {
-  const lv = normalizeLevelNumber(levelNumber, 1);
-  const levelScale = Math.max(0.65, 1 - (lv - 1) * 0.04);
-  const clampedIdx = Math.max(
-    0,
-    Math.min(TRIVIA_LEVEL_CLIMB_TOTAL - 1, Math.floor(questionIndex))
+  return TRIVIA_QUESTION_TIME_LIMIT_SEC;
+}
+
+/**
+ * Speed-scaled Timed Trivia XP: max 15 XP for fast answers, proportional down to 3 XP.
+ */
+export function calculateTimedTriviaXp(
+  timeRemainingSec: number,
+  totalSec: number = TRIVIA_QUESTION_TIME_LIMIT_SEC
+): number {
+  const safeTotal = Math.max(1, totalSec);
+  const ratio = Math.max(0, Math.min(1, timeRemainingSec / safeTotal));
+  return Math.max(
+    TRIVIA_TIMED_MIN_XP,
+    Math.min(
+      TRIVIA_TIMED_MAX_XP,
+      Math.round(TRIVIA_TIMED_MIN_XP + (TRIVIA_TIMED_MAX_XP - TRIVIA_TIMED_MIN_XP) * ratio)
+    )
   );
-  const base = TRIVIA_CLIMB_QUESTION_BASE_SEC[clampedIdx];
-  return Math.max(6, Math.round(base * levelScale));
 }
 
 export interface TriviaClimbProgress {
@@ -198,7 +211,7 @@ export const TRIVIA_CATEGORIES: TriviaCategorySpec[] = [
   {
     id: 'for-you-local',
     name: 'For You · Personal Mix',
-    tagline: 'Tailored to your interests, streak level & zero-repeat vault',
+    tagline: 'Tailored to your interests and current streak',
     isBonusLocked: false,
   },
   {

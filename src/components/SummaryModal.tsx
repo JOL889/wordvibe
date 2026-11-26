@@ -5,7 +5,6 @@ import {
   BookOpen,
   CheckCircle2,
   Copy,
-  Crown,
   Lock,
   Share2,
   ShieldCheck,
@@ -197,9 +196,9 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
                 className="flex items-center justify-between gap-2 rounded-xl border wv-border wv-card-muted px-4 py-2.5 text-xs sm:text-sm"
               >
                 <span className="inline-flex items-center gap-1.5 font-bold wv-text">
-                  <Crown className="h-4 w-4 shrink-0 wv-accent-text" aria-hidden="true" />
+                  <Trophy className="h-4 w-4 shrink-0 wv-accent-text" aria-hidden="true" />
                   <span>
-                    Rank #{weeklyRank} of {activeWeeklyPlayersCount} active players this week
+                    Rank #{weeklyRank} of {activeWeeklyPlayersCount} active players
                   </span>
                 </span>
                 {typeof weeklyXp === 'number' && (
@@ -379,7 +378,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
         <div className="mt-5 flex flex-col gap-3 border-t wv-border pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Crown className="h-4 w-4 wv-accent-text" aria-hidden="true" />
+              <Trophy className="h-4 w-4 wv-accent-text" aria-hidden="true" />
               <div>
                 <div className="text-xs font-medium wv-text-muted">Daily Cycle Reset</div>
                 <div className="font-mono-tabular text-sm font-bold wv-text">{countdown}</div>

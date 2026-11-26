@@ -27,6 +27,7 @@ interface FaithStudyViewProps {
   showScriptureReferences: boolean;
   completedToday: ReligionId[];
   refreshSignal?: number;
+  isOnline?: boolean;
   onChangeReligion: (religion: ReligionId) => void;
   onPlayFaithPuzzle: (religion: ReligionId) => void;
   onFaithAnswerRecorded: (correct: boolean, religion: ReligionId) => void;
@@ -44,6 +45,7 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
   showScriptureReferences,
   completedToday,
   refreshSignal = 0,
+  isOnline = true,
   onChangeReligion,
   onPlayFaithPuzzle,
   onFaithAnswerRecorded,
@@ -142,7 +144,7 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1 rounded-full border wv-accent-pill px-2.5 py-0.5 text-xs font-bold">
               <Zap className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Endless Mode</span>
+              <span>{isOnline ? 'Practice · 0 Online XP' : 'Offline Practice'}</span>
             </span>
             {isCompletedToday && (
               <span className="inline-flex items-center gap-1 rounded-full border wv-border wv-card-muted px-2.5 py-0.5 text-xs font-bold wv-text">
@@ -330,7 +332,13 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
               className="mt-4 rounded-xl border wv-border wv-card-muted p-4 animate-stage-enter"
             >
               <p className="text-xs sm:text-sm font-bold wv-accent-text">
-                {selectedIdx === currentQ.correctIndex ? 'Insight Unlocked! +35 XP' : 'Study Note'}
+                {selectedIdx === currentQ.correctIndex
+                  ? isOnline
+                    ? 'Insight Unlocked! · Practice Only (0 Online XP)'
+                    : 'Insight Unlocked! +35 Offline XP'
+                  : isOnline
+                  ? 'Study Note · 0 Online XP'
+                  : 'Study Note · +14 Offline XP'}
               </p>
               <p className="mt-1 text-sm sm:text-base leading-relaxed wv-text">
                 {currentQ.explanation}

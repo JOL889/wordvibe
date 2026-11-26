@@ -30,7 +30,7 @@ import {
 } from '../game/settingsLogic';
 import {
   advanceTriviaLevelClimb,
-  calculateTriviaXp,
+  calculateTimedTriviaXp,
   createTriviaClimbState,
   drawZeroRepeatTriviaQuestion,
   getStreakMultiplier,
@@ -41,11 +41,15 @@ import {
   TRIVIA_CATEGORIES,
   TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD,
   TRIVIA_LEVEL_CLIMB_TOTAL,
+  TRIVIA_QUESTION_TIME_LIMIT_SEC,
+  TRIVIA_SPRINT_ONLINE_XP,
+  TRIVIA_TIMED_MAX_XP,
   type TriviaClimbProgress,
   type TriviaQuestion,
 } from '../game/triviaLogic';
+import { calculateOfflineWrongXp } from '../game/verifiedRewardsLogic';
 import { recordModeOutcome } from '../game/retirementQueueLogic';
-import { formatNotEnoughXpMessage, XP_COSTS } from '../game/xpEconomyLogic';
+import { XP_COSTS } from '../game/xpEconomyLogic';
 import { rewardedAdService, type RewardPlacement } from '../services/rewardedAdService';
 import { soundService } from '../services/soundService';
 
@@ -64,6 +68,7 @@ interface TriviaViewProps {
   playerProfile: PlayerProfileState;
   refreshSignal?: number;
   isPaused?: boolean;
+  isOnline?: boolean;
   onOpenPersonalize: () => void;
   onSelectCategory: (categoryId: string) => void;
   onChangeSessionMode: (mode: SessionPlayMode) => void;
@@ -76,9 +81,13 @@ interface TriviaViewProps {
   onRequestAdPlacement: (placement: RewardPlacement, onGranted: () => void) => void;
   onAnswerRecorded: (params: {
     correct: boolean;
+    timedOut?: boolean;
     difficulty: TriviaQuestion['difficulty'];
     streakAfter: number;
     xpAwarded: number;
+    baseXp?: number;
+    timeRemainingSec?: number;
+    sessionMode?: SessionPlayMode;
     categoryId: string;
     questionText: string;
   }) => void;
@@ -112,6 +121,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
   playerProfile,
   refreshSignal = 0,
   isPaused = false,
+  isOnline = true,
   onOpenPersonalize,
   onSelectCategory,
   onChangeSessionMode,
@@ -190,14 +200,15 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
   }, [selectedCategoryId, safeLevel, sessionMode, refreshSignal]);
 
   const showClimbSummary =
-    sessionMode === 'level_climb' && climbState.stageComplete && selectedIdx === null;
+    sessionMode === 'level_climb' && climbState.stageComplete && selectedIdx === null && !timedOut;
 
-  // Shrinking countdown timer for Level Climb (pauses during modals/ads or after answering)
+  // 15-second countdown timer for Level Climb (pauses during modals/ads, timeout banner, or after answering)
   useEffect(() => {
     if (
       sessionMode !== 'level_climb' ||
       !question ||
       selectedIdx !== null ||
+      timedOut ||
       showClimbSummary ||
       isPaused
     ) {
@@ -212,9 +223,9 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
       });
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [sessionMode, question, selectedIdx, showClimbSummary, isPaused]);
+  }, [sessionMode, question, selectedIdx, timedOut, showClimbSummary, isPaused]);
 
-  // Handle timeout once countdown hits 0
+  // Timeout handler: DO NOT auto-select any option, award 0 XP, and mark timedOut
   useEffect(() => {
     if (
       sessionMode !== 'level_climb' ||
@@ -227,7 +238,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
       return;
     }
     setTimedOut(true);
-    setSelectedIdx(-1);
+    setLastXpFlash(0);
     pendingTriviaByKey.delete(`${selectedCategoryId}::${safeLevel}`);
     soundService.playTriviaWrong();
     setStreakBeforeMiss(streak);
@@ -238,9 +249,13 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
     });
     onAnswerRecorded({
       correct: false,
+      timedOut: true,
       difficulty: question.difficulty,
       streakAfter: 0,
-      xpAwarded: 5,
+      xpAwarded: 0,
+      baseXp: TRIVIA_TIMED_MAX_XP,
+      timeRemainingSec: 0,
+      sessionMode,
       categoryId: selectedCategoryId,
       questionText: question.question,
     });
@@ -248,6 +263,18 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
     onUpdateClimbState(resetClimb);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [questionTimeLeft, sessionMode, question, selectedIdx, timedOut, showClimbSummary]);
+
+  // Auto-advance smoothly after timeout banner shows, resetting timer back to 15s on the next question
+  useEffect(() => {
+    if (!timedOut || sessionMode !== 'level_climb') {
+      return;
+    }
+    const advanceTimer = window.setTimeout(() => {
+      drawNextQuestion(selectedCategoryId, safeLevel, 0, true);
+    }, 1100);
+    return () => window.clearTimeout(advanceTimer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timedOut, sessionMode]);
 
   const handleCategoryClick = (catId: string) => {
     if (!isTriviaCategoryUnlocked(catId, bonusUnlockUntil, Date.now(), mastermindUnlocked)) {
@@ -265,7 +292,10 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
   };
 
   const handleSelectOption = (optionIdx: number, skipXpReward = false) => {
-    if (!question || selectedIdx !== null) return;
+    if (!question || selectedIdx !== null || timedOut) return;
+    const remainingBeforeReset = questionTimeLeft;
+    // Reset timer back to 15s immediately upon submitting an answer
+    setQuestionTimeLeft(TRIVIA_QUESTION_TIME_LIMIT_SEC);
     setSelectedIdx(optionIdx);
     setSolvedViaXp(skipXpReward);
     setTimedOut(false);
@@ -273,11 +303,18 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
 
     const isCorrect = optionIdx === question.correctIndex;
     const questionId = question.id || `trivia-text:${question.question}`;
-    let xpGained = skipXpReward ? 0 : 5;
+    const modeBaseXp =
+      sessionMode === 'sprint' ? TRIVIA_SPRINT_ONLINE_XP : TRIVIA_TIMED_MAX_XP;
+
+    let xpGained = 0;
     if (isCorrect) {
       const nextStreak = streak + 1;
-      const baseXp = skipXpReward ? 0 : calculateTriviaXp(question.difficulty, nextStreak);
-      xpGained = skipXpReward ? 0 : question.isRedemptionRound ? baseXp * 2 : baseXp;
+      if (!skipXpReward) {
+        xpGained =
+          sessionMode === 'sprint'
+            ? TRIVIA_SPRINT_ONLINE_XP
+            : calculateTimedTriviaXp(remainingBeforeReset, TRIVIA_QUESTION_TIME_LIMIT_SEC);
+      }
       if (skipXpReward) {
         soundService.playHintChime();
         setLastXpFlash(0);
@@ -295,19 +332,26 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
       });
       onAnswerRecorded({
         correct: true,
+        timedOut: false,
         difficulty: question.difficulty,
         streakAfter: nextStreak,
         xpAwarded: xpGained,
+        baseXp: modeBaseXp,
+        timeRemainingSec: remainingBeforeReset,
+        sessionMode,
         categoryId: selectedCategoryId,
         questionText: question.question,
       });
     } else {
+      // Online wrong answer -> 0 XP; Offline wrong answer -> 40% of base XP rounded
+      xpGained = isOnline ? 0 : calculateOfflineWrongXp(modeBaseXp);
+      setLastXpFlash(xpGained);
       soundService.playTriviaWrong();
       setStreakBeforeMiss(streak);
       if (sessionMode === 'level_climb') {
         setStageXpEarned(0);
-      } else {
-        setStageXpEarned((x) => x + 5);
+      } else if (!isOnline) {
+        setStageXpEarned((x) => x + xpGained);
       }
       recordModeOutcome('trivia', questionId, false, {
         categoryId: selectedCategoryId,
@@ -315,9 +359,13 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
       });
       onAnswerRecorded({
         correct: false,
+        timedOut: false,
         difficulty: question.difficulty,
         streakAfter: 0,
-        xpAwarded: 5,
+        xpAwarded: xpGained,
+        baseXp: modeBaseXp,
+        timeRemainingSec: remainingBeforeReset,
+        sessionMode,
         categoryId: selectedCategoryId,
         questionText: question.question,
       });
@@ -463,7 +511,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
           </div>
         </div>
 
-        {/* 2 Session Modes: Level Climb (5 Timed) vs Endless Sprint */}
+        {/* 2 Session Modes: Level Climb vs Endless Sprint */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div
             role="group"
@@ -480,7 +528,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
               }`}
             >
               <Trophy className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Level Climb (5 Timed)</span>
+              <span>Level Climb</span>
             </button>
             <button
               type="button"
@@ -495,18 +543,6 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
               <span>Endless Sprint</span>
             </button>
           </div>
-
-          <span className="font-mono-tabular text-xs sm:text-sm font-bold wv-text-muted">
-            {sessionMode === 'level_climb'
-              ? `Q ${
-                  selectedIdx === null
-                    ? Math.min(TRIVIA_LEVEL_CLIMB_TOTAL, climbState.questionIndex + 1)
-                    : climbState.correctCount === 0
-                    ? 1
-                    : Math.min(TRIVIA_LEVEL_CLIMB_TOTAL, climbState.questionIndex)
-                }/${TRIVIA_LEVEL_CLIMB_TOTAL} · Wins ${climbState.correctCount}/${TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD}`
-              : `Sprint #${sprintAnswered + 1} · ${sprintCorrect} Correct`}
-          </span>
         </div>
 
         {/* Category Pills */}
@@ -567,15 +603,6 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                 <p className="font-bold wv-text">
                   Mastermind Vault Locked · Unlock forever with {XP_COSTS.TRIVIA_MASTERMIND_UNLOCK} XP
                 </p>
-                {currentXp < XP_COSTS.TRIVIA_MASTERMIND_UNLOCK && (
-                  <p
-                    data-testid="trivia-mastermind-xp-insufficient"
-                    className="font-semibold wv-text-muted"
-                  >
-                    {formatNotEnoughXpMessage(XP_COSTS.TRIVIA_MASTERMIND_UNLOCK)} (Balance:{' '}
-                    {currentXp.toLocaleString()} XP)
-                  </p>
-                )}
               </div>
               <button
                 type="button"
@@ -607,7 +634,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
           >
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-bold uppercase tracking-wider wv-text-muted">
-                Current Level · Shrinking Timer
+                Current Level · 15s Timer
               </span>
               <span className="text-xs wv-text-muted">
                 Beat {TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD}/{TRIVIA_LEVEL_CLIMB_TOTAL} in time to reach Level{' '}
@@ -665,13 +692,13 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
           </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t wv-border pt-2.5 text-xs sm:text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t wv-border pt-2.5 text-sm">
           <div className="flex items-center gap-1.5 wv-text-muted">
-            <MapPin className="h-3.5 w-3.5 wv-accent-text shrink-0" aria-hidden="true" />
+            <MapPin className="h-4 w-4 wv-accent-text shrink-0" aria-hidden="true" />
             <span>
               {playerProfile.locationEnabled
                 ? `Tuned to ${formatLocationLabel(playerProfile.location)}`
-                : 'Zero-Repeat Offline Bank Active'}
+                : 'Offline Questions Ready'}
             </span>
           </div>
           <button
@@ -757,64 +784,83 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
           </div>
         </div>
       ) : question ? (
-        <div
-          data-testid="trivia-question-card"
-          className="wv-tilt-surface rounded-2xl border-2 wv-border wv-card p-5 sm:p-6 shadow-md"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b wv-border">
-            <div className="flex items-center gap-2 text-xs sm:text-sm font-bold wv-text-muted">
-              <span data-testid="trivia-round-progress" className="font-mono-tabular wv-text">
-                {sessionMode === 'level_climb'
-                  ? `Question ${
-                      selectedIdx === null
-                        ? Math.min(TRIVIA_LEVEL_CLIMB_TOTAL, climbState.questionIndex + 1)
-                        : climbState.correctCount === 0
-                        ? 1
-                        : Math.min(TRIVIA_LEVEL_CLIMB_TOTAL, climbState.questionIndex)
-                    } / ${TRIVIA_LEVEL_CLIMB_TOTAL}`
-                  : `Sprint Question #${sprintAnswered + (selectedIdx !== null ? 0 : 1)}`}
-              </span>
-              {sessionMode === 'level_climb' && (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span className="wv-accent-text">{formatLevelLabel(safeLevel)}</span>
-                </>
-              )}
-              {lastXpFlash !== null && lastXpFlash > 0 && (
-                <span
-                  data-testid="trivia-xp-gain"
-                  className="font-mono-tabular font-extrabold wv-accent-text animate-pop"
-                >
-                  +{lastXpFlash} XP
-                </span>
-              )}
-            </div>
-
-            {sessionMode === 'level_climb' ? (
-              <span
-                data-testid="trivia-climb-timer"
-                className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-0.5 font-mono-tabular text-xs font-extrabold ${
-                  isLowTime ? 'wv-gold-pill animate-pulse' : 'wv-accent-pill'
-                }`}
-              >
-                <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>{questionTimeLeft}s</span>
-              </span>
-            ) : (
-              <span className="rounded-lg border wv-border wv-card-muted px-2.5 py-0.5 font-mono-tabular text-xs font-bold wv-text-muted">
-                0% Repeat Bank
-              </span>
-            )}
-          </div>
-
-          {question.isRedemptionRound && (
+        <div className="space-y-3">
+          {/* Prominent High-Contrast 15-Second Countdown Timer Banner Right Above Question Card */}
+          {sessionMode === 'level_climb' && (
             <div
-              data-testid="trivia-redemption-badge"
-              className="mt-3 inline-flex items-center gap-1.5 rounded-xl wv-gold-pill px-3 py-1 text-xs sm:text-sm font-extrabold shadow-[0_0_16px_rgba(245,158,11,0.45)] animate-pulse"
+              data-testid="trivia-timer-bar"
+              className={`rounded-2xl border-2 p-3.5 shadow-sm transition-colors ${
+                isLowTime
+                  ? 'border-amber-500/80 bg-amber-500/10'
+                  : 'wv-border wv-card'
+              }`}
             >
-              <span>⚡ Redemption Round — 2X XP!</span>
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-extrabold uppercase tracking-wider wv-text">
+                  <Clock
+                    className={`h-4 w-4 ${isLowTime ? 'text-amber-500 animate-pulse' : 'wv-accent-text'}`}
+                    aria-hidden="true"
+                  />
+                  <span>Time Remaining</span>
+                </span>
+                <span
+                  data-testid="trivia-climb-timer"
+                  className={`inline-flex items-center gap-1.5 rounded-xl border-2 px-3.5 py-1 font-mono-tabular text-lg font-black shadow-xs ${
+                    isLowTime
+                      ? 'border-amber-500 bg-amber-500 text-slate-950 animate-pulse'
+                      : 'border-transparent wv-accent-btn'
+                  }`}
+                >
+                  <span>{questionTimeLeft}s</span>
+                </span>
+              </div>
+
+              <div className="h-3 w-full overflow-hidden rounded-full wv-card-muted border wv-border">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    isLowTime ? 'bg-amber-500' : 'wv-accent-btn'
+                  }`}
+                  style={{
+                    width: `${Math.max(0, Math.min(100, (questionTimeLeft / TRIVIA_QUESTION_TIME_LIMIT_SEC) * 100))}%`,
+                  }}
+                />
+              </div>
+
+              {timedOut && (
+                <div
+                  data-testid="trivia-timeout-notice"
+                  role="status"
+                  className="mt-2.5 rounded-xl border border-amber-500/40 bg-amber-500/15 px-3 py-2 text-xs sm:text-sm font-bold wv-text"
+                >
+                  Time&apos;s up! Unanswered · 0 XP — Advancing to next question...
+                </div>
+              )}
             </div>
           )}
+
+          <div
+            data-testid="trivia-question-card"
+            className="wv-tilt-surface rounded-2xl border-2 wv-border wv-card p-5 sm:p-6 shadow-md"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b wv-border">
+              <div className="flex items-center gap-2 text-xs sm:text-sm font-bold wv-text-muted">
+                <span data-testid="trivia-round-progress" className="wv-accent-text">
+                  {sessionMode === 'level_climb' ? formatLevelLabel(safeLevel) : 'Endless Sprint'}
+                </span>
+                {lastXpFlash !== null && lastXpFlash > 0 && (
+                  <span
+                    data-testid="trivia-xp-gain"
+                    className="font-mono-tabular font-extrabold wv-accent-text animate-pop"
+                  >
+                    +{lastXpFlash} XP
+                  </span>
+                )}
+              </div>
+
+              <span className="rounded-lg border wv-border wv-card-muted px-2.5 py-0.5 text-xs font-bold wv-text-muted">
+                {question.category}
+              </span>
+            </div>
 
           {question.personalizationReason && (
             <p
@@ -862,15 +908,6 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                   </button>
                 )}
               </div>
-              {onSpendXpSolve && currentXp < XP_COSTS.TRIVIA_SOLVE && (
-                <p
-                  data-testid="trivia-solve-xp-insufficient"
-                  className="text-right text-xs font-semibold wv-text-muted"
-                >
-                  {formatNotEnoughXpMessage(XP_COSTS.TRIVIA_SOLVE)} (Balance:{' '}
-                  {currentXp.toLocaleString()} XP)
-                </p>
-              )}
             </div>
           )}
 
@@ -896,7 +933,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                   key={idx}
                   type="button"
                   data-testid={`trivia-option-${idx}`}
-                  disabled={isAnswered}
+                  disabled={isAnswered || timedOut}
                   onClick={() => handleSelectOption(idx)}
                   className={`flex min-h-12 items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-base font-semibold transition-all active:scale-[0.985] cursor-pointer disabled:cursor-default ${styleClass} ${
                     isAnswered && isCorrectOpt
@@ -934,14 +971,18 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                   {selectedIdx === question.correctIndex
                     ? solvedViaXp
                       ? `Solved via ${XP_COSTS.TRIVIA_SOLVE} XP · Advancing...`
-                      : `Correct! +${lastXpFlash || 30} Weekly XP`
+                      : `Correct! +${lastXpFlash ?? 0} XP`
                     : timedOut
-                    ? "Time's Up! Climb reset to 1/5"
+                    ? "Time's Up! 0 XP · Climb reset to 1/5"
                     : revivedThisQuestion
                     ? `Streak Restored (${streakBeforeMiss})`
                     : sessionMode === 'level_climb'
-                    ? 'Missed — Climb reset to 1/5'
-                    : 'Study Note'}
+                    ? isOnline
+                      ? 'Missed · 0 XP — Climb reset to 1/5'
+                      : `Missed · +${lastXpFlash ?? 0} Offline XP — Climb reset to 1/5`
+                    : isOnline
+                    ? 'Study Note · 0 XP'
+                    : `Study Note · +${lastXpFlash ?? 0} Offline XP`}
                 </span>
                 <span className="text-xs font-semibold wv-text-muted">{question.category}</span>
               </div>
@@ -996,6 +1037,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
               </div>
             </div>
           )}
+          </div>
         </div>
       ) : null}
     </section>

@@ -124,11 +124,9 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
                       </div>
                     ))}
                   </div>
-                  <p className="mt-1 text-xs sm:text-sm wv-text-muted">
-                    Tap any square to start typing <strong className="wv-text">Across</strong> or{' '}
-                    <strong className="wv-text">Down</strong>. Press{' '}
-                    <strong className="wv-text">Enter</strong> on your phone or keyboard to check that
-                    row or column.
+                  <p className="mt-1 text-sm wv-text-muted">
+                    Tap any square to spell <strong className="wv-text">Across</strong> or{' '}
+                    <strong className="wv-text">Down</strong>, then check that row or column.
                   </p>
                 </div>
 
@@ -148,7 +146,7 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
                       </div>
                     ))}
                   </div>
-                  <p className="mt-1 text-xs sm:text-sm wv-text-muted">
+                  <p className="mt-1 text-sm wv-text-muted">
                     <strong className="wv-text">Soft-tinted tiles</strong> show a letter belongs in that line
                     at another spot; <strong className="wv-text">Solid accent tiles</strong> lock in solved
                     letters &amp; completed rows or columns individually.
@@ -156,7 +154,7 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
                 </div>
               </div>
 
-              <div className="rounded-xl border wv-border wv-card-muted p-3 text-xs sm:text-sm leading-relaxed wv-text-muted">
+              <div className="rounded-xl border wv-border wv-card-muted p-3 text-sm leading-relaxed wv-text-muted">
                 <strong className="wv-text">Live Word Clues &amp; Post-Solve Dictionary:</strong>{' '}
                 See the active word&apos;s dictionary meaning above the grid with zero leaked letters!
                 Once you finish the grid, tap any solved word or tile to read its brief dictionary
@@ -166,10 +164,10 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
           )}
 
           {activeTab === 'streaks' && (
-            <div className="space-y-3.5 text-xs sm:text-sm leading-relaxed wv-text-muted">
+            <div className="space-y-3.5 text-sm leading-relaxed wv-text-muted">
               <div className="rounded-xl border wv-border wv-card-muted p-3.5">
                 <h3 className="font-semibold wv-text">5-Stage Timed Level Climb (Level 1 → 2 → 3...)</h3>
-                <p className="mt-1 text-xs sm:text-sm leading-relaxed">
+                <p className="mt-1 text-sm leading-relaxed">
                   Start at <strong className="wv-text">Level 1</strong> on Crossword &amp; Brain
                   Trivia. Beat <strong className="wv-text">5 challenges in a row</strong> before the
                   countdown expires—the timer speeds up concurrently across puzzles 1 through 5! Or
@@ -180,7 +178,7 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
 
               <div className="rounded-xl border wv-border wv-card-muted p-3.5">
                 <h3 className="font-semibold wv-text">Faith Study &amp; XP Leaderboard</h3>
-                <p className="mt-1 text-xs sm:text-sm leading-relaxed">
+                <p className="mt-1 text-sm leading-relaxed">
                   Faith Study runs as a level-free Endless Sprint across Bible, Quran, Torah, Gita,
                   and Buddhist scriptures. Track your live <strong className="wv-text">#Rank</strong>{' '}
                   on the Weekly &amp; All-Time XP Leaderboard anytime from the header.
@@ -191,7 +189,7 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
                 <h3 className="font-semibold wv-text">
                   {CATEGORIES.length} Curated Topics &amp; Phone Motion
                 </h3>
-                <p className="mt-1 text-xs sm:text-sm leading-relaxed">
+                <p className="mt-1 text-sm leading-relaxed">
                   Watch a short ad anytime to unlock 5 plays in any topic of your choice. Audio
                   follows your 3-state switch (On, Mute/Vibrate, or Off).
                 </p>
@@ -200,14 +198,14 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
           )}
 
           {activeTab === 'faq' && (
-            <dl className="divide-y wv-border text-xs sm:text-sm">
+            <dl className="divide-y wv-border text-sm">
               <div className="pb-3">
                 <dt className="font-semibold wv-text">
                   Are questions or crossword grids ever repeated?
                 </dt>
                 <dd className="mt-1 leading-relaxed wv-text-muted">
-                  No — our persistent zero-repeat vault tracks drawn trivia questions, faith prompts,
-                  and word seeds across restarts so repeat probability stays 0%.
+                  No — smart question rotation tracks played trivia questions, faith prompts, and
+                  word seeds across sessions so puzzles stay fresh.
                 </dd>
               </div>
               <div className="py-3">

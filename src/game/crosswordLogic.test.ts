@@ -217,17 +217,19 @@ test('5-round shrinking-timer Level Climb promotes Level 1 -> Level 2 -> ... on 
   assert.equal(TRIVIA_LEVEL_CLIMB_TOTAL, 5);
   assert.equal(TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD, 5);
 
-  // Shrinking timers across 5 concurrent puzzles & trivia questions
+  // Shrinking timers across 5 concurrent puzzles; Trivia uses fixed 15s countdown per question
   for (let i = 0; i < 4; i++) {
     assert.ok(
       getCrosswordRoundTimeLimitSeconds(5, 1, i) > getCrosswordRoundTimeLimitSeconds(5, 1, i + 1),
       `Crossword round ${i} timer must exceed round ${i + 1}`
     );
-    assert.ok(
-      getTriviaQuestionTimeLimitSeconds(1, i) > getTriviaQuestionTimeLimitSeconds(1, i + 1),
-      `Trivia question ${i} timer must exceed question ${i + 1}`
+    assert.equal(
+      getTriviaQuestionTimeLimitSeconds(1, i),
+      15,
+      `Trivia question ${i} timer must be 15 seconds`
     );
   }
+  assert.equal(getTriviaQuestionTimeLimitSeconds(1, 4), 15);
 
   // Trivia: 5/5 timed wins promotes Level 1 -> Level 2, and continues above Level 5 (Level 7 -> Level 8)
   let tClimb = createTriviaClimbState(1);
@@ -303,3 +305,22 @@ test('zero-repeat trivia & faith draws produce zero repeats across 25+ draws eve
     seenFaithBud.add(fq.question);
   }
 });
+
+test('switching 5x5 -> 6x6 builds 12 consecutive verified 6x6 boards in under 80ms', () => {
+  clearZeroRepeatDeckForTest();
+  // Warm dict cache first as app startup does, then measure consecutive switches
+  createCrosswordBoard({ length: 5, level: 1, categoryId: 'general-classic' });
+  const t0 = performance.now();
+  for (let i = 0; i < 12; i++) {
+    const b6 = createCrosswordBoard({
+      length: 6,
+      level: (i % 5) + 1,
+      categoryId: 'general-classic',
+    });
+    assert.equal(b6.length, 6);
+    assert.equal(validateWordSquare(b6.solution.rows, 6), true);
+  }
+  const elapsedMs = performance.now() - t0;
+  assert.ok(elapsedMs < 80, `Expected 12 6x6 boards in <80ms, took ${elapsedMs.toFixed(1)}ms`);
+});
+

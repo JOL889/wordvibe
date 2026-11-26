@@ -5,6 +5,7 @@ import {
   buildEmailClaimUrl,
   buildUserSyncState,
   buildWhatsAppClaimUrl,
+  calculateOfflineWrongXp,
   calculateVerifiedRoundXp,
   CLAIM_EMAIL_ADDRESS,
   CLAIM_WHATSAPP_NUMBER,
@@ -20,21 +21,102 @@ import {
   resetUnverifiedDeltaAndFlag,
   REWARD_MILESTONE_XP,
   shouldAutoFlushBatch,
-  STANDARD_ROUND_XP_MAX,
-  STANDARD_ROUND_XP_MIN,
+  SPRINT_PUZZLE_ONLINE_XP,
+  SPRINT_TRIVIA_ONLINE_XP,
   SYNC_COOLDOWN_MS,
+  TIMED_PUZZLE_MAX_XP,
+  TIMED_PUZZLE_MIN_XP,
+  TIMED_TRIVIA_MAX_XP,
+  TIMED_TRIVIA_MIN_XP,
   validateRewardClaimInput,
   verifyBufferIntegrity,
 } from './verifiedRewardsLogic';
 import { getUtcWeekKey } from './weeklyLogic';
 
-test('calculateVerifiedRoundXp stays strictly between 25 and 40 XP', () => {
-  const low = calculateVerifiedRoundXp({ mode: 'faith', won: false });
-  const mid = calculateVerifiedRoundXp({ mode: 'trivia', won: true, accuracyRatio: 0.6, difficultyWeight: 0.5 });
-  const high = calculateVerifiedRoundXp({ mode: 'puzzle', won: true, accuracyRatio: 1, difficultyWeight: 1 });
-  assert.equal(low, STANDARD_ROUND_XP_MIN);
-  assert.ok(mid >= STANDARD_ROUND_XP_MIN && mid <= STANDARD_ROUND_XP_MAX);
-  assert.ok(high >= STANDARD_ROUND_XP_MIN && high <= STANDARD_ROUND_XP_MAX);
+test('calculateVerifiedRoundXp enforces Faith=0, Wrong=0, Timed scaling (30/15), and Sprint (10/5)', () => {
+  // Faith always awards 0 online XP
+  assert.equal(calculateVerifiedRoundXp({ mode: 'faith', won: true }), 0);
+  assert.equal(calculateVerifiedRoundXp({ mode: 'faith', won: false }), 0);
+
+  // Wrong / timed-out answers online always award 0 XP
+  assert.equal(calculateVerifiedRoundXp({ mode: 'puzzle', won: false, sessionMode: 'level_climb' }), 0);
+  assert.equal(calculateVerifiedRoundXp({ mode: 'trivia', won: false, sessionMode: 'level_climb' }), 0);
+  assert.equal(calculateVerifiedRoundXp({ mode: 'trivia', won: false, sessionMode: 'sprint' }), 0);
+
+  // Timed Puzzle: max 30 XP for instant solve, proportionally lower near 0s (>= 6 XP)
+  const fastPuzzle = calculateVerifiedRoundXp({
+    mode: 'puzzle',
+    won: true,
+    sessionMode: 'level_climb',
+    timeRemainingSec: 160,
+    timeTotalSec: 160,
+  });
+  const slowPuzzle = calculateVerifiedRoundXp({
+    mode: 'puzzle',
+    won: true,
+    sessionMode: 'level_climb',
+    timeRemainingSec: 5,
+    timeTotalSec: 160,
+  });
+  assert.equal(fastPuzzle, TIMED_PUZZLE_MAX_XP);
+  assert.ok(slowPuzzle >= TIMED_PUZZLE_MIN_XP && slowPuzzle < fastPuzzle);
+
+  // Timed Trivia: max 15 XP at 15s, lower near 0s (>= 3 XP)
+  const fastTrivia = calculateVerifiedRoundXp({
+    mode: 'trivia',
+    won: true,
+    sessionMode: 'level_climb',
+    timeRemainingSec: 15,
+    timeTotalSec: 15,
+  });
+  const slowTrivia = calculateVerifiedRoundXp({
+    mode: 'trivia',
+    won: true,
+    sessionMode: 'level_climb',
+    timeRemainingSec: 1,
+    timeTotalSec: 15,
+  });
+  assert.equal(fastTrivia, TIMED_TRIVIA_MAX_XP);
+  assert.ok(slowTrivia >= TIMED_TRIVIA_MIN_XP && slowTrivia < fastTrivia);
+
+  // Endless Sprint (untimed): 10 XP puzzle, 5 XP trivia
+  assert.equal(calculateVerifiedRoundXp({ mode: 'puzzle', won: true, sessionMode: 'sprint' }), SPRINT_PUZZLE_ONLINE_XP);
+  assert.equal(calculateVerifiedRoundXp({ mode: 'trivia', won: true, sessionMode: 'sprint' }), SPRINT_TRIVIA_ONLINE_XP);
+
+  // Offline wrong answer helper: 40% rounded to nearest integer
+  assert.equal(calculateOfflineWrongXp(25), 10);
+  assert.equal(calculateOfflineWrongXp(15), 6);
+  assert.equal(calculateOfflineWrongXp(5), 2);
+  assert.equal(calculateOfflineWrongXp(35), 14);
+});
+
+test('online Faith rounds and online wrong answers queue 0 Verified Online XP', () => {
+  const now = Date.UTC(2026, 10, 26, 11, 0, 0);
+  const state = createDefaultVerifiedRewardState('uid-faith', 'Mary', 'google', now);
+
+  const faithRes = recordVerifiedOnlineRound(state, {
+    isOnline: true,
+    isSignedIn: true,
+    mode: 'faith',
+    won: true,
+    nowMs: now + 5000,
+  });
+  assert.equal(faithRes.eligibleForVerifiedReward, false);
+  assert.equal(faithRes.blockedReason, 'faith_no_online_xp');
+  assert.equal(faithRes.xpQueued, 0);
+  assert.equal(faithRes.state.pendingBuffer.pendingXp, 0);
+
+  const wrongRes = recordVerifiedOnlineRound(state, {
+    isOnline: true,
+    isSignedIn: true,
+    mode: 'trivia',
+    won: false,
+    sessionMode: 'level_climb',
+    nowMs: now + 10000,
+  });
+  assert.equal(wrongRes.eligibleForVerifiedReward, false);
+  assert.equal(wrongRes.blockedReason, 'round_not_won');
+  assert.equal(wrongRes.xpQueued, 0);
 });
 
 test('offline or unauthenticated rounds award 0 Verified Online XP', () => {
@@ -80,7 +162,7 @@ test('online authenticated rounds buffer cleanly, enforce >= 3s pacing, and pass
     nowMs: t0 + 10_000,
   });
   assert.equal(r1.eligibleForVerifiedReward, true);
-  assert.ok(r1.xpQueued >= 25 && r1.xpQueued <= 40);
+  assert.ok(r1.xpQueued >= TIMED_PUZZLE_MIN_XP && r1.xpQueued <= TIMED_PUZZLE_MAX_XP);
   state = r1.state;
 
   // Immediate round < 3 seconds later is blocked

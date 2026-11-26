@@ -7,9 +7,11 @@ import {
   buildPuzzleSharePayload,
   getBuiltinAvatarOption,
   hashPasswordLocal,
+  normalizeEmailKey,
   normalizeUsername,
   sanitizeAvatarDataUrl,
   validateRegistrationInput,
+  validateSignInInput,
   verifyPasswordLocal,
 } from './userAccountLogic';
 
@@ -50,8 +52,18 @@ test('validateRegistrationInput validates Real Name, Username, Email, and Passwo
   assert.equal(editOk.valid, true);
 });
 
-test('normalizeUsername strips @ and replaces whitespace cleanly', () => {
+test('normalizeUsername and validateSignInInput normalize inputs cleanly', () => {
   assert.equal(normalizeUsername('  @@word spark  '), 'word_spark');
+  assert.equal(normalizeEmailKey('  PLAYER@Example.COM '), 'player@example.com');
+
+  const badSignIn = validateSignInInput({ email: 'bad', password: '123' });
+  assert.equal(badSignIn.valid, false);
+  assert.ok(badSignIn.errors.email);
+  assert.ok(badSignIn.errors.password);
+
+  const okSignIn = validateSignInInput({ email: '  PLAYER@Example.COM ', password: 'secretPassword1' });
+  assert.equal(okSignIn.valid, true);
+  assert.equal(okSignIn.normalized.email, 'player@example.com');
 });
 
 test('hashPasswordLocal produces salted SHA-256 hash verified by verifyPasswordLocal', async () => {

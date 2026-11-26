@@ -14,23 +14,23 @@ export const EditorialGuideAndAdSlot: React.FC<EditorialGuideAndAdSlotProps> = (
   return (
     <div className="mx-auto mt-3 w-full max-w-xl px-4 pb-4">
       <aside
-        aria-label="Sponsored placement"
+        aria-label="Free play hints"
         data-testid="footer-ad-slot"
-        className={`rounded-2xl border wv-border wv-card-muted px-3.5 py-2 text-center transition-opacity duration-200 ${
+        className={`rounded-2xl border wv-border wv-card-muted px-4 py-2.5 text-center transition-opacity duration-200 ${
           isActivelyTyping ? 'opacity-45' : 'opacity-90'
         }`}
       >
         <div className="flex flex-col items-center justify-between gap-2 sm:flex-row sm:text-left">
           <div>
-            <p className="text-xs font-semibold wv-text-muted">
-              Sponsored · Non-intrusive slot
+            <p className="text-sm font-bold wv-text">
+              WordVibe Free Play
             </p>
-            <p className="text-xs wv-text-muted">
-              100% offline play with unlimited ad-supported hints &amp; clues.
+            <p className="text-sm wv-text-muted">
+              Play offline anytime with optional hints &amp; clues.
             </p>
           </div>
-          <div className="rounded-lg border wv-border wv-card px-2.5 py-1 font-mono-tabular text-xs wv-text-muted whitespace-nowrap">
-            Ad Slot · 728×90
+          <div className="rounded-lg border wv-border wv-card px-3 py-1.5 text-xs font-bold wv-accent-text whitespace-nowrap">
+            Hints Ready
           </div>
         </div>
       </aside>

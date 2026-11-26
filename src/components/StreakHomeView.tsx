@@ -6,7 +6,6 @@ import {
   Check,
   Clock,
   Compass,
-  Crown,
   Flame,
   HelpCircle,
   Lock,
@@ -31,7 +30,6 @@ import {
   type WeekStreakDay,
 } from '../game/puzzleLogic';
 import {
-  ACHIEVEMENTS,
   computeWeeklyGrade,
   type WeeklyActivityState,
 } from '../game/weeklyLogic';
@@ -139,7 +137,7 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                 <div>
                   <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-white">
                     <Flame className="h-3.5 w-3.5 text-white" aria-hidden="true" />
-                    <span className="font-bold">WordVibe Streak · #{puzzleNumber}</span>
+                    <span className="font-bold">WordVibe Daily Streak</span>
                   </div>
                   <div className="mt-2 flex items-baseline gap-3">
                     <span
@@ -290,9 +288,9 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
               </div>
               <span
                 data-testid="challenges-summary"
-                className="font-mono-tabular text-xs sm:text-sm font-bold wv-accent-text"
+                className="text-xs sm:text-sm font-bold wv-accent-text"
               >
-                {completedChallenges} / {challenges.length}
+                {completedChallenges === challenges.length ? 'All Done' : 'Active'}
               </span>
             </div>
 
@@ -330,18 +328,13 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                           {ch.title}
                         </h3>
                       </div>
-                      <div className="mt-1 flex items-center gap-2 max-w-xs">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full wv-card-muted">
-                          <div
-                            className={`h-full rounded-full transition-all duration-300 ${
-                              ch.completed ? 'wv-accent-btn' : 'bg-[var(--wv-text-muted)]/45'
-                            }`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <span className="font-mono-tabular text-xs font-bold wv-text-muted">
-                          {ch.current}/{ch.target}
-                        </span>
+                      <div className="mt-1.5 h-1.5 max-w-xs overflow-hidden rounded-full wv-card-muted">
+                        <div
+                          className={`h-full rounded-full transition-all duration-300 ${
+                            ch.completed ? 'wv-accent-btn' : 'bg-[var(--wv-text-muted)]/45'
+                          }`}
+                          style={{ width: `${pct}%` }}
+                        />
                       </div>
                     </div>
 
@@ -407,17 +400,19 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold wv-accent-text">
-                  <Crown className="h-4 w-4" aria-hidden="true" />
+                  <Trophy className="h-4 w-4" aria-hidden="true" />
                   <span data-testid="home-leaderboard-rank">
-                    {leaderboardRank ? `Leaderboard #${leaderboardRank} · ` : ''}Rank{' '}
-                    {weeklyGrade.current.id} ({weeklyGrade.current.tierName})
+                    Rank {weeklyGrade.current.id} ({weeklyGrade.current.tierName})
                   </span>
                 </div>
-                <h2 className="mt-0.5 font-display text-lg font-bold wv-text">
-                  {weeklyProgress.weeklyXp} Practice XP · {weeklyProgress.bonusCoins} Coins
+                <h2 className="mt-0.5 flex items-baseline gap-1.5 font-display text-lg font-bold wv-text">
+                  <span className="font-mono-tabular">
+                    {(verifiedXp + pendingVerifiedXp).toLocaleString()}
+                  </span>
+                  <span>Verified XP</span>
                 </h2>
-                <p data-testid="home-verified-xp" className="mt-0.5 font-mono-tabular text-xs font-bold wv-accent-text">
-                  Verified Online: {(verifiedXp + pendingVerifiedXp).toLocaleString()} / 600,000 XP (₦10k Milestone)
+                <p data-testid="home-verified-xp" className="mt-0.5 font-mono-tabular text-xs font-semibold wv-text-muted">
+                  Practice XP: {weeklyProgress.weeklyXp.toLocaleString()} XP
                 </p>
               </div>
 
@@ -435,9 +430,8 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
             </div>
 
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm">
-              <span className="font-mono-tabular wv-text-muted">
-                Badges: {weeklyProgress.unlockedAchievements.length}/{ACHIEVEMENTS.length} · Topic:{' '}
-                {activeCategoryName}
+              <span className="wv-text-muted font-medium truncate">
+                Topic: {activeCategoryName}
               </span>
               <button
                 type="button"
@@ -510,7 +504,7 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                 onClick={onBrowseEntertainment}
                 className="inline-flex min-h-10 items-center justify-center rounded-xl border wv-border wv-card-muted px-3 py-2 text-xs sm:text-sm font-bold wv-text-muted hover:opacity-85 cursor-pointer"
               >
-                100 Topics
+                Browse Topics
               </button>
             </div>
           </div>

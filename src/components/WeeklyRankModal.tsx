@@ -7,7 +7,6 @@ import {
   Clock,
   Coins,
   Copy,
-  Crown,
   Flame,
   Gift,
   Lock,
@@ -38,7 +37,6 @@ import type { LocalUserAccount } from '../game/userAccountLogic';
 import {
   type ClaimConfirmationReceipt,
   getSyncCooldownRemainingMs,
-  LEADERBOARD_CACHE_TTL_MS,
   MAX_XP_PER_24H,
   REWARD_MILESTONE_NAIRA,
   REWARD_MILESTONE_XP,
@@ -80,13 +78,11 @@ interface WeeklyRankModalProps {
   lastClaimReceipt?: ClaimConfirmationReceipt | null;
   onManualSyncScore?: () => Promise<void> | void;
   onRefreshLeaderboardCache?: () => Promise<void> | void;
-  onStartGuestSession?: () => Promise<void> | void;
-  onLinkGoogleAccount?: () => Promise<void> | void;
-  onLinkEmailAccount?: (email: string, password: string, isCreate: boolean) => Promise<void> | void;
   onSignOutFirebase?: () => Promise<void> | void;
   onSubmitRewardClaim?: (input: RewardClaimInput) => Promise<void>;
   onUpdatePlayerName?: (nextName: string) => void;
   onOpenEditProfile?: () => void;
+  onOpenUnifiedAuth?: () => void;
   onShareProgress?: (rank: number, activeThisWeekCount: number, gradeLabel: string) => Promise<string | void> | void;
   onInviteFriends?: (rank: number, activeThisWeekCount: number) => Promise<string | void> | void;
   onClose: () => void;
@@ -123,13 +119,11 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
   lastClaimReceipt = null,
   onManualSyncScore,
   onRefreshLeaderboardCache,
-  onStartGuestSession,
-  onLinkGoogleAccount,
-  onLinkEmailAccount,
   onSignOutFirebase,
   onSubmitRewardClaim,
   onUpdatePlayerName,
   onOpenEditProfile,
+  onOpenUnifiedAuth,
   onShareProgress,
   onInviteFriends,
   onClose,
@@ -139,10 +133,6 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(playerName);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
-  const [showEmailForm, setShowEmailForm] = useState(false);
-  const [emailDraft, setEmailDraft] = useState('');
-  const [passwordDraft, setPasswordDraft] = useState('');
-  const [emailIsCreate, setEmailIsCreate] = useState(true);
   const [nowTick, setNowTick] = useState(() => Date.now());
 
   const [claimFullName, setClaimFullName] = useState('');
@@ -158,7 +148,6 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
     } else {
       setShareFeedback(null);
       setEditingName(false);
-      setShowEmailForm(false);
       setClaimError(null);
     }
   }, [initialTab, open]);
@@ -245,7 +234,6 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
 
   const cooldownLeftMs = getSyncCooldownRemainingMs(verifiedState.lastSyncAtMs, nowTick);
   const pendingXp = verifiedState.pendingBuffer.pendingXp;
-  const pendingRounds = verifiedState.pendingBuffer.rounds.length;
   const milestonePct = Math.min(
     100,
     Math.round((verifiedState.verifiedRewardXp / REWARD_MILESTONE_XP) * 100)
@@ -260,7 +248,6 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
     leaderboardCache && leaderboardCache.fetchedAtMs > 0
       ? Math.max(0, Math.floor((nowTick - leaderboardCache.fetchedAtMs) / 60_000))
       : null;
-  const cacheTtlMin = Math.round(LEADERBOARD_CACHE_TTL_MS / 60_000);
 
   const handleSaveName = (e: React.FormEvent) => {
     e.preventDefault();
@@ -302,13 +289,6 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
     }
   };
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!onLinkEmailAccount) return;
-    await onLinkEmailAccount(emailDraft, passwordDraft, emailIsCreate);
-    setPasswordDraft('');
-  };
-
   const handleClaimFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!onSubmitRewardClaim) return;
@@ -340,14 +320,14 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
         <div className="flex items-start justify-between gap-4 border-b wv-border px-5 py-4">
           <div>
             <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold uppercase tracking-wider wv-accent-text">
-              <Crown className="h-4 w-4" aria-hidden="true" />
-              <span>Verified Leaderboard &amp; Cash Rewards</span>
+              <Trophy className="h-4 w-4" aria-hidden="true" />
+              <span>Leaderboard &amp; Rewards</span>
             </div>
             <h2
               id="weekly-rank-title"
-              className="mt-1 font-display text-xl sm:text-2xl font-bold wv-text"
+              className="mt-0.5 font-display text-xl sm:text-2xl font-bold wv-text"
             >
-              #{leaderboard.rank} · {verifiedState.verifiedRewardXp.toLocaleString()} Verified XP
+              Verified Standings
             </h2>
           </div>
 
@@ -366,7 +346,7 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
           <div
             role="tablist"
             aria-label="Leaderboard sections"
-            className="grid grid-cols-3 rounded-xl border wv-border wv-card-muted p-1 text-[11px] sm:text-xs font-bold gap-1"
+            className="grid grid-cols-3 rounded-xl border wv-border wv-card-muted p-1 text-xs font-bold gap-1"
           >
             <button
               type="button"
@@ -374,12 +354,12 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
               aria-selected={activeTab === 'leaderboard'}
               data-testid="tab-leaderboard"
               onClick={() => setActiveTab('leaderboard')}
-              className={`inline-flex min-h-9 items-center justify-center gap-1 rounded-lg py-1.5 px-1.5 transition-colors cursor-pointer ${
+              className={`inline-flex min-h-10 items-center justify-center gap-1 rounded-lg py-1.5 px-1 transition-colors cursor-pointer ${
                 activeTab === 'leaderboard' ? 'wv-accent-btn' : 'wv-text-muted hover:opacity-90'
               }`}
             >
-              <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span>Leaderboard</span>
+              <Users className="hidden sm:inline h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">Leaderboard</span>
             </button>
             <button
               type="button"
@@ -387,12 +367,12 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
               aria-selected={activeTab === 'rewards'}
               data-testid="tab-cash-rewards"
               onClick={() => setActiveTab('rewards')}
-              className={`inline-flex min-h-9 items-center justify-center gap-1 rounded-lg py-1.5 px-1.5 transition-colors cursor-pointer ${
+              className={`inline-flex min-h-10 items-center justify-center gap-1 rounded-lg py-1.5 px-1 transition-colors cursor-pointer ${
                 activeTab === 'rewards' ? 'wv-accent-btn' : 'wv-text-muted hover:opacity-90'
               }`}
             >
-              <Gift className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span>₦10k Rewards</span>
+              <Gift className="hidden sm:inline h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">₦10k Rewards</span>
             </button>
             <button
               type="button"
@@ -400,12 +380,12 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
               aria-selected={activeTab === 'tiers'}
               data-testid="tab-tiers-badges"
               onClick={() => setActiveTab('tiers')}
-              className={`inline-flex min-h-9 items-center justify-center gap-1 rounded-lg py-1.5 px-1.5 transition-colors cursor-pointer ${
+              className={`inline-flex min-h-10 items-center justify-center gap-1 rounded-lg py-1.5 px-1 transition-colors cursor-pointer ${
                 activeTab === 'tiers' ? 'wv-accent-btn' : 'wv-text-muted hover:opacity-90'
               }`}
             >
-              <Trophy className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span>Tiers &amp; Badges</span>
+              <Trophy className="hidden sm:inline h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">Tiers &amp; Badges</span>
             </button>
           </div>
         </div>
@@ -420,7 +400,7 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                 className="flex flex-wrap items-center justify-between gap-2 rounded-xl border wv-gold-pill px-3.5 py-2.5 text-xs"
               >
                 <div className="flex items-center gap-2 font-extrabold">
-                  <Crown className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <Trophy className="h-4 w-4 shrink-0" aria-hidden="true" />
                   <span>{leaderboardCache?.prizePoolLabel || WEEKLY_PRIZE_POOL_LABEL}</span>
                 </div>
                 <button
@@ -432,11 +412,91 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                 </button>
               </div>
 
-              {/* Dual XP Split + Batched Sync Control */}
+              {/* Unified Profile, Standing, XP & Sign-In Card */}
               <div
                 data-testid="dual-xp-sync-card"
-                className="rounded-xl border wv-border wv-card-muted p-3.5 space-y-2.5"
+                className="rounded-xl border wv-border wv-card-muted p-4 space-y-3"
               >
+                {/* Top Identity + Rank Row */}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {userAccount && (
+                      <UserAvatar
+                        avatarType={userAccount.avatarType}
+                        builtinAvatarId={userAccount.builtinAvatarId}
+                        avatarDataUrl={userAccount.avatarDataUrl}
+                        alt={userAccount.username}
+                        size="md"
+                      />
+                    )}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span
+                          data-testid="leaderboard-user-rank"
+                          className="font-display text-base sm:text-lg font-black wv-text"
+                        >
+                          Rank #{leaderboard.rank}
+                        </span>
+                        <span className="text-xs font-semibold wv-text-muted">
+                          of {scope === 'weekly' ? `${leaderboard.activeThisWeekCount} weekly` : `${leaderboard.totalPlayers} total`}
+                        </span>
+                      </div>
+                      <p className="text-xs font-medium wv-text-muted truncate">
+                        {leaderboard.nextRivalName
+                          ? `${leaderboard.xpToOvertake.toLocaleString()} XP to pass ${leaderboard.nextRivalName}`
+                          : 'Top #1 spot on the weekly race!'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {onOpenEditProfile ? (
+                    <button
+                      type="button"
+                      data-testid="leaderboard-edit-profile-btn"
+                      onClick={onOpenEditProfile}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-lg border wv-border wv-card px-2.5 py-1.5 text-xs font-bold wv-accent-text hover:opacity-85 cursor-pointer"
+                    >
+                      <Pencil className="h-3 w-3" aria-hidden="true" />
+                      <span>@{effectiveName}</span>
+                    </button>
+                  ) : (
+                    onUpdatePlayerName &&
+                    (editingName ? (
+                      <form onSubmit={handleSaveName} className="flex items-center gap-1.5 shrink-0">
+                        <input
+                          type="text"
+                          value={nameDraft}
+                          maxLength={24}
+                          onChange={(e) => setNameDraft(e.target.value)}
+                          aria-label="Display name"
+                          className="w-24 rounded-lg border wv-border wv-card px-2 py-1 text-xs font-bold wv-text focus:outline-none"
+                        />
+                        <button
+                          type="submit"
+                          aria-label="Save name"
+                          className="inline-flex h-7 items-center gap-1 rounded-lg wv-accent-btn px-2 text-xs font-bold cursor-pointer"
+                        >
+                          <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        data-testid="leaderboard-edit-name-btn"
+                        onClick={() => {
+                          setNameDraft(effectiveName);
+                          setEditingName(true);
+                        }}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-lg border wv-border wv-card px-2.5 py-1.5 text-xs font-bold wv-accent-text hover:opacity-85 cursor-pointer"
+                      >
+                        <Pencil className="h-3 w-3" aria-hidden="true" />
+                        <span>{effectiveName}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                {/* Single-Source Verified vs Practice XP Split */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="rounded-lg border wv-border wv-card p-2.5">
                     <div className="flex items-center justify-between text-[11px] font-bold wv-text-muted">
@@ -453,16 +513,16 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                     >
                       {verifiedState.verifiedRewardXp.toLocaleString()} XP
                     </div>
-                    <div className="text-[11px] wv-text-muted font-mono-tabular">
-                      {pendingXp > 0
-                        ? `+${pendingXp} buffered (${pendingRounds}r)`
-                        : '25–40 XP / online round'}
-                    </div>
+                    {pendingXp > 0 && (
+                      <div className="text-xs wv-text-muted font-mono-tabular">
+                        +{pendingXp} ready to sync
+                      </div>
+                    )}
                   </div>
 
                   <div className="rounded-lg border wv-border wv-card p-2.5">
-                    <div className="text-[11px] font-bold wv-text-muted">
-                      Offline Practice XP
+                    <div className="text-xs font-bold wv-text-muted">
+                      Practice XP
                     </div>
                     <div
                       data-testid="practice-xp-balance"
@@ -470,8 +530,8 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                     >
                       {weeklyProgress.weeklyXp.toLocaleString()} XP
                     </div>
-                    <div className="text-[11px] wv-text-muted">
-                      Spend on hints &amp; unlocks only
+                    <div className="text-xs wv-text-muted">
+                      For hints &amp; unlocks
                     </div>
                   </div>
                 </div>
@@ -485,28 +545,25 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                   >
                     <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
                     <span>
-                      Integrity warning: {verifiedState.suspiciousReason || 'Suspicious score change'}.
-                      Unverified delta reset; cash claims are locked.
+                      Account notice: {verifiedState.suspiciousReason || 'Unusual score activity'}.
                     </span>
                   </div>
                 )}
 
-                {/* Firebase Auth + Manual Sync Row */}
+                {/* Unified Auth Status + Sync Row */}
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t wv-border pt-2.5">
-                  <div className="flex items-center gap-1.5 text-xs">
+                  <div className="flex items-center gap-1.5 text-sm">
                     {firebaseSignedIn ? (
                       <ShieldCheck className="h-4 w-4 wv-accent-text shrink-0" aria-hidden="true" />
                     ) : (
-                      <Lock className="h-3.5 w-3.5 wv-text-muted shrink-0" aria-hidden="true" />
+                      <Lock className="h-4 w-4 wv-text-muted shrink-0" aria-hidden="true" />
                     )}
                     <span data-testid="firebase-auth-status" className="font-semibold wv-text">
                       {firebaseSignedIn
-                        ? verifiedState.authType === 'google'
-                          ? `Google (${firebaseUserEmail || 'Linked'})`
-                          : verifiedState.authType === 'email'
-                          ? `Email (${firebaseUserEmail || 'Linked'})`
-                          : 'Guest Online Session'
-                        : 'Not Signed In (Practice Only)'}
+                        ? firebaseUserEmail || userAccount?.email || 'Cloud Account Synced'
+                        : userAccount?.email
+                        ? userAccount.email
+                        : 'Not Signed In'}
                     </span>
                   </div>
 
@@ -516,7 +573,7 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                       data-testid="sync-verified-score-btn"
                       disabled={!firebaseSignedIn || !isOnline || isSyncingScore || cooldownLeftMs > 0}
                       onClick={() => void onManualSyncScore()}
-                      className="inline-flex min-h-8 items-center gap-1.5 rounded-lg wv-accent-btn px-2.5 py-1 text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                      className="inline-flex min-h-9 items-center gap-1.5 rounded-lg wv-accent-btn px-3 py-1.5 text-xs sm:text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
                       <RefreshCw
                         className={`h-3.5 w-3.5 ${isSyncingScore ? 'animate-spin' : ''}`}
@@ -526,49 +583,25 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                         {isSyncingScore
                           ? 'Syncing...'
                           : cooldownLeftMs > 0
-                          ? `Cooldown ${formatShortCountdown(cooldownLeftMs)}`
-                          : 'Sync Score'}
+                          ? `Wait ${formatShortCountdown(cooldownLeftMs)}`
+                          : 'Sync Progress'}
                       </span>
                     </button>
                   )}
                 </div>
 
-                {/* Auth Connect / Account Link Buttons */}
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {!firebaseSignedIn && onStartGuestSession && (
+                {/* Single Unified Account Action Row */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {onOpenUnifiedAuth && (
                     <button
                       type="button"
-                      data-testid="firebase-guest-signin-btn"
-                      disabled={!isOnline || authBusy}
-                      onClick={() => void onStartGuestSession()}
-                      className="inline-flex min-h-8 items-center gap-1 rounded-lg border wv-border wv-card px-2.5 py-1 text-xs font-bold wv-text hover:opacity-85 disabled:opacity-50 cursor-pointer"
+                      data-testid="leaderboard-unified-auth-btn"
+                      disabled={authBusy}
+                      onClick={onOpenUnifiedAuth}
+                      className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border wv-border wv-card px-3 py-1.5 text-xs sm:text-sm font-bold wv-text hover:opacity-85 disabled:opacity-50 cursor-pointer"
                     >
                       <LogIn className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
-                      <span>Guest Online</span>
-                    </button>
-                  )}
-                  {verifiedState.authType !== 'google' && onLinkGoogleAccount && (
-                    <button
-                      type="button"
-                      data-testid="firebase-google-link-btn"
-                      disabled={!isOnline || authBusy}
-                      onClick={() => void onLinkGoogleAccount()}
-                      className="inline-flex min-h-8 items-center gap-1 rounded-lg border wv-border wv-card px-2.5 py-1 text-xs font-bold wv-text hover:opacity-85 disabled:opacity-50 cursor-pointer"
-                    >
-                      <Sparkles className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
-                      <span>{firebaseSignedIn ? 'Link Google' : 'Sign In Google'}</span>
-                    </button>
-                  )}
-                  {verifiedState.authType !== 'email' && onLinkEmailAccount && (
-                    <button
-                      type="button"
-                      data-testid="firebase-email-toggle-btn"
-                      disabled={!isOnline || authBusy}
-                      onClick={() => setShowEmailForm((v) => !v)}
-                      className="inline-flex min-h-8 items-center gap-1 rounded-lg border wv-border wv-card px-2.5 py-1 text-xs font-bold wv-text hover:opacity-85 disabled:opacity-50 cursor-pointer"
-                    >
-                      <Mail className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
-                      <span>{firebaseSignedIn ? 'Link Email' : 'Email Sign-In'}</span>
+                      <span>{firebaseSignedIn || userAccount ? 'Switch Account' : 'Sign In'}</span>
                     </button>
                   )}
                   {firebaseSignedIn && onSignOutFirebase && (
@@ -577,164 +610,23 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                       data-testid="firebase-signout-btn"
                       disabled={authBusy}
                       onClick={() => void onSignOutFirebase()}
-                      className="ml-auto inline-flex min-h-8 items-center gap-1 rounded-lg border wv-border wv-card px-2 py-1 text-[11px] font-semibold wv-text-muted hover:opacity-85 cursor-pointer"
+                      className="ml-auto inline-flex min-h-9 items-center gap-1 rounded-lg border wv-border wv-card px-2.5 py-1 text-xs font-semibold wv-text-muted hover:opacity-85 cursor-pointer"
                     >
-                      <LogOut className="h-3 w-3" aria-hidden="true" />
+                      <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
                       <span>Sign Out</span>
                     </button>
                   )}
                 </div>
 
-                {showEmailForm && (
-                  <form
-                    onSubmit={handleEmailSubmit}
-                    data-testid="firebase-email-form"
-                    className="rounded-lg border wv-border wv-card p-2.5 space-y-2"
-                  >
-                    <div className="flex items-center justify-between text-xs font-bold wv-text">
-                      <span>{emailIsCreate ? 'Link / Create Email Account' : 'Sign In With Email'}</span>
-                      <button
-                        type="button"
-                        onClick={() => setEmailIsCreate((v) => !v)}
-                        className="wv-accent-text underline cursor-pointer"
-                      >
-                        {emailIsCreate ? 'Existing account?' : 'Create new?'}
-                      </button>
-                    </div>
-                    <input
-                      type="email"
-                      required
-                      value={emailDraft}
-                      onChange={(e) => setEmailDraft(e.target.value)}
-                      placeholder="you@example.com"
-                      aria-label="Email address"
-                      className="w-full rounded-lg border wv-border wv-card-muted px-2.5 py-1.5 text-xs wv-text"
-                    />
-                    <div className="flex gap-2">
-                      <input
-                        type="password"
-                        required
-                        minLength={6}
-                        value={passwordDraft}
-                        onChange={(e) => setPasswordDraft(e.target.value)}
-                        placeholder="Password (6+ chars)"
-                        aria-label="Password"
-                        className="flex-1 rounded-lg border wv-border wv-card-muted px-2.5 py-1.5 text-xs wv-text"
-                      />
-                      <button
-                        type="submit"
-                        disabled={authBusy}
-                        className="rounded-lg wv-accent-btn px-3 py-1.5 text-xs font-bold cursor-pointer"
-                      >
-                        {emailIsCreate ? 'Link' : 'Sign In'}
-                      </button>
-                    </div>
-                  </form>
-                )}
-
                 {(syncStatusMessage || authNotice) && (
                   <p
                     data-testid="sync-status-message"
                     role="status"
-                    className="text-xs font-semibold wv-accent-text"
+                    className="rounded-lg border wv-border wv-card px-2.5 py-1.5 text-xs font-semibold wv-text-muted"
                   >
                     {syncStatusMessage || authNotice}
                   </p>
                 )}
-              </div>
-
-              {/* Player Rank Hero Card */}
-              <div className="rounded-xl border wv-border wv-card-muted p-4 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-3 min-w-0">
-                    {userAccount && (
-                      <UserAvatar
-                        avatarType={userAccount.avatarType}
-                        builtinAvatarId={userAccount.builtinAvatarId}
-                        avatarDataUrl={userAccount.avatarDataUrl}
-                        alt={userAccount.username}
-                        size="md"
-                      />
-                    )}
-                    <div className="min-w-0">
-                      <span className="text-xs font-bold uppercase tracking-wider wv-accent-text">
-                        Verified Standing ({scope === 'weekly' ? 'Weekly Prize Race' : 'Verified Total'})
-                      </span>
-                      <div
-                        data-testid="leaderboard-user-rank"
-                        className="mt-0.5 font-display text-lg sm:text-xl font-black wv-text"
-                      >
-                        {scope === 'weekly'
-                          ? `Rank #${leaderboard.rank} of ${leaderboard.activeThisWeekCount} weekly players`
-                          : `Rank #${leaderboard.rank} of ${leaderboard.totalPlayers} total players`}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <span className="text-xs font-medium wv-text-muted">Verified</span>
-                    <div
-                      data-testid="leaderboard-user-xp"
-                      className="font-mono-tabular text-lg sm:text-xl font-extrabold wv-accent-text"
-                    >
-                      {leaderboard.playerXp.toLocaleString()} XP
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-2 border-t wv-border pt-2.5 text-xs">
-                  <span className="font-semibold wv-text-muted">
-                    {leaderboard.nextRivalName
-                      ? `${leaderboard.xpToOvertake.toLocaleString()} Verified XP to pass ${leaderboard.nextRivalName}`
-                      : 'Top #1 spot on the weekly prize race!'}
-                  </span>
-
-                  {onOpenEditProfile ? (
-                    <button
-                      type="button"
-                      data-testid="leaderboard-edit-profile-btn"
-                      onClick={onOpenEditProfile}
-                      className="inline-flex items-center gap-1 font-bold wv-accent-text hover:underline cursor-pointer"
-                    >
-                      <Pencil className="h-3 w-3" aria-hidden="true" />
-                      <span>@{effectiveName} · Edit</span>
-                    </button>
-                  ) : (
-                    onUpdatePlayerName &&
-                    (editingName ? (
-                      <form onSubmit={handleSaveName} className="flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          value={nameDraft}
-                          maxLength={24}
-                          onChange={(e) => setNameDraft(e.target.value)}
-                          aria-label="Display name"
-                          className="w-28 rounded-lg border wv-border wv-card px-2 py-1 text-xs font-bold wv-text focus:outline-none"
-                        />
-                        <button
-                          type="submit"
-                          aria-label="Save name"
-                          className="inline-flex h-7 items-center gap-1 rounded-lg wv-accent-btn px-2 text-xs font-bold cursor-pointer"
-                        >
-                          <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                          <span>Save</span>
-                        </button>
-                      </form>
-                    ) : (
-                      <button
-                        type="button"
-                        data-testid="leaderboard-edit-name-btn"
-                        onClick={() => {
-                          setNameDraft(effectiveName);
-                          setEditingName(true);
-                        }}
-                        className="inline-flex items-center gap-1 font-bold wv-accent-text hover:underline cursor-pointer"
-                      >
-                        <Pencil className="h-3 w-3" aria-hidden="true" />
-                        <span>Name: {effectiveName}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
 
                 {/* Share Progress & Invite Friends */}
                 {(onShareProgress || onInviteFriends) && (
@@ -816,12 +708,12 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                       type="button"
                       data-testid="leaderboard-cache-indicator"
                       onClick={() => void onRefreshLeaderboardCache()}
-                      title="Single-doc summary cached 30m (0 extra reads)"
-                      className="rounded-lg border wv-border wv-card-muted px-2 py-0.5 text-[11px] font-semibold hover:opacity-85 cursor-pointer"
+                      title="Refresh standings"
+                      className="rounded-lg border wv-border wv-card-muted px-2.5 py-1 text-xs font-semibold hover:opacity-85 cursor-pointer"
                     >
                       {cacheAgeMin !== null
-                        ? `Cached ${cacheAgeMin}m/${cacheTtlMin}m`
-                        : '1-Doc Summary'}
+                        ? `Updated ${cacheAgeMin}m ago`
+                        : 'Refresh Ranks'}
                     </button>
                   )}
                 </div>
@@ -940,7 +832,7 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                     <div className="font-bold wv-text">2. Fair-Play Caps</div>
                     <p className="mt-0.5 font-mono-tabular wv-text-muted">
                       Today: {verifiedState.dailyVerifiedXp.toLocaleString()} /{' '}
-                      {MAX_XP_PER_24H.toLocaleString()} XP (max 1,500/batch).
+                      {MAX_XP_PER_24H.toLocaleString()} XP daily cap
                     </p>
                   </div>
                 </div>

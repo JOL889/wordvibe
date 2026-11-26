@@ -11,12 +11,15 @@ import {
   reconcileWeeklyRollover,
 } from './weeklyLogic';
 import {
+  calculateTimedTriviaXp,
   calculateTriviaXp,
   getStreakMultiplier,
   getTriviaDifficultyForStreak,
+  getTriviaQuestionTimeLimitSeconds,
   isTriviaCategoryUnlocked,
   pickFallbackTriviaQuestion,
   TRIVIA_CATEGORIES,
+  TRIVIA_QUESTION_TIME_LIMIT_SEC,
 } from './triviaLogic';
 import {
   ADMOB_CONFIG,
@@ -165,4 +168,100 @@ test('AdMob config defaults to Google official test Ad Unit ID and respects plac
   assert.equal(rewardedAdService.getPlacementMeta('unlock_trivia_24h').isOptionalPrompt, false);
   assert.equal(rewardedAdService.getPlacementMeta('trivia_reveal_answer_pair').concurrentAdsCount, 2);
   assert.ok(rewardedAdService.getPlacementMeta('puzzle_clue').title.includes('Clue'));
+});
+
+test('15s trivia timer, timeout=0 XP, online wrong=0 XP, and offline wrong=40% XP', () => {
+  assert.equal(TRIVIA_QUESTION_TIME_LIMIT_SEC, 15);
+  assert.equal(getTriviaQuestionTimeLimitSeconds(1, 0), 15);
+  assert.equal(getTriviaQuestionTimeLimitSeconds(5, 4), 15);
+  assert.equal(calculateTimedTriviaXp(15, 15), 15);
+  assert.ok(calculateTimedTriviaXp(1, 15) >= 3 && calculateTimedTriviaXp(1, 15) < 15);
+
+  const now = Date.UTC(2026, 10, 24, 12, 0, 0);
+  const baseState = createFreshWeeklyState('2026-11-23');
+
+  // Online wrong -> 0 XP
+  const onlineWrong = applyWeeklyActivityEvent(
+    baseState,
+    {
+      type: 'trivia_answered',
+      correct: false,
+      difficulty: 'novice',
+      streakAfter: 0,
+      xpAwarded: 0,
+      categoryId: 'science',
+      isOnline: true,
+      baseXp: 15,
+    },
+    now
+  );
+  assert.equal(onlineWrong.xpEarned, 0);
+
+  // Timeout -> 0 XP even offline
+  const offlineTimeout = applyWeeklyActivityEvent(
+    baseState,
+    {
+      type: 'trivia_answered',
+      correct: false,
+      difficulty: 'novice',
+      streakAfter: 0,
+      xpAwarded: 0,
+      categoryId: 'science',
+      isOnline: false,
+      timedOut: true,
+      baseXp: 15,
+    },
+    now
+  );
+  assert.equal(offlineTimeout.xpEarned, 0);
+
+  // Offline wrong -> 40% of base XP rounded (15 * 0.4 = 6)
+  const offlineWrongTrivia = applyWeeklyActivityEvent(
+    baseState,
+    {
+      type: 'trivia_answered',
+      correct: false,
+      difficulty: 'novice',
+      streakAfter: 0,
+      xpAwarded: 6,
+      categoryId: 'science',
+      isOnline: false,
+      baseXp: 15,
+    },
+    now
+  );
+  assert.equal(offlineWrongTrivia.xpEarned, 6);
+
+  // Offline wrong puzzle -> 40% of 25 = 10
+  const offlineWrongPuzzle = applyWeeklyActivityEvent(
+    baseState,
+    {
+      type: 'puzzle_completed',
+      won: false,
+      mode: 'daily',
+      attemptsUsed: 1,
+      wordLength: 5,
+      categoryId: 'science',
+      isOnline: false,
+      baseXp: 25,
+    },
+    now
+  );
+  assert.equal(offlineWrongPuzzle.xpEarned, 10);
+
+  // Sprint correct trivia (5 XP) is not inflated to 10 XP
+  const sprintTrivia = applyWeeklyActivityEvent(
+    { ...baseState, unlockedAchievements: ['first_spark'] },
+    {
+      type: 'trivia_answered',
+      correct: true,
+      difficulty: 'novice',
+      streakAfter: 1,
+      xpAwarded: 5,
+      categoryId: 'science',
+      isOnline: true,
+    },
+    now
+  );
+  assert.equal(sprintTrivia.xpEarned, 5);
 });

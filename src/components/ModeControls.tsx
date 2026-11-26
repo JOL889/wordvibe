@@ -287,8 +287,7 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
               </span>
             ) : (
               <span className="rounded-lg border wv-accent-pill px-2 py-0.5">
-                <span className="sm:hidden">Topics</span>
-                <span className="hidden sm:inline">{CATEGORIES.length} Topics · Unlock</span>
+                Topics
               </span>
             )}
             <ChevronDown className="h-4 w-4 wv-text-muted" aria-hidden="true" />
@@ -324,63 +323,65 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
         </div>
       )}
 
-      {/* Session Progress & Shrinking Countdown Strip */}
-      <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-xs sm:text-sm wv-text-muted">
-        {sessionMode === 'level_climb' ? (
-          <>
-            <span data-testid="puzzle-climb-progress" className="font-bold wv-text">
-              Puzzle {Math.min(CROSSWORD_LEVEL_CLIMB_TOTAL, climbState.roundIndex + 1)}/
-              {CROSSWORD_LEVEL_CLIMB_TOTAL}
-            </span>
-            {roundTimeLeftSec !== null && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span
-                  data-testid="puzzle-climb-timer"
-                  title={
-                    roundTimeTotalSec
-                      ? `Round ${climbState.roundIndex + 1} time limit: ${formatTimerSec(roundTimeTotalSec)} (gets faster toward 5/5)`
-                      : 'Beat the clock!'
-                  }
-                  className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 font-mono-tabular font-extrabold ${
-                    isLowTime
-                      ? 'wv-gold-pill animate-pulse'
-                      : 'wv-accent-pill'
-                  }`}
-                >
-                  <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>{formatTimerSec(roundTimeLeftSec)}</span>
-                </span>
-              </>
-            )}
-            <span aria-hidden="true">·</span>
-            <span>
-              Wins{' '}
-              <span className="font-mono-tabular font-bold wv-accent-text">
-                {climbState.roundPassedCount}/{CROSSWORD_LEVEL_CLIMB_TOTAL}
-              </span>{' '}
-              → Lv {safeLevel + 1}
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>
-              Streak{' '}
-              <span className="font-mono-tabular font-bold wv-accent-text">{currentStreak}</span>
-            </span>
-          </>
-        ) : (
-          <>
-            <span className="font-bold wv-text">Endless Sprint</span>
-            <span aria-hidden="true">·</span>
-            <span>
-              Solved{' '}
-              <span className="font-mono-tabular font-bold wv-accent-text">{sprintSolved}</span>
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>
-              Streak{' '}
-              <span className="font-mono-tabular font-bold wv-accent-text">{currentStreak}</span>
-            </span>
-          </>
+      {/* Session Progress & Prominent Countdown Timer */}
+      <div className="w-full space-y-1.5">
+        <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-xs sm:text-sm wv-text-muted">
+          {sessionMode === 'level_climb' ? (
+            <>
+              <span data-testid="puzzle-climb-progress" className="font-bold wv-text">
+                {formatLevelLabel(safeLevel)}
+              </span>
+              {roundTimeLeftSec !== null && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span
+                    data-testid="puzzle-climb-timer"
+                    title={
+                      roundTimeTotalSec
+                        ? `Time remaining: ${formatTimerSec(roundTimeLeftSec)}`
+                        : 'Beat the clock!'
+                    }
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-0.5 font-mono-tabular text-sm font-black ${
+                      isLowTime ? 'wv-gold-pill animate-pulse' : 'wv-accent-pill'
+                    }`}
+                  >
+                    <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>{formatTimerSec(roundTimeLeftSec)}</span>
+                  </span>
+                </>
+              )}
+              <span aria-hidden="true">·</span>
+              <span>
+                Streak{' '}
+                <span className="font-mono-tabular font-bold wv-accent-text">{currentStreak}</span>
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="font-bold wv-text">Endless Sprint</span>
+              <span aria-hidden="true">·</span>
+              <span>
+                Streak{' '}
+                <span className="font-mono-tabular font-bold wv-accent-text">{currentStreak}</span>
+              </span>
+            </>
+          )}
+        </div>
+
+        {sessionMode === 'level_climb' && roundTimeLeftSec !== null && roundTimeTotalSec && (
+          <div
+            data-testid="puzzle-timer-bar"
+            className="h-1.5 w-full overflow-hidden rounded-full wv-card-muted border wv-border"
+          >
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${
+                isLowTime ? 'bg-amber-500' : 'wv-accent-btn'
+              }`}
+              style={{
+                width: `${Math.max(0, Math.min(100, (roundTimeLeftSec / roundTimeTotalSec) * 100))}%`,
+              }}
+            />
+          </div>
         )}
       </div>
     </section>

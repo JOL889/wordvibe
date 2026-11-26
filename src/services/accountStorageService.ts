@@ -1,10 +1,40 @@
 import {
+  normalizeEmailKey,
   sanitizeAvatarDataUrl,
   type LocalUserAccount,
   type SocialSharePayload,
 } from '../game/userAccountLogic';
+import type { CrosswordLevelClimbState } from '../game/crosswordLogic';
+import type { PlayerProfileState } from '../game/playerProfileLogic';
+import type { StatsData } from '../game/puzzleLogic';
+import type { AppSettings } from '../game/settingsLogic';
+import type { TriviaClimbProgress } from '../game/triviaLogic';
+import type { WeeklyActivityState } from '../game/weeklyLogic';
+import type {
+  CategoryProgressState,
+  FaithStudyProgress,
+  ModeConfigState,
+  PersistentTriviaState,
+} from './storageService';
+
+export interface EmailProgressBundle {
+  email: string;
+  account: LocalUserAccount;
+  stats: StatsData;
+  weeklyProgress: WeeklyActivityState;
+  faithProgress: FaithStudyProgress;
+  triviaState: PersistentTriviaState;
+  playerProfile: PlayerProfileState;
+  modeConfig: ModeConfigState;
+  categoryProgress: CategoryProgressState;
+  appSettings: AppSettings;
+  crosswordClimb: CrosswordLevelClimbState;
+  triviaClimb: TriviaClimbProgress;
+  updatedAt: number;
+}
 
 const ACCOUNT_LOCAL_KEY = 'wordvibe_user_account_v1';
+const EMAIL_VAULT_PREFIX = 'wordvibe_email_vault_v1:';
 const IDB_NAME = 'wordvibe_offline_accounts_db';
 const IDB_STORE = 'profiles';
 const IDB_RECORD_KEY = 'current_user';
@@ -121,6 +151,104 @@ export async function saveLocalUserAccount(account: LocalUserAccount): Promise<v
       tx.onerror = () => resolve();
     } catch {
       resolve();
+    }
+  });
+}
+
+export async function clearActiveLocalUserAccount(): Promise<void> {
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.removeItem(ACCOUNT_LOCAL_KEY);
+    } catch {
+      // ignore
+    }
+  }
+  const db = await openAccountDb();
+  if (!db) return;
+  await new Promise<void>((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete(IDB_RECORD_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
+}
+
+export async function saveEmailProgressBundle(bundle: EmailProgressBundle): Promise<void> {
+  const emailKey = normalizeEmailKey(bundle.email || bundle.account.email);
+  if (!emailKey) return;
+  const cleanAccount = normalizeStoredAccount(bundle.account) || bundle.account;
+  const payload: EmailProgressBundle = {
+    ...bundle,
+    email: emailKey,
+    account: cleanAccount,
+    updatedAt: Date.now(),
+  };
+  const storageKey = `${EMAIL_VAULT_PREFIX}${emailKey}`;
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(payload));
+    } catch {
+      // ignore localStorage quota limits
+    }
+  }
+  const db = await openAccountDb();
+  if (!db) return;
+  await new Promise<void>((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(payload, storageKey);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
+}
+
+export async function loadEmailProgressBundle(
+  emailRaw: string
+): Promise<EmailProgressBundle | null> {
+  const emailKey = normalizeEmailKey(emailRaw);
+  if (!emailKey) return null;
+  const storageKey = `${EMAIL_VAULT_PREFIX}${emailKey}`;
+
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as EmailProgressBundle;
+        const acct = normalizeStoredAccount(parsed?.account || null);
+        if (parsed && acct) {
+          return { ...parsed, account: acct };
+        }
+      }
+    } catch {
+      // fall through to IndexedDB
+    }
+  }
+
+  const db = await openAccountDb();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(storageKey);
+      req.onsuccess = () => {
+        const res = req.result as EmailProgressBundle | undefined;
+        const acct = normalizeStoredAccount(res?.account || null);
+        if (res && acct) {
+          resolve({ ...res, account: acct });
+        } else {
+          resolve(null);
+        }
+      };
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
     }
   });
 }

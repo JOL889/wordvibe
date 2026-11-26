@@ -7,6 +7,14 @@ export const WEEKLY_PRIZE_POOL_LABEL = 'Weekly #1 Champion: ₦5,000 / ₦10,000
 export const STANDARD_ROUND_XP_MIN = 25;
 export const STANDARD_ROUND_XP_MAX = 40;
 
+export const TIMED_PUZZLE_MIN_XP = 6;
+export const TIMED_PUZZLE_MAX_XP = 30;
+export const TIMED_TRIVIA_MIN_XP = 3;
+export const TIMED_TRIVIA_MAX_XP = 15;
+export const SPRINT_PUZZLE_ONLINE_XP = 10;
+export const SPRINT_TRIVIA_ONLINE_XP = 5;
+export const OFFLINE_WRONG_XP_RATIO = 0.4;
+
 export const MIN_MS_PER_ROUND = 3_000;
 export const MAX_XP_PER_BATCH = 1_500;
 export const MAX_XP_PER_24H = 15_000;
@@ -119,26 +127,66 @@ export function sanitizeLeaderboardDisplayName(name: string): string {
   return cleaned.length > 0 ? cleaned : 'Player';
 }
 
+export function calculateOfflineWrongXp(baseXp: number): number {
+  return Math.max(0, Math.round(Math.max(0, baseXp) * OFFLINE_WRONG_XP_RATIO));
+}
+
 export function calculateVerifiedRoundXp(params: {
   mode: VerifiedRoundMode;
   won: boolean;
+  sessionMode?: 'level_climb' | 'sprint';
+  timeRemainingSec?: number;
+  timeTotalSec?: number;
   accuracyRatio?: number;
   difficultyWeight?: number;
 }): number {
-  if (!params.won) {
-    return STANDARD_ROUND_XP_MIN;
+  // Online Faith Mode awards 0 online XP; incorrect / timed-out answers online award 0 XP.
+  if (params.mode === 'faith' || !params.won) {
+    return 0;
   }
-  const acc =
-    typeof params.accuracyRatio === 'number'
-      ? Math.max(0, Math.min(1, params.accuracyRatio))
-      : 0.7;
-  const diff =
-    typeof params.difficultyWeight === 'number'
-      ? Math.max(0, Math.min(1, params.difficultyWeight))
-      : 0.4;
-  const modeBonus = params.mode === 'puzzle' ? 4 : params.mode === 'trivia' ? 2 : 1;
-  const raw = Math.round(STANDARD_ROUND_XP_MIN + acc * 8 + diff * 5 + modeBonus * 0.5);
-  return Math.max(STANDARD_ROUND_XP_MIN, Math.min(STANDARD_ROUND_XP_MAX, raw));
+
+  // Endless Sprint (untimed): fixed lower online rewards
+  if (params.sessionMode === 'sprint') {
+    return params.mode === 'puzzle' ? SPRINT_PUZZLE_ONLINE_XP : SPRINT_TRIVIA_ONLINE_XP;
+  }
+
+  // Timed Mode: scale dynamically based on remaining time ratio (fallback to accuracy/difficulty)
+  let ratio: number;
+  if (
+    typeof params.timeRemainingSec === 'number' &&
+    typeof params.timeTotalSec === 'number' &&
+    params.timeTotalSec > 0
+  ) {
+    ratio = Math.max(0, Math.min(1, params.timeRemainingSec / params.timeTotalSec));
+  } else {
+    const acc =
+      typeof params.accuracyRatio === 'number'
+        ? Math.max(0, Math.min(1, params.accuracyRatio))
+        : 0.7;
+    const diff =
+      typeof params.difficultyWeight === 'number'
+        ? Math.max(0, Math.min(1, params.difficultyWeight))
+        : 0.4;
+    ratio = Math.max(0, Math.min(1, acc * 0.7 + diff * 0.3));
+  }
+
+  if (params.mode === 'puzzle') {
+    return Math.max(
+      TIMED_PUZZLE_MIN_XP,
+      Math.min(
+        TIMED_PUZZLE_MAX_XP,
+        Math.round(TIMED_PUZZLE_MIN_XP + (TIMED_PUZZLE_MAX_XP - TIMED_PUZZLE_MIN_XP) * ratio)
+      )
+    );
+  }
+
+  return Math.max(
+    TIMED_TRIVIA_MIN_XP,
+    Math.min(
+      TIMED_TRIVIA_MAX_XP,
+      Math.round(TIMED_TRIVIA_MIN_XP + (TIMED_TRIVIA_MAX_XP - TIMED_TRIVIA_MIN_XP) * ratio)
+    )
+  );
 }
 
 function fnv1aHex(input: string, seedOffset = 0): string {
@@ -265,6 +313,9 @@ export interface RecordOnlineRoundInput {
   isSignedIn: boolean;
   mode: VerifiedRoundMode;
   won: boolean;
+  sessionMode?: 'level_climb' | 'sprint';
+  timeRemainingSec?: number;
+  timeTotalSec?: number;
   accuracyRatio?: number;
   difficultyWeight?: number;
   streak?: number;
@@ -275,7 +326,15 @@ export interface RecordOnlineRoundResult {
   state: VerifiedRewardLocalState;
   xpQueued: number;
   eligibleForVerifiedReward: boolean;
-  blockedReason?: 'offline' | 'unauthenticated' | 'suspicious_flagged' | 'pacing_too_fast' | 'daily_cap_reached' | 'batch_cap_reached';
+  blockedReason?:
+    | 'offline'
+    | 'unauthenticated'
+    | 'suspicious_flagged'
+    | 'faith_no_online_xp'
+    | 'round_not_won'
+    | 'pacing_too_fast'
+    | 'daily_cap_reached'
+    | 'batch_cap_reached';
 }
 
 export function recordVerifiedOnlineRound(
@@ -308,6 +367,22 @@ export function recordVerifiedOnlineRound(
       xpQueued: 0,
       eligibleForVerifiedReward: false,
       blockedReason: 'suspicious_flagged',
+    };
+  }
+  if (input.mode === 'faith') {
+    return {
+      state: prev,
+      xpQueued: 0,
+      eligibleForVerifiedReward: false,
+      blockedReason: 'faith_no_online_xp',
+    };
+  }
+  if (!input.won) {
+    return {
+      state: prev,
+      xpQueued: 0,
+      eligibleForVerifiedReward: false,
+      blockedReason: 'round_not_won',
     };
   }
 
@@ -344,7 +419,7 @@ export function recordVerifiedOnlineRound(
   }
 
   const remainingDailyRoom = Math.max(0, MAX_XP_PER_24H - (nextDailyXp + buffer.pendingXp));
-  if (remainingDailyRoom < STANDARD_ROUND_XP_MIN) {
+  if (remainingDailyRoom < 1) {
     return {
       state: prev,
       xpQueued: 0,
@@ -354,7 +429,7 @@ export function recordVerifiedOnlineRound(
   }
 
   const remainingBatchRoom = Math.max(0, MAX_XP_PER_BATCH - buffer.pendingXp);
-  if (remainingBatchRoom < STANDARD_ROUND_XP_MIN) {
+  if (remainingBatchRoom < 1) {
     return {
       state: prev,
       xpQueued: 0,
@@ -366,6 +441,9 @@ export function recordVerifiedOnlineRound(
   const rawXp = calculateVerifiedRoundXp({
     mode: input.mode,
     won: input.won,
+    sessionMode: input.sessionMode,
+    timeRemainingSec: input.timeRemainingSec,
+    timeTotalSec: input.timeTotalSec,
     accuracyRatio: input.accuracyRatio,
     difficultyWeight: input.difficultyWeight,
   });
@@ -385,7 +463,7 @@ export function recordVerifiedOnlineRound(
     xp: awardedXp,
     completedAtMs: nowMs,
     puzzlesDelta: input.mode === 'puzzle' && input.won ? 1 : 0,
-    triviaDelta: (input.mode === 'trivia' || input.mode === 'faith') && input.won ? 1 : 0,
+    triviaDelta: input.mode === 'trivia' && input.won ? 1 : 0,
   };
 
   buffer.uid = prev.uid;

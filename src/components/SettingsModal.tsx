@@ -1,20 +1,20 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Bell,
-  BookOpen,
   ChevronDown,
   ChevronUp,
-  Cloud,
-  Compass,
+  HelpCircle,
+  Info,
   MapPin,
   Music,
   Palette,
   RotateCcw,
   Share2,
-  Shield,
   Sliders,
   Smartphone,
   Sparkles,
+  Timer,
+  User,
   Vibrate,
   Volume2,
   VolumeX,
@@ -51,6 +51,21 @@ interface SettingsModalProps {
   onShareApp: () => void;
   onResetTutorial: () => void;
 }
+
+type SettingsSectionId =
+  | 'account'
+  | 'gameplay'
+  | 'audio_appearance'
+  | 'notifications'
+  | 'about';
+
+const INITIAL_COLLAPSED_STATE: Record<SettingsSectionId, boolean> = {
+  account: false,
+  gameplay: false,
+  audio_appearance: false,
+  notifications: false,
+  about: false,
+};
 
 const THEME_OPTIONS: Array<{ id: ThemeMode; label: string; sub: string }> = [
   { id: 'dark', label: 'Dark Mode', sub: 'Deep integrated tint' },
@@ -138,6 +153,67 @@ const ToggleRow: React.FC<ToggleRowProps> = ({
   </button>
 );
 
+interface AccordionSectionProps {
+  id: SettingsSectionId;
+  title: string;
+  subtitle: string;
+  Icon: typeof User;
+  isOpen: boolean;
+  onToggle: (id: SettingsSectionId) => void;
+  children: React.ReactNode;
+}
+
+const AccordionSection: React.FC<AccordionSectionProps> = ({
+  id,
+  title,
+  subtitle,
+  Icon,
+  isOpen,
+  onToggle,
+  children,
+}) => (
+  <section
+    data-testid={`settings-accordion-${id}`}
+    className="rounded-2xl border wv-border wv-card-muted overflow-hidden amoled-surface"
+  >
+    <button
+      type="button"
+      data-testid={`settings-accordion-btn-${id}`}
+      aria-expanded={isOpen}
+      aria-controls={`settings-panel-${id}`}
+      onClick={() => onToggle(id)}
+      className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:opacity-90 cursor-pointer"
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border wv-border wv-card wv-accent-text">
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <div className="text-sm sm:text-base font-bold wv-text truncate">{title}</div>
+          <div className="text-xs wv-text-muted truncate">{subtitle}</div>
+        </div>
+      </div>
+      <span className="shrink-0 wv-text-muted">
+        {isOpen ? (
+          <ChevronUp className="h-4 w-4" aria-hidden="true" />
+        ) : (
+          <ChevronDown className="h-4 w-4" aria-hidden="true" />
+        )}
+      </span>
+    </button>
+
+    {isOpen && (
+      <div
+        id={`settings-panel-${id}`}
+        data-testid={`settings-panel-${id}`}
+        className="border-t wv-border px-3.5 py-3 space-y-2.5 animate-stage-enter"
+      >
+        {children}
+      </div>
+    )}
+  </section>
+);
+
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   open,
   settings,
@@ -150,10 +226,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onShareApp,
   onResetTutorial,
 }) => {
-  const [aboutExpanded, setAboutExpanded] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Record<SettingsSectionId, boolean>>(
+    INITIAL_COLLAPSED_STATE
+  );
   const [sensorPermFeedback, setSensorPermFeedback] = useState<string | null>(null);
 
+  // Ensure every parent dropdown starts collapsed whenever Settings opens
+  useEffect(() => {
+    if (open) {
+      setExpandedSections({ ...INITIAL_COLLAPSED_STATE });
+    }
+  }, [open]);
+
   if (!open) return null;
+
+  const toggleSection = (id: SettingsSectionId) => {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
   const sensorStatus = getSensorSupportStatus();
   const activeSoundMode: SoundMode = settings.soundMode ?? (settings.soundEnabled ? 'on' : 'off');
@@ -162,6 +254,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     playerProfile.locationEnabled && !playerProfile.locationOptOut
       ? formatLocationLabel(playerProfile.location)
       : 'Global Mode (Location off)';
+
+  const profileSubtitle = userAccount
+    ? `@${userAccount.username}`
+    : playerProfile.displayName?.trim() || 'Guest Player';
 
   return (
     <div
@@ -187,7 +283,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 WordVibe Settings
               </h2>
               <p className="text-xs wv-text-muted">
-                Crossword, Brain Trivia &amp; Faith Study
+                Tap any category to expand options
               </p>
             </div>
           </div>
@@ -203,46 +299,91 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
 
-        {/* Scrollable Sections */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-5">
-          {/* 1. General */}
-          <section className="rounded-2xl border wv-border wv-card-muted p-3.5 space-y-2.5 amoled-surface">
-            <h3 className="flex items-center gap-1.5 px-1 text-xs font-bold uppercase tracking-wider wv-accent-text">
-              <Compass className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>General</span>
-            </h3>
-
-            <ToggleRow
-              testId="setting-auto-location"
-              label="Auto-Detect Location"
-              description="Tailor trivia & trends via offline timezone or GPS"
-              checked={settings.autoDetectLocation}
-              onToggle={() =>
-                onUpdateSettings({ autoDetectLocation: !settings.autoDetectLocation })
-              }
-            />
-
-            <div className="flex items-center justify-between gap-2 rounded-xl border wv-border wv-card px-3 py-2.5">
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 text-sm font-semibold wv-text">
-                  <MapPin className="h-3.5 w-3.5 wv-accent-text shrink-0" aria-hidden="true" />
-                  <span className="truncate">{locationSummary}</span>
+        {/* 5 Collapsible Parent Dropdowns (All Collapsed by Default) */}
+        <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-2.5">
+          {/* 1. Account & Sync */}
+          <AccordionSection
+            id="account"
+            title="Account & Sync"
+            subtitle={`${profileSubtitle} · ${settings.cloudSyncEnabled ? 'Cloud Sync On' : 'Local Storage'}`}
+            Icon={User}
+            isOpen={expandedSections.account}
+            onToggle={toggleSection}
+          >
+            <div className="flex items-center justify-between gap-2.5 rounded-xl border wv-border wv-card px-3 py-2.5 text-xs sm:text-sm">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <UserAvatar
+                  avatarType={userAccount?.avatarType}
+                  builtinAvatarId={userAccount?.builtinAvatarId}
+                  avatarDataUrl={userAccount?.avatarDataUrl}
+                  alt={userAccount?.username || playerProfile.displayName || 'Player'}
+                  size="md"
+                />
+                <div className="min-w-0">
+                  <p className="truncate font-bold wv-text">
+                    {userAccount
+                      ? `${userAccount.realName} (@${userAccount.username})`
+                      : playerProfile.displayName?.trim() || 'Guest WordVibe Player'}
+                  </p>
+                  <p className="truncate text-xs wv-text-muted">
+                    {userAccount?.email || 'Local study & streak progress saved on device'}
+                  </p>
                 </div>
-                <p className="text-xs wv-text-muted">Manual city &amp; country selector</p>
               </div>
-              <button
-                type="button"
-                data-testid="setting-edit-city-btn"
-                onClick={() => {
-                  onClose();
-                  onOpenPersonalize();
-                }}
-                className="min-h-10 shrink-0 rounded-xl border wv-border wv-card-muted px-3 py-1.5 text-xs sm:text-sm font-semibold wv-text hover:opacity-90 cursor-pointer"
-              >
-                Edit City
-              </button>
+              {onOpenEditProfile && (
+                <button
+                  type="button"
+                  data-testid="settings-edit-profile-btn"
+                  onClick={() => {
+                    onClose();
+                    onOpenEditProfile();
+                  }}
+                  className="min-h-10 shrink-0 rounded-xl wv-accent-btn px-3 py-1.5 text-xs font-bold cursor-pointer"
+                >
+                  {userAccount ? 'Edit Profile' : 'Sign Up'}
+                </button>
+              )}
             </div>
 
+            <ToggleRow
+              testId="setting-cloud-sync"
+              label="Cloud Backup Preference"
+              description="Keep verified progress synced alongside local cache"
+              checked={settings.cloudSyncEnabled}
+              onToggle={() => onUpdateSettings({ cloudSyncEnabled: !settings.cloudSyncEnabled })}
+            />
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                data-testid="setting-share-app-btn"
+                onClick={onShareApp}
+                className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border wv-border wv-card px-3 text-xs sm:text-sm font-semibold wv-text hover:opacity-90 cursor-pointer"
+              >
+                <Share2 className="h-4 w-4 wv-accent-text" aria-hidden="true" />
+                <span>Share WordVibe</span>
+              </button>
+              <button
+                type="button"
+                data-testid="setting-reset-tutorial-btn"
+                onClick={onResetTutorial}
+                className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border wv-border wv-card px-3 text-xs sm:text-sm font-semibold wv-text hover:opacity-90 cursor-pointer"
+              >
+                <RotateCcw className="h-4 w-4 wv-accent-text" aria-hidden="true" />
+                <span>Reset Tutorial</span>
+              </button>
+            </div>
+          </AccordionSection>
+
+          {/* 2. Gameplay & Timers */}
+          <AccordionSection
+            id="gameplay"
+            title="Gameplay & Timers"
+            subtitle={`15s Trivia · ${FAITH_TRADITIONS[settings.defaultReligion]?.name || 'Faith'} · Controls`}
+            Icon={Timer}
+            isOpen={expandedSections.gameplay}
+            onToggle={toggleSection}
+          >
             <div className="px-1 pt-1">
               <span className="text-xs sm:text-sm font-semibold wv-text-muted">
                 Default Starting Tab
@@ -295,24 +436,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
 
-            <ToggleRow
-              testId="setting-daily-reminder"
-              label="Daily Streak Reminder"
-              description="Friendly evening check-in nudge"
-              checked={settings.dailyReminder}
-              onToggle={() => onUpdateSettings({ dailyReminder: !settings.dailyReminder })}
-            />
-          </section>
-
-          {/* 2. Faith & Study */}
-          <section className="rounded-2xl border wv-border wv-card-muted p-3.5 space-y-2.5 amoled-surface">
-            <h3 className="flex items-center gap-1.5 px-1 text-xs font-bold uppercase tracking-wider wv-accent-text">
-              <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Faith &amp; Study</span>
-            </h3>
-
-            <div className="px-1">
-              <span className="text-xs sm:text-sm font-semibold wv-text-muted">
+            <div className="px-1 pt-1">
+              <span className="text-sm font-semibold wv-text-muted">
                 Default Faith Tradition
               </span>
               <div className="mt-1.5 grid grid-cols-3 gap-1.5">
@@ -358,186 +483,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 onUpdateSettings({ mixFaithWordsInDaily: !settings.mixFaithWordsInDaily })
               }
             />
-          </section>
-
-          {/* 3. Theme & Visuals */}
-          <section className="rounded-2xl border wv-border wv-card-muted p-3.5 space-y-3 amoled-surface">
-            <h3 className="flex items-center gap-1.5 px-1 text-xs font-bold uppercase tracking-wider wv-accent-text">
-              <Palette className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Integrated Theme &amp; Color</span>
-            </h3>
-
-            <div className="grid grid-cols-2 gap-2">
-              {THEME_OPTIONS.map((opt) => {
-                const active = settings.themeMode === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    data-testid={`setting-theme-${opt.id}`}
-                    onClick={() => onUpdateSettings({ themeMode: opt.id })}
-                    className={`flex min-h-12 flex-col items-start justify-center rounded-xl border px-3 py-2 text-left transition-colors cursor-pointer ${
-                      active
-                        ? 'wv-accent-pill border-2'
-                        : 'wv-border wv-card wv-text hover:opacity-90'
-                    }`}
-                  >
-                    <span className="text-xs sm:text-sm font-bold">{opt.label}</span>
-                    <span className="text-xs opacity-75">{opt.sub}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="px-1">
-              <span className="text-xs sm:text-sm font-semibold wv-text-muted">
-                App Color (Integrates Every Surface)
-              </span>
-              <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                {ACCENT_OPTIONS.map((acc) => {
-                  const active = settings.accentColor === acc.id;
-                  return (
-                    <button
-                      key={acc.id}
-                      type="button"
-                      data-testid={`setting-accent-${acc.id}`}
-                      onClick={() => onUpdateSettings({ accentColor: acc.id })}
-                      className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl border px-2.5 text-xs sm:text-sm font-semibold transition-colors cursor-pointer ${
-                        active
-                          ? 'wv-accent-pill border-2'
-                          : 'wv-border wv-card wv-text-muted hover:opacity-90'
-                      }`}
-                    >
-                      <span
-                        className="h-3 w-3 shrink-0 rounded-full border border-white/30"
-                        style={{ backgroundColor: acc.hex }}
-                        aria-hidden="true"
-                      />
-                      <span>{acc.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="px-1">
-              <span className="flex items-center gap-1 text-xs sm:text-sm font-semibold wv-text-muted">
-                <Sparkles className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
-                <span>Phone Motion Tilt</span>
-              </span>
-              <div className="mt-1.5 grid grid-cols-3 gap-1.5">
-                {ANIMATION_OPTIONS.map((anim) => {
-                  const active = settings.animationIntensity === anim.id;
-                  return (
-                    <button
-                      key={anim.id}
-                      type="button"
-                      data-testid={`setting-anim-${anim.id}`}
-                      onClick={() => onUpdateSettings({ animationIntensity: anim.id })}
-                      className={`min-h-11 rounded-xl border px-2 text-xs sm:text-sm font-semibold transition-colors cursor-pointer ${
-                        active
-                          ? 'wv-accent-btn border-transparent'
-                          : 'wv-border wv-card wv-text-muted hover:opacity-90'
-                      }`}
-                    >
-                      {anim.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </section>
-
-          {/* 4. Sound & Music + Haptics & Motion */}
-          <section
-            data-testid="settings-sound-music-section"
-            className="rounded-2xl border wv-border wv-card-muted p-3.5 space-y-2 amoled-surface"
-          >
-            <h3 className="flex items-center gap-1.5 px-1 pb-1 text-xs font-bold uppercase tracking-wider wv-accent-text">
-              <Volume2 className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Sound &amp; Music</span>
-            </h3>
-
-            <ToggleRow
-              testId="setting-sound-sfx-toggle"
-              label="Sound"
-              description="All in-game SFX: taps, tile flips, error shakes, chimes & alerts"
-              checked={activeSoundMode === 'on'}
-              onToggle={() => {
-                const nextMode: SoundMode = activeSoundMode === 'on' ? 'off' : 'on';
-                onUpdateSettings({
-                  soundMode: nextMode,
-                  soundEnabled: nextMode === 'on',
-                });
-              }}
-            />
-
-            <ToggleRow
-              testId="setting-bg-music"
-              label="Music"
-              description="Only Murders-style cozy-mystery parlor piano loop (pauses during ads & background)"
-              checked={settings.bgMusicEnabled}
-              onToggle={() => onUpdateSettings({ bgMusicEnabled: !settings.bgMusicEnabled })}
-            />
-
-            {/* 3-State Sound Feedback Mode Selector */}
-            <div className="px-1 pt-1 pb-1">
-              <span className="text-xs sm:text-sm font-semibold wv-text-muted">
-                Tap &amp; Vibration Profile
-              </span>
-              <div
-                role="group"
-                aria-label="Sound feedback mode"
-                className="mt-1.5 grid grid-cols-3 gap-1.5"
-              >
-                {SOUND_MODES.map(({ id, label, sub, Icon }) => {
-                  const active = activeSoundMode === id;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      data-testid={`setting-sound-mode-${id}`}
-                      aria-pressed={active}
-                      onClick={() =>
-                        onUpdateSettings({
-                          soundMode: id,
-                          soundEnabled: id === 'on',
-                        })
-                      }
-                      className={`flex min-h-12 flex-col items-center justify-center rounded-xl border px-2 py-2 text-center transition-colors cursor-pointer ${
-                        active
-                          ? 'wv-accent-btn border-transparent'
-                          : 'wv-border wv-card wv-text hover:opacity-90'
-                      }`}
-                    >
-                      <span className="inline-flex items-center gap-1 text-xs sm:text-sm font-bold">
-                        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-                        <span>{label}</span>
-                      </span>
-                      <span className="text-xs opacity-80">{sub}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <ToggleRow
-              testId="setting-fanfare"
-              label="Victory Fanfare"
-              description="Celebration chord on solved words & achievements"
-              checked={settings.victoryFanfareEnabled}
-              onToggle={() =>
-                onUpdateSettings({ victoryFanfareEnabled: !settings.victoryFanfareEnabled })
-              }
-            />
-
-            <ToggleRow
-              testId="setting-haptics"
-              label="Vibration on Taps (when Sound is On)"
-              description="Mute mode always vibrates gently; Off mode disables tap SFX & vibration"
-              checked={settings.hapticsEnabled}
-              onToggle={() => onUpdateSettings({ hapticsEnabled: !settings.hapticsEnabled })}
-            />
 
             <ToggleRow
               testId="setting-sensors"
@@ -546,13 +491,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               checked={settings.sensorsEnabled}
               onToggle={() => onUpdateSettings({ sensorsEnabled: !settings.sensorsEnabled })}
             />
-
-            <div className="flex items-center gap-2 px-3 py-1 text-xs wv-text-muted">
-              <Music className="h-3.5 w-3.5 wv-accent-text shrink-0" aria-hidden="true" />
-              <span>
-                Sound &amp; Music are completely independent — toggle either anytime.
-              </span>
-            </div>
 
             {settings.sensorsEnabled && sensorStatus.needsPermissionPrompt && (
               <div className="px-2 pt-1">
@@ -578,101 +516,260 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 )}
               </div>
             )}
-          </section>
+          </AccordionSection>
 
-          {/* 5. Account & Data */}
-          <section className="rounded-2xl border wv-border wv-card-muted p-3.5 space-y-2.5 amoled-surface">
-            <h3 className="flex items-center gap-1.5 px-1 text-xs font-bold uppercase tracking-wider wv-accent-text">
-              <Shield className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Account &amp; Data</span>
-            </h3>
+          {/* 3. Audio & Appearance */}
+          <AccordionSection
+            id="audio_appearance"
+            title="Audio & Appearance"
+            subtitle={`Sound ${activeSoundMode.toUpperCase()} · ${THEME_OPTIONS.find((t) => t.id === settings.themeMode)?.label || 'Theme'}`}
+            Icon={Palette}
+            isOpen={expandedSections.audio_appearance}
+            onToggle={toggleSection}
+          >
+            <div data-testid="settings-sound-music-section" className="space-y-2">
+              <ToggleRow
+                testId="setting-sound-sfx-toggle"
+                label="Sound"
+                description="All in-game SFX: taps, tile flips, error shakes, chimes & alerts"
+                checked={activeSoundMode === 'on'}
+                onToggle={() => {
+                  const nextMode: SoundMode = activeSoundMode === 'on' ? 'off' : 'on';
+                  onUpdateSettings({
+                    soundMode: nextMode,
+                    soundEnabled: nextMode === 'on',
+                  });
+                }}
+              />
 
-            <div className="flex items-center justify-between gap-2.5 rounded-xl border wv-border wv-card px-3 py-2.5 text-xs sm:text-sm">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <UserAvatar
-                  avatarType={userAccount?.avatarType}
-                  builtinAvatarId={userAccount?.builtinAvatarId}
-                  avatarDataUrl={userAccount?.avatarDataUrl}
-                  alt={userAccount?.username || playerProfile.displayName || 'Player'}
-                  size="md"
-                />
-                <div className="min-w-0">
-                  <p className="truncate font-bold wv-text">
-                    {userAccount
-                      ? `${userAccount.realName} (@${userAccount.username})`
-                      : playerProfile.displayName?.trim() || 'Guest WordVibe Player'}
-                  </p>
-                  <p className="truncate text-xs wv-text-muted">
-                    {userAccount?.email || 'Local study & streak progress saved offline on device'}
-                  </p>
+              <ToggleRow
+                testId="setting-bg-music"
+                label="Music"
+                description="Cozy parlor piano loop (pauses during ads & background)"
+                checked={settings.bgMusicEnabled}
+                onToggle={() => onUpdateSettings({ bgMusicEnabled: !settings.bgMusicEnabled })}
+              />
+
+              <div className="px-1 pt-1 pb-1">
+                <span className="text-xs sm:text-sm font-semibold wv-text-muted">
+                  Tap &amp; Vibration Profile
+                </span>
+                <div
+                  role="group"
+                  aria-label="Sound feedback mode"
+                  className="mt-1.5 grid grid-cols-3 gap-1.5"
+                >
+                  {SOUND_MODES.map(({ id, label, sub, Icon }) => {
+                    const active = activeSoundMode === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        data-testid={`setting-sound-mode-${id}`}
+                        aria-pressed={active}
+                        onClick={() =>
+                          onUpdateSettings({
+                            soundMode: id,
+                            soundEnabled: id === 'on',
+                          })
+                        }
+                        className={`flex min-h-12 flex-col items-center justify-center rounded-xl border px-2 py-2 text-center transition-colors cursor-pointer ${
+                          active
+                            ? 'wv-accent-btn border-transparent'
+                            : 'wv-border wv-card wv-text hover:opacity-90'
+                        }`}
+                      >
+                        <span className="inline-flex items-center gap-1 text-xs sm:text-sm font-bold">
+                          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                          <span>{label}</span>
+                        </span>
+                        <span className="text-xs opacity-80">{sub}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-              {onOpenEditProfile ? (
-                <button
-                  type="button"
-                  data-testid="settings-edit-profile-btn"
-                  onClick={() => {
-                    onClose();
-                    onOpenEditProfile();
-                  }}
-                  className="min-h-10 shrink-0 rounded-xl wv-accent-btn px-3 py-1.5 text-xs font-bold cursor-pointer"
-                >
-                  {userAccount ? 'Edit Profile' : 'Sign Up'}
-                </button>
-              ) : (
-                <Bell className="h-4 w-4 wv-text-muted shrink-0" aria-hidden="true" />
-              )}
+
+              <ToggleRow
+                testId="setting-fanfare"
+                label="Victory Fanfare"
+                description="Celebration chord on solved words & achievements"
+                checked={settings.victoryFanfareEnabled}
+                onToggle={() =>
+                  onUpdateSettings({ victoryFanfareEnabled: !settings.victoryFanfareEnabled })
+                }
+              />
+
+              <ToggleRow
+                testId="setting-haptics"
+                label="Vibration on Taps (when Sound is On)"
+                description="Mute mode vibrates gently; Off mode disables tap SFX & vibration"
+                checked={settings.hapticsEnabled}
+                onToggle={() => onUpdateSettings({ hapticsEnabled: !settings.hapticsEnabled })}
+              />
+
+              <div className="flex items-center gap-2 px-3 py-1 text-xs wv-text-muted">
+                <Music className="h-3.5 w-3.5 wv-accent-text shrink-0" aria-hidden="true" />
+                <span>Sound &amp; Music are independent — toggle either anytime.</span>
+              </div>
             </div>
 
+            <div className="border-t wv-border pt-3 space-y-2.5">
+              <div className="grid grid-cols-2 gap-2">
+                {THEME_OPTIONS.map((opt) => {
+                  const active = settings.themeMode === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      data-testid={`setting-theme-${opt.id}`}
+                      onClick={() => onUpdateSettings({ themeMode: opt.id })}
+                      className={`flex min-h-12 flex-col items-start justify-center rounded-xl border px-3 py-2 text-left transition-colors cursor-pointer ${
+                        active
+                          ? 'wv-accent-pill border-2'
+                          : 'wv-border wv-card wv-text hover:opacity-90'
+                      }`}
+                    >
+                      <span className="text-xs sm:text-sm font-bold">{opt.label}</span>
+                      <span className="text-xs opacity-75">{opt.sub}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="px-1">
+                <span className="text-xs sm:text-sm font-semibold wv-text-muted">
+                  App Color (Integrates Every Surface)
+                </span>
+                <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  {ACCENT_OPTIONS.map((acc) => {
+                    const active = settings.accentColor === acc.id;
+                    return (
+                      <button
+                        key={acc.id}
+                        type="button"
+                        data-testid={`setting-accent-${acc.id}`}
+                        onClick={() => onUpdateSettings({ accentColor: acc.id })}
+                        className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl border px-2.5 text-xs sm:text-sm font-semibold transition-colors cursor-pointer ${
+                          active
+                            ? 'wv-accent-pill border-2'
+                            : 'wv-border wv-card wv-text-muted hover:opacity-90'
+                        }`}
+                      >
+                        <span
+                          className="h-3 w-3 shrink-0 rounded-full border border-white/30"
+                          style={{ backgroundColor: acc.hex }}
+                          aria-hidden="true"
+                        />
+                        <span>{acc.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="px-1">
+                <span className="flex items-center gap-1 text-xs sm:text-sm font-semibold wv-text-muted">
+                  <Sparkles className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
+                  <span>Phone Motion Tilt</span>
+                </span>
+                <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                  {ANIMATION_OPTIONS.map((anim) => {
+                    const active = settings.animationIntensity === anim.id;
+                    return (
+                      <button
+                        key={anim.id}
+                        type="button"
+                        data-testid={`setting-anim-${anim.id}`}
+                        onClick={() => onUpdateSettings({ animationIntensity: anim.id })}
+                        className={`min-h-11 rounded-xl border px-2 text-xs sm:text-sm font-semibold transition-colors cursor-pointer ${
+                          active
+                            ? 'wv-accent-btn border-transparent'
+                            : 'wv-border wv-card wv-text-muted hover:opacity-90'
+                        }`}
+                      >
+                        {anim.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </AccordionSection>
+
+          {/* 4. Notifications */}
+          <AccordionSection
+            id="notifications"
+            title="Notifications"
+            subtitle={`${settings.dailyReminder ? 'Reminders On' : 'Reminders Off'} · ${locationSummary}`}
+            Icon={Bell}
+            isOpen={expandedSections.notifications}
+            onToggle={toggleSection}
+          >
             <ToggleRow
-              testId="setting-cloud-sync"
-              label="Cloud Backup Preference"
-              description="Keep progress portable alongside local cache"
-              checked={settings.cloudSyncEnabled}
-              onToggle={() => onUpdateSettings({ cloudSyncEnabled: !settings.cloudSyncEnabled })}
+              testId="setting-daily-reminder"
+              label="Daily Streak Reminder"
+              description="Friendly evening check-in nudge"
+              checked={settings.dailyReminder}
+              onToggle={() => onUpdateSettings({ dailyReminder: !settings.dailyReminder })}
             />
 
-            <div className="grid grid-cols-2 gap-2 pt-1">
+            <ToggleRow
+              testId="setting-auto-location"
+              label="Auto-Detect Location"
+              description="Tailor trivia & trends via offline timezone or GPS"
+              checked={settings.autoDetectLocation}
+              onToggle={() =>
+                onUpdateSettings({ autoDetectLocation: !settings.autoDetectLocation })
+              }
+            />
+
+            <div className="flex items-center justify-between gap-2 rounded-xl border wv-border wv-card px-3 py-2.5">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 text-sm font-semibold wv-text">
+                  <MapPin className="h-3.5 w-3.5 wv-accent-text shrink-0" aria-hidden="true" />
+                  <span className="truncate">{locationSummary}</span>
+                </div>
+                <p className="text-xs wv-text-muted">Manual city &amp; country selector</p>
+              </div>
               <button
                 type="button"
-                data-testid="setting-share-app-btn"
-                onClick={onShareApp}
-                className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border wv-border wv-card px-3 text-xs sm:text-sm font-semibold wv-text hover:opacity-90 cursor-pointer"
+                data-testid="setting-edit-city-btn"
+                onClick={() => {
+                  onClose();
+                  onOpenPersonalize();
+                }}
+                className="min-h-10 shrink-0 rounded-xl border wv-border wv-card-muted px-3 py-1.5 text-xs sm:text-sm font-semibold wv-text hover:opacity-90 cursor-pointer"
               >
-                <Share2 className="h-4 w-4 wv-accent-text" aria-hidden="true" />
-                <span>Share WordVibe</span>
-              </button>
-              <button
-                type="button"
-                data-testid="setting-reset-tutorial-btn"
-                onClick={onResetTutorial}
-                className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border wv-border wv-card px-3 text-xs sm:text-sm font-semibold wv-text hover:opacity-90 cursor-pointer"
-              >
-                <RotateCcw className="h-4 w-4 wv-accent-text" aria-hidden="true" />
-                <span>Reset Tutorial</span>
+                Edit City
               </button>
             </div>
+          </AccordionSection>
 
+          {/* 5. About & Help */}
+          <AccordionSection
+            id="about"
+            title="About & Help"
+            subtitle="Offline play, rules & privacy guide"
+            Icon={Info}
+            isOpen={expandedSections.about}
+            onToggle={toggleSection}
+          >
+            <p className="rounded-xl border wv-border wv-card p-3.5 text-sm leading-relaxed wv-text-muted">
+              WordVibe works offline using on-device puzzles, trivia, streaks, Faith Study
+              progress, and theme preferences. Your optional city choice stays strictly on your
+              device.
+            </p>
             <button
               type="button"
-              onClick={() => setAboutExpanded((v) => !v)}
-              className="flex min-h-11 w-full items-center justify-between rounded-xl px-2 text-xs sm:text-sm font-semibold wv-text-muted hover:opacity-90 cursor-pointer"
+              data-testid="setting-open-help-btn"
+              onClick={onResetTutorial}
+              className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border wv-border wv-card px-3 text-xs sm:text-sm font-semibold wv-text hover:opacity-90 cursor-pointer"
             >
-              <span className="inline-flex items-center gap-1.5">
-                <Cloud className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>About WordVibe &amp; Privacy Policy</span>
-              </span>
-              {aboutExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              <HelpCircle className="h-4 w-4 wv-accent-text" aria-hidden="true" />
+              <span>How to Play &amp; Scoring Guide</span>
             </button>
-
-            {aboutExpanded && (
-              <p className="rounded-xl border wv-border wv-card p-3 text-xs leading-relaxed wv-text-muted">
-                WordVibe runs offline using your on-device zero-repeat question vault, streaks,
-                coins, Faith Study progress, and integrated theme preferences. Optional city
-                selection stays strictly on your device.
-              </p>
-            )}
-          </section>
+          </AccordionSection>
         </div>
 
         {/* Footer */}

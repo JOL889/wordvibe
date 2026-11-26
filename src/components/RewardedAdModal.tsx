@@ -137,7 +137,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
         <div className="mt-4 rounded-xl border wv-border wv-card-muted p-4 sm:p-5 text-center">
           {loadFailed ? (
             <>
-              <AlertCircle className="mx-auto h-10 w-10 text-amber-500" aria-hidden="true" />
+              <AlertCircle className="mx-auto h-10 w-10 wv-accent-text" aria-hidden="true" />
               <p className="mt-3 text-sm font-medium wv-text">
                 Rewarded ad could not load right now. Please try again.
               </p>
@@ -151,27 +151,27 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
                     data-testid={`concurrent-ad-slot-${adIdx}`}
                     className="rounded-xl border wv-border wv-card p-3 text-center shadow-xs"
                   >
-                    <div className="text-[10px] font-bold uppercase tracking-wide wv-accent-text">
+                    <div className="text-xs font-bold uppercase tracking-wide wv-accent-text">
                       Ad #{adIdx} Active
                     </div>
                     {completed ? (
-                      <CheckCircle2 className="mx-auto mt-2 h-8 w-8 text-emerald-500" aria-hidden="true" />
+                      <CheckCircle2 className="mx-auto mt-2 h-8 w-8 wv-accent-text" aria-hidden="true" />
                     ) : (
-                      <PlayCircle className="mx-auto mt-2 h-8 w-8 text-amber-500 animate-pulse" aria-hidden="true" />
+                      <PlayCircle className="mx-auto mt-2 h-8 w-8 wv-accent-text" aria-hidden="true" />
                     )}
                     <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-black/15 dark:bg-white/15">
                       <div
-                        className="h-full bg-amber-500 transition-[width] duration-300 ease-out"
+                        className="h-full wv-accent-btn transition-[width] duration-300 ease-out"
                         style={{ width: `${progressPct}%` }}
                       />
                     </div>
-                    <p className="mt-1.5 font-mono-tabular text-[11px] font-semibold wv-text-muted">
+                    <p className="mt-1.5 font-mono-tabular text-xs font-semibold wv-text-muted">
                       {completed ? 'Watched ✓' : `${secondsLeft}s`}
                     </p>
                   </div>
                 ))}
               </div>
-              <p className="mt-3 text-xs sm:text-sm font-semibold wv-text">
+              <p className="mt-3 text-sm font-semibold wv-text">
                 {completed ? meta.rewardLabel : meta.description}
               </p>
               <p className="mt-1 font-mono-tabular text-xs font-medium wv-text-muted">
@@ -181,9 +181,9 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
           ) : (
             <>
               {completed ? (
-                <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" aria-hidden="true" />
+                <CheckCircle2 className="mx-auto h-10 w-10 wv-accent-text" aria-hidden="true" />
               ) : (
-                <PlayCircle className="mx-auto h-10 w-10 text-amber-500 animate-pulse" aria-hidden="true" />
+                <PlayCircle className="mx-auto h-10 w-10 wv-accent-text" aria-hidden="true" />
               )}
 
               <p className="mt-3 text-sm font-semibold wv-text">
@@ -193,7 +193,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
               <div className="mt-4 w-full">
                 <div className="h-2.5 w-full overflow-hidden rounded-full bg-black/15 dark:bg-white/15">
                   <div
-                    className="h-full bg-emerald-500 transition-[width] duration-300 ease-out"
+                    className="h-full wv-accent-btn transition-[width] duration-300 ease-out"
                     style={{ width: `${progressPct}%` }}
                   />
                 </div>
@@ -205,7 +205,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
           )}
         </div>
 
-        <p className="mt-2.5 truncate font-mono-tabular text-[10px] wv-text-muted opacity-70">
+        <p className="mt-2.5 truncate font-mono-tabular text-xs wv-text-muted opacity-70">
           Ad Unit: {activeUnitId}
         </p>
 

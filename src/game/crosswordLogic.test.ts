@@ -22,6 +22,7 @@ import {
 } from './triviaLogic';
 import { drawZeroRepeatFaithQuestion } from './faithStudyLogic';
 import { buildCompletedWordSquare, hasDistinctRowsAndCols, validateWordSquare } from './wordSquareLogic';
+import { getWordMeaningClue } from './wordMeanings';
 import { clearZeroRepeatDeckForTest } from './zeroRepeatDeck';
 
 test('asymmetric word squares strictly guarantee every row and column word is distinct (no row === col)', () => {
@@ -42,6 +43,13 @@ test('asymmetric word squares strictly guarantee every row and column word is di
         sq.rows[i],
         sq.cols[i],
         `Row ${i} (${sq.rows[i]}) must NOT duplicate Col ${i} (${sq.cols[i]})`
+      );
+      const meaning = getWordMeaningClue(sq.rows[i]);
+      assert.ok(meaning.length >= 12, `Row word ${sq.rows[i]} should have a clear meaning clue`);
+      assert.equal(
+        meaning.toUpperCase().includes(sq.rows[i]),
+        false,
+        `Meaning clue for ${sq.rows[i]} must not leak the answer`
       );
     }
   }
@@ -133,10 +141,14 @@ test('board becomes won ONLY after every row and column has been completed indiv
   }
 });
 
-test('unlimited ad hints and consonant/vowel + meaning clues work cleanly without revealing the answer word', () => {
+test('accurate dictionary meanings (e.g. CLOUD rain formation) and unlimited ad hints work without revealing answer word', () => {
+  const cloudClue = getWordMeaningClue('CLOUD');
+  assert.match(cloudClue, /rain/i);
+  assert.equal(cloudClue.toUpperCase().includes('CLOUD'), false);
+
   let board = createCrosswordBoard({
     length: 5,
-    level: 'legendary',
+    level: 5,
     forcedTarget: 'CLOUD',
   });
 
@@ -148,6 +160,7 @@ test('unlimited ad hints and consonant/vowel + meaning clues work cleanly withou
   const clueRes = unlockCrosswordLineClue(board, slotType, idx, 'Nature');
   board = clueRes.board;
   assert.match(clueRes.clueText, /3 consonants, 2 vowels — /i);
+  assert.match(clueRes.clueText, /rain/i);
   assert.equal(clueRes.clueText.toUpperCase().includes('CLOUD'), false, 'Clue must never leak the answer');
 
   // Unlimited hints can be applied repeatedly across cells
@@ -159,7 +172,7 @@ test('unlimited ad hints and consonant/vowel + meaning clues work cleanly withou
   assert.equal(board.hintsUsed, 10);
 });
 
-test('5 difficulty tiers and Level Climb 8/10 progression advance correctly for Trivia and Crossword', () => {
+test('unbounded numbered Level Climb progresses from Level 1 -> Level 2 -> ... -> Level 10+ on 8/10 wins', () => {
   assert.deepEqual(FIVE_LEVEL_ORDER, ['novice', 'beginner', 'intermediate', 'expert', 'legendary']);
   assert.equal(getNextFiveLevel('novice'), 'beginner');
   assert.equal(getNextFiveLevel('beginner'), 'intermediate');
@@ -171,47 +184,68 @@ test('5 difficulty tiers and Level Climb 8/10 progression advance correctly for 
   assert.equal(TRIVIA_LEVEL_CLIMB_TOTAL, 10);
   assert.equal(TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD, 8);
 
-  // Trivia: 8/10 promotes Novice -> Beginner
-  let tClimb = createTriviaClimbState('novice');
+  // Trivia: 8/10 promotes Level 1 -> Level 2, and continues above Level 5 (e.g. Level 7 -> Level 8)
+  let tClimb = createTriviaClimbState(1);
   for (let i = 0; i < 10; i++) {
     tClimb = advanceTriviaLevelClimb(tClimb, i < 8);
   }
   assert.equal(tClimb.stageComplete, true);
   assert.equal(tClimb.correctCount, 8);
-  assert.equal(tClimb.promotedToLevel, 'beginner');
+  assert.equal(tClimb.promotedToLevelNumber, 2);
 
-  // Trivia: 7/10 stays at Novice
-  let tFail = createTriviaClimbState('novice');
+  let tHigh = createTriviaClimbState(7);
+  for (let i = 0; i < 10; i++) {
+    tHigh = advanceTriviaLevelClimb(tHigh, i < 9);
+  }
+  assert.equal(tHigh.stageComplete, true);
+  assert.equal(tHigh.promotedToLevelNumber, 8);
+
+  // Trivia: 7/10 stays at Level 1
+  let tFail = createTriviaClimbState(1);
   for (let i = 0; i < 10; i++) {
     tFail = advanceTriviaLevelClimb(tFail, i < 7);
   }
   assert.equal(tFail.stageComplete, true);
   assert.equal(tFail.correctCount, 7);
-  assert.equal(tFail.promotedToLevel, null);
+  assert.equal(tFail.promotedToLevelNumber, null);
 
-  // Crossword: 9/10 promotes Intermediate -> Expert
-  let cClimb = createCrosswordClimbState('intermediate');
+  // Crossword: 9/10 promotes Level 6 -> Level 7 without capping
+  let cClimb = createCrosswordClimbState(6);
   for (let i = 0; i < 10; i++) {
     cClimb = advanceCrosswordLevelClimb(cClimb, i !== 3);
   }
   assert.equal(cClimb.stageComplete, true);
   assert.equal(cClimb.roundPassedCount, 9);
-  assert.equal(cClimb.promotedToLevel, 'expert');
+  assert.equal(cClimb.promotedToLevelNumber, 7);
 });
 
-test('zero-repeat trivia & faith draws produce zero repeats across draws even on fresh calls', () => {
+test('zero-repeat trivia & faith draws produce zero repeats across 25+ draws even on high numeric levels', () => {
   clearZeroRepeatDeckForTest();
   const seenTrivia = new Set<string>();
-  for (let i = 0; i < 10; i++) {
-    const q = drawZeroRepeatTriviaQuestion({ categoryId: 'local-trending', level: 'novice' });
+  for (let i = 0; i < 25; i++) {
+    const q = drawZeroRepeatTriviaQuestion({ categoryId: 'local-trending', levelNumber: 1 + (i % 6) });
     assert.equal(seenTrivia.has(q.question), false, `Repeated trivia question: ${q.question}`);
     seenTrivia.add(q.question);
   }
 
-  const seenFaith = new Set<string>();
-  for (let i = 0; i < 8; i++) {
-    const fq = drawZeroRepeatFaithQuestion({ religion: 'christianity', level: 'beginner' });
-    assert.equal(seenFaith.has(fq.question), false, `Repeated faith question: ${fq.question}`);
-    seenFaith.add(fq.question);
+  const seenGeneral = new Set<string>();
+  for (let i = 0; i < 25; i++) {
+    const q = drawZeroRepeatTriviaQuestion({ categoryId: 'general-knowledge', levelNumber: 2 });
+    assert.equal(seenGeneral.has(q.question), false, `Repeated general trivia: ${q.question}`);
+    seenGeneral.add(q.question);
+  }
+
+  const seenFaithChr = new Set<string>();
+  for (let i = 0; i < 25; i++) {
+    const fq = drawZeroRepeatFaithQuestion({ religion: 'christianity', levelNumber: 1 + (i % 5) });
+    assert.equal(seenFaithChr.has(fq.question), false, `Repeated faith question: ${fq.question}`);
+    seenFaithChr.add(fq.question);
+  }
+
+  const seenFaithBud = new Set<string>();
+  for (let i = 0; i < 25; i++) {
+    const fq = drawZeroRepeatFaithQuestion({ religion: 'buddhism', levelNumber: 3 });
+    assert.equal(seenFaithBud.has(fq.question), false, `Repeated buddhism question: ${fq.question}`);
+    seenFaithBud.add(fq.question);
   }
 });

@@ -80,11 +80,13 @@ import {
 } from './game/puzzleLogic';
 import {
   difficultyTierToPace,
-  FIVE_LEVEL_META,
+  formatLevelLabel,
+  levelNumberToDifficultyBand,
+  normalizeLevelNumber,
   resolveDocumentThemeState,
   type AppSettings,
-  type FiveDifficultyLevel,
   type SessionPlayMode,
+  type SoundMode,
 } from './game/settingsLogic';
 import {
   createTriviaClimbState,
@@ -196,7 +198,7 @@ export default function App() {
         ? savedBoard
         : createCrosswordBoard({
             length: 5,
-            level: bootCfg.puzzleLevel,
+            level: bootCfg.puzzleLevelNumber,
             categoryId: accessibleCat.id,
           });
 
@@ -216,8 +218,8 @@ export default function App() {
       board,
       profile: bootProfile,
       stats: bootStats,
-      climb: loadCrosswordLevelClimb(bootCfg.puzzleLevel),
-      triviaClimb: loadTriviaLevelClimb(bootCfg.triviaLevel),
+      climb: loadCrosswordLevelClimb(bootCfg.puzzleLevelNumber),
+      triviaClimb: loadTriviaLevelClimb(bootCfg.triviaLevelNumber),
     };
   });
 
@@ -350,8 +352,25 @@ export default function App() {
     []
   );
 
+  const activeSoundMode: SoundMode =
+    appSettings.soundMode || (appSettings.soundEnabled ? 'on' : 'off');
+  const effectiveHapticsEnabled =
+    activeSoundMode === 'off'
+      ? false
+      : activeSoundMode === 'mute'
+      ? true
+      : appSettings.hapticsEnabled;
+
   const handleUpdateSettings = useCallback((patch: Partial<AppSettings>) => {
-    setAppSettings((prev) => ({ ...prev, ...patch }));
+    setAppSettings((prev) => {
+      const next: AppSettings = { ...prev, ...patch };
+      if (patch.soundMode !== undefined && patch.soundEnabled === undefined) {
+        next.soundEnabled = patch.soundMode === 'on';
+      } else if (patch.soundEnabled !== undefined && patch.soundMode === undefined) {
+        next.soundMode = patch.soundEnabled ? 'on' : 'off';
+      }
+      return next;
+    });
     if (patch.autoDetectLocation !== undefined) {
       setPlayerProfile((prev) => ({
         ...prev,
@@ -368,7 +387,12 @@ export default function App() {
     }
   }, []);
 
-  // Sync theme, accent, animation intensity, sound, fanfare & haptics immediately across the app
+  // Global tap feedback across every interactive icon/button + pause looping audio when tab hidden
+  useEffect(() => {
+    return soundService.attachGlobalTapFeedback();
+  }, []);
+
+  // Sync theme, accent, animation intensity, 3-state soundMode, background loop, fanfare & haptics immediately
   useEffect(() => {
     const themeState = resolveDocumentThemeState(appSettings);
     document.documentElement.classList.toggle('dark', themeState.isDarkClass);
@@ -379,7 +403,9 @@ export default function App() {
     if (metaTheme) {
       metaTheme.setAttribute('content', themeState.metaThemeColor);
     }
-    soundService.setEnabled(appSettings.soundEnabled);
+    const mode: SoundMode = appSettings.soundMode || (appSettings.soundEnabled ? 'on' : 'off');
+    soundService.setSoundMode(mode);
+    soundService.setBgMusicEnabled(appSettings.bgMusicEnabled);
     soundService.setVictoryFanfareEnabled(appSettings.victoryFanfareEnabled);
     soundService.setHapticsEnabled(appSettings.hapticsEnabled);
     saveAppSettings(appSettings);
@@ -555,12 +581,12 @@ export default function App() {
   const activateNewBoard = useCallback(
     (params: {
       nextLength: WordLength;
-      nextLevel: FiveDifficultyLevel;
+      nextLevelNumber: number;
       nextCategory: PuzzleCategory;
       forcedTarget?: string;
       meta?: PersonalizedMeta | null;
     }): boolean => {
-      const { nextLength, nextLevel, nextCategory, forcedTarget, meta = null } = params;
+      const { nextLength, nextLevelNumber, nextCategory, forcedTarget, meta = null } = params;
       if (!forcedTarget && !isCategoryAccessible(nextCategory, categoryProgress.playsRemaining)) {
         promptUnlockCategory(nextCategory);
         return false;
@@ -572,7 +598,7 @@ export default function App() {
 
       const freshBoard = createCrosswordBoard({
         length: nextLength,
-        level: nextLevel,
+        level: normalizeLevelNumber(nextLevelNumber, 1),
         categoryId: nextCategory.id,
         forcedTarget,
       });
@@ -619,18 +645,22 @@ export default function App() {
   );
 
   const dealNextSessionBoard = useCallback(
-    (overrideLength?: WordLength, overrideLevel?: FiveDifficultyLevel) => {
+    (overrideLength?: WordLength, overrideLevelNumber?: number) => {
       const useClimbNext =
         modeConfig.puzzleSessionMode === 'level_climb' && crosswordClimb.stageComplete;
-      let targetLevel = overrideLevel || modeConfig.puzzleLevel;
+      let targetLevelNumber = overrideLevelNumber ?? modeConfig.puzzleLevelNumber;
 
       if (useClimbNext) {
-        const promoted = crosswordClimb.promotedToLevel;
-        targetLevel = promoted || crosswordClimb.currentLevel;
+        const promoted = crosswordClimb.promotedToLevelNumber;
+        targetLevelNumber = promoted || crosswordClimb.levelNumber;
         if (promoted) {
-          setModeConfig((prev) => ({ ...prev, puzzleLevel: promoted }));
+          setModeConfig((prev) => ({
+            ...prev,
+            puzzleLevelNumber: promoted,
+            puzzleLevel: levelNumberToDifficultyBand(promoted),
+          }));
         }
-        setCrosswordClimb(createCrosswordClimbState(targetLevel));
+        setCrosswordClimb(createCrosswordClimbState(targetLevelNumber));
       }
 
       const nextLen: WordLength =
@@ -641,7 +671,7 @@ export default function App() {
 
       activateNewBoard({
         nextLength: nextLen,
-        nextLevel: targetLevel,
+        nextLevelNumber: targetLevelNumber,
         nextCategory: activeCategory,
       });
     },
@@ -650,10 +680,10 @@ export default function App() {
       activeCategory,
       autoLengthMode,
       crosswordBoard.length,
-      crosswordClimb.currentLevel,
-      crosswordClimb.promotedToLevel,
+      crosswordClimb.levelNumber,
+      crosswordClimb.promotedToLevelNumber,
       crosswordClimb.stageComplete,
-      modeConfig.puzzleLevel,
+      modeConfig.puzzleLevelNumber,
       modeConfig.puzzleSessionMode,
     ]
   );
@@ -663,7 +693,7 @@ export default function App() {
       if (nextMode === modeConfig.puzzleSessionMode) return;
       setModeConfig((prev) => ({ ...prev, puzzleSessionMode: nextMode }));
       if (nextMode === 'level_climb') {
-        setCrosswordClimb(createCrosswordClimbState(modeConfig.puzzleLevel));
+        setCrosswordClimb(createCrosswordClimbState(modeConfig.puzzleLevelNumber));
       }
       showToast(
         nextMode === 'level_climb'
@@ -671,22 +701,25 @@ export default function App() {
           : 'Endless Sprint active · Continuous zero-repeat crosswords!'
       );
     },
-    [modeConfig.puzzleLevel, modeConfig.puzzleSessionMode, showToast]
+    [modeConfig.puzzleLevelNumber, modeConfig.puzzleSessionMode, showToast]
   );
 
-  const handleChangePuzzleLevel = useCallback(
-    (nextLevel: FiveDifficultyLevel) => {
-      setModeConfig((prev) => ({ ...prev, puzzleLevel: nextLevel }));
-      setCrosswordClimb(createCrosswordClimbState(nextLevel));
+  const handleChangePuzzleLevelNumber = useCallback(
+    (nextLevelNumber: number) => {
+      const safeLevel = normalizeLevelNumber(nextLevelNumber, 1);
+      setModeConfig((prev) => ({
+        ...prev,
+        puzzleLevelNumber: safeLevel,
+        puzzleLevel: levelNumberToDifficultyBand(safeLevel),
+      }));
+      setCrosswordClimb(createCrosswordClimbState(safeLevel));
       const ok = activateNewBoard({
         nextLength: crosswordBoard.length,
-        nextLevel,
+        nextLevelNumber: safeLevel,
         nextCategory: activeCategory,
       });
       if (ok) {
-        showToast(
-          `Difficulty: ${FIVE_LEVEL_META[nextLevel].label} (${FIVE_LEVEL_META[nextLevel].badge})`
-        );
+        showToast(`Difficulty: ${formatLevelLabel(safeLevel)}`);
       }
     },
     [activateNewBoard, activeCategory, crosswordBoard.length, showToast]
@@ -697,11 +730,11 @@ export default function App() {
       setAutoLengthMode(false);
       activateNewBoard({
         nextLength,
-        nextLevel: modeConfig.puzzleLevel,
+        nextLevelNumber: modeConfig.puzzleLevelNumber,
         nextCategory: activeCategory,
       });
     },
-    [activateNewBoard, activeCategory, modeConfig.puzzleLevel]
+    [activateNewBoard, activeCategory, modeConfig.puzzleLevelNumber]
   );
 
   const handleToggleAutoLength = useCallback(() => {
@@ -711,12 +744,19 @@ export default function App() {
       const rolled = rollProbabilityWordLength({ previousLength: crosswordBoard.length });
       activateNewBoard({
         nextLength: rolled,
-        nextLevel: modeConfig.puzzleLevel,
+        nextLevelNumber: modeConfig.puzzleLevelNumber,
         nextCategory: activeCategory,
       });
       showToast(`Auto grid · ${rolled}×${rolled}`, 2200);
     }
-  }, [activateNewBoard, activeCategory, autoLengthMode, crosswordBoard.length, modeConfig.puzzleLevel, showToast]);
+  }, [
+    activateNewBoard,
+    activeCategory,
+    autoLengthMode,
+    crosswordBoard.length,
+    modeConfig.puzzleLevelNumber,
+    showToast,
+  ]);
 
   const handleSelectCategory = useCallback(
     (category: PuzzleCategory) => {
@@ -729,7 +769,7 @@ export default function App() {
       }
       const switched = activateNewBoard({
         nextLength: crosswordBoard.length,
-        nextLevel: modeConfig.puzzleLevel,
+        nextLevelNumber: modeConfig.puzzleLevelNumber,
         nextCategory: category,
       });
       if (switched) {
@@ -743,7 +783,7 @@ export default function App() {
       activateNewBoard,
       categoryProgress.playsRemaining,
       crosswordBoard.length,
-      modeConfig.puzzleLevel,
+      modeConfig.puzzleLevelNumber,
       promptUnlockCategory,
       showToast,
     ]
@@ -799,12 +839,14 @@ export default function App() {
         const cleanPass = isCleanCrosswordPass(wonBoard);
         setCrosswordClimb((prev) => {
           const next = advanceCrosswordLevelClimb(prev, cleanPass);
-          if (next.stageComplete && next.promotedToLevel) {
-            setModeConfig((cfg) => ({ ...cfg, puzzleLevel: next.promotedToLevel! }));
-            showToast(
-              `Level Up! Promoted to ${FIVE_LEVEL_META[next.promotedToLevel].label}!`,
-              3600
-            );
+          if (next.stageComplete && next.promotedToLevelNumber) {
+            const promotedNum = next.promotedToLevelNumber;
+            setModeConfig((cfg) => ({
+              ...cfg,
+              puzzleLevelNumber: promotedNum,
+              puzzleLevel: levelNumberToDifficultyBand(promotedNum),
+            }));
+            showToast(`Level Up! Promoted to ${formatLevelLabel(promotedNum)}!`, 3600);
           }
           return next;
         });
@@ -825,14 +867,17 @@ export default function App() {
     ]
   );
 
-  const triggerLineShake = useCallback((type: 'row' | 'col', index: number) => {
-    setShakeLine({ type, index });
-    soundService.playInvalidShake();
-    triggerHapticPulse([18, 25, 18], appSettings.hapticsEnabled);
-    window.setTimeout(() => {
-      setShakeLine((prev) => (prev?.type === type && prev.index === index ? null : prev));
-    }, 420);
-  }, [appSettings.hapticsEnabled]);
+  const triggerLineShake = useCallback(
+    (type: 'row' | 'col', index: number) => {
+      setShakeLine({ type, index });
+      soundService.playInvalidShake();
+      triggerHapticPulse([18, 25, 18], effectiveHapticsEnabled);
+      window.setTimeout(() => {
+        setShakeLine((prev) => (prev?.type === type && prev.index === index ? null : prev));
+      }, 420);
+    },
+    [effectiveHapticsEnabled]
+  );
 
   const handleSelectCell = useCallback(
     (rowIdx: number, colIdx: number) => {
@@ -852,14 +897,14 @@ export default function App() {
       cursorRef.current = { row: rowIdx, col: colIdx };
       setActiveRow(rowIdx);
       setActiveCol(colIdx);
-      triggerHapticPulse(8, appSettings.hapticsEnabled);
+      triggerHapticPulse(8, effectiveHapticsEnabled);
     },
     [
-      appSettings.hapticsEnabled,
       crosswordBoard.length,
       crosswordBoard.solvedCols,
       crosswordBoard.solvedRows,
       crosswordBoard.status,
+      effectiveHapticsEnabled,
     ]
   );
 
@@ -909,7 +954,7 @@ export default function App() {
 
       if (result.outcome === 'typed') {
         soundService.playKeyTap();
-        triggerHapticPulse(8, appSettings.hapticsEnabled);
+        triggerHapticPulse(8, effectiveHapticsEnabled);
         setCrosswordBoard(result.board);
         return;
       }
@@ -950,7 +995,7 @@ export default function App() {
       if (result.outcome === 'line_solved') {
         setCrosswordBoard(result.board);
         soundService.playTileFlip(2, true);
-        triggerHapticPulse([12, 20, 12], appSettings.hapticsEnabled);
+        triggerHapticPulse([12, 20, 12], effectiveHapticsEnabled);
         showToast(`${result.solvedLineLabel} (${result.solvedWord}) solved!`, 2200);
         return;
       }
@@ -962,10 +1007,10 @@ export default function App() {
     },
     [
       activeAdPlacement,
-      appSettings.hapticsEnabled,
       categoryExplorerOpen,
       clueSlotModalOpen,
       crosswordBoard,
+      effectiveHapticsEnabled,
       helpOpen,
       personalizationOpen,
       recordBoardVictory,
@@ -1066,7 +1111,7 @@ export default function App() {
   // Shake-to-Refresh + Gyroscope 3D Tilt Device Sensor Listener
   const onShakeCallbackRef = useRef<() => void>(() => {});
   onShakeCallbackRef.current = () => {
-    triggerHapticPulse([20, 35, 20], appSettings.hapticsEnabled);
+    triggerHapticPulse([20, 35, 20], effectiveHapticsEnabled);
     soundService.playTapPop();
     if (activeTab === 'puzzle') {
       dealNextSessionBoard();
@@ -1129,7 +1174,7 @@ export default function App() {
         );
         const freshBoard = createCrosswordBoard({
           length: crosswordBoard.length,
-          level: modeConfig.puzzleLevel,
+          level: modeConfig.puzzleLevelNumber,
           categoryId: targetCat.id,
         });
         const firstCell = getFirstEditableCell(freshBoard);
@@ -1248,7 +1293,7 @@ export default function App() {
       crosswordBoard,
       dateKey,
       lastPuzzleXpEarned,
-      modeConfig.puzzleLevel,
+      modeConfig.puzzleLevelNumber,
       pendingCategoryForAd,
       puzzleDoubleXpClaimed,
       recordBoardVictory,
@@ -1291,11 +1336,11 @@ export default function App() {
       }));
       activateNewBoard({
         nextLength: challenge.targetLength,
-        nextLevel: modeConfig.puzzleLevel,
+        nextLevelNumber: modeConfig.puzzleLevelNumber,
         nextCategory: activeCategory,
       });
     },
-    [activateNewBoard, activeCategory, modeConfig.puzzleLevel]
+    [activateNewBoard, activeCategory, modeConfig.puzzleLevelNumber]
   );
 
   const handlePlayEntertainmentCategory = useCallback(
@@ -1310,7 +1355,7 @@ export default function App() {
       }
       const ok = activateNewBoard({
         nextLength: crosswordBoard.length,
-        nextLevel: modeConfig.puzzleLevel,
+        nextLevelNumber: modeConfig.puzzleLevelNumber,
         nextCategory: cat,
       });
       if (ok) {
@@ -1321,7 +1366,7 @@ export default function App() {
       activateNewBoard,
       categoryProgress.playsRemaining,
       crosswordBoard.length,
-      modeConfig.puzzleLevel,
+      modeConfig.puzzleLevelNumber,
       promptUnlockCategory,
       showToast,
     ]
@@ -1381,7 +1426,7 @@ export default function App() {
         streak: params.streakAfter,
         bestStreak: Math.max(prev.bestStreak, params.streakAfter),
         recentQuestions: params.questionText
-          ? [...prev.recentQuestions, params.questionText].slice(-30)
+          ? [...prev.recentQuestions, params.questionText].slice(-500)
           : prev.recentQuestions,
       }));
       recordWeeklyEvent({
@@ -1439,7 +1484,7 @@ export default function App() {
       ]);
       activateNewBoard({
         nextLength: 5,
-        nextLevel: modeConfig.puzzleLevel,
+        nextLevelNumber: modeConfig.puzzleLevelNumber,
         nextCategory: getCategoryById('general-classic'),
         forcedTarget: faithWord.word,
         meta: {
@@ -1458,7 +1503,7 @@ export default function App() {
       activateNewBoard,
       crosswordBoard.solution.target,
       dateKey,
-      modeConfig.puzzleLevel,
+      modeConfig.puzzleLevelNumber,
       showToast,
     ]
   );
@@ -1480,13 +1525,13 @@ export default function App() {
       recordWeeklyEvent({
         type: 'trivia_answered',
         correct,
-        difficulty: modeConfig.faithLevel,
+        difficulty: levelNumberToDifficultyBand(modeConfig.faithLevelNumber),
         streakAfter: correct ? 1 : 0,
         xpAwarded: correct ? 35 : 5,
         categoryId: `faith:${religion}`,
       });
     },
-    [modeConfig.faithLevel, recordWeeklyEvent]
+    [modeConfig.faithLevelNumber, recordWeeklyEvent]
   );
 
   const handlePlayPersonalizedPuzzle = useCallback(
@@ -1511,7 +1556,7 @@ export default function App() {
 
       activateNewBoard({
         nextLength: puzzleData.length,
-        nextLevel: modeConfig.puzzleLevel,
+        nextLevelNumber: modeConfig.puzzleLevelNumber,
         nextCategory: activeCategory,
         forcedTarget: puzzleData.target,
         meta: {
@@ -1531,7 +1576,7 @@ export default function App() {
       autoLengthMode,
       crosswordBoard.length,
       crosswordBoard.solution.target,
-      modeConfig.puzzleLevel,
+      modeConfig.puzzleLevelNumber,
       playerProfile,
       showToast,
     ]
@@ -1565,13 +1610,22 @@ export default function App() {
       className="min-h-[100dvh] flex flex-col wv-app-shell"
     >
       <Header
-        soundEnabled={appSettings.soundEnabled}
+        soundMode={activeSoundMode}
         weeklyGradeId={weeklyGradeInfo.current.id}
         weeklyXp={weeklyProgress.weeklyXp}
         bonusCoins={weeklyProgress.bonusCoins}
-        onToggleSound={() =>
-          handleUpdateSettings({ soundEnabled: !appSettings.soundEnabled })
-        }
+        onToggleSound={() => {
+          const nextMode: SoundMode =
+            activeSoundMode === 'on' ? 'mute' : activeSoundMode === 'mute' ? 'off' : 'on';
+          handleUpdateSettings({ soundMode: nextMode, soundEnabled: nextMode === 'on' });
+          showToast(
+            nextMode === 'on'
+              ? 'Sound & Music On'
+              : nextMode === 'mute'
+              ? 'Muted — Vibrate Only'
+              : 'Sound & Vibration Off'
+          );
+        }}
         onOpenStats={() => setSummaryOpen(true)}
         onOpenWeeklyRank={() => setWeeklyRankOpen(true)}
         onOpenHelp={() => openHelpModal('rules')}
@@ -1600,13 +1654,13 @@ export default function App() {
             <Trophy className="h-4 w-4" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-bold wv-accent-text">
+            <p className="text-xs font-bold wv-accent-text">
               Achievement Unlocked!
             </p>
             <p className="truncate text-xs font-semibold wv-text">
               {achievementBanner.title}
             </p>
-            <p className="font-mono-tabular text-[11px] wv-text-muted">
+            <p className="font-mono-tabular text-xs wv-text-muted">
               +{achievementBanner.xpReward} XP · +{achievementBanner.coinReward} Coins
             </p>
           </div>
@@ -1658,14 +1712,19 @@ export default function App() {
           <FaithStudyView
             dateKey={dateKey}
             activeReligion={faithProgress.activeReligion}
-            activeLevel={modeConfig.faithLevel}
+            levelNumber={modeConfig.faithLevelNumber}
             showScriptureReferences={appSettings.showScriptureReferences}
             completedToday={faithProgress.completedSessionsByDate[dateKey] || []}
             refreshSignal={refreshSignal}
             onChangeReligion={handleChangeFaithReligion}
-            onChangeLevel={(lvl) => {
-              setModeConfig((prev) => ({ ...prev, faithLevel: lvl }));
-              showToast(`Faith Study: ${FIVE_LEVEL_META[lvl].label}`);
+            onChangeLevelNumber={(lv) => {
+              const safeLv = normalizeLevelNumber(lv, 1);
+              setModeConfig((prev) => ({
+                ...prev,
+                faithLevelNumber: safeLv,
+                faithLevel: levelNumberToDifficultyBand(safeLv),
+              }));
+              showToast(`Faith Study: ${formatLevelLabel(safeLv)}`);
             }}
             onPlayFaithPuzzle={handlePlayFaithPuzzle}
             onFaithAnswerRecorded={handleFaithAnswerRecorded}
@@ -1674,7 +1733,7 @@ export default function App() {
           <TriviaView
             selectedCategoryId={triviaState.selectedCategoryId}
             sessionMode={modeConfig.triviaSessionMode}
-            activeLevel={modeConfig.triviaLevel}
+            levelNumber={modeConfig.triviaLevelNumber}
             climbState={triviaClimb}
             streak={triviaState.streak}
             bestStreak={triviaState.bestStreak}
@@ -1689,18 +1748,28 @@ export default function App() {
             onChangeSessionMode={(nextMode) => {
               setModeConfig((prev) => ({ ...prev, triviaSessionMode: nextMode }));
               if (nextMode === 'level_climb') {
-                setTriviaClimb(createTriviaClimbState(modeConfig.triviaLevel));
+                setTriviaClimb(createTriviaClimbState(modeConfig.triviaLevelNumber));
               }
             }}
-            onChangeLevel={(nextLevel) => {
-              setModeConfig((prev) => ({ ...prev, triviaLevel: nextLevel }));
-              setTriviaClimb(createTriviaClimbState(nextLevel));
-              showToast(`Trivia Tier: ${FIVE_LEVEL_META[nextLevel].label}`);
+            onChangeLevelNumber={(nextLevel) => {
+              const safeLv = normalizeLevelNumber(nextLevel, 1);
+              setModeConfig((prev) => ({
+                ...prev,
+                triviaLevelNumber: safeLv,
+                triviaLevel: levelNumberToDifficultyBand(safeLv),
+              }));
+              setTriviaClimb(createTriviaClimbState(safeLv));
+              showToast(`Trivia: ${formatLevelLabel(safeLv)}`);
             }}
             onUpdateClimbState={setTriviaClimb}
-            onPromoteLevel={(promoted) => {
-              setModeConfig((prev) => ({ ...prev, triviaLevel: promoted }));
-              showToast(`Promoted to ${FIVE_LEVEL_META[promoted].label}!`, 3200);
+            onPromoteLevelNumber={(promoted) => {
+              const safeLv = normalizeLevelNumber(promoted, 1);
+              setModeConfig((prev) => ({
+                ...prev,
+                triviaLevelNumber: safeLv,
+                triviaLevel: levelNumberToDifficultyBand(safeLv),
+              }));
+              showToast(`Promoted to ${formatLevelLabel(safeLv)}!`, 3200);
             }}
             onUnlockBonusCategory={() => setActiveAdPlacement('unlock_trivia_24h')}
             onRequestAdPlacement={handleRequestAdPlacement}
@@ -1712,7 +1781,7 @@ export default function App() {
           <div key="puzzle-stage" className="w-full flex flex-col items-center animate-stage-enter">
             <ModeControls
               sessionMode={modeConfig.puzzleSessionMode}
-              level={modeConfig.puzzleLevel}
+              levelNumber={modeConfig.puzzleLevelNumber}
               climbState={crosswordClimb}
               length={crosswordBoard.length}
               autoLengthMode={autoLengthMode}
@@ -1727,7 +1796,7 @@ export default function App() {
                 handlePlayPersonalizedPuzzle(autoLengthMode ? undefined : crosswordBoard.length)
               }
               onChangeSessionMode={handleChangePuzzleSessionMode}
-              onChangeLevel={handleChangePuzzleLevel}
+              onChangeLevelNumber={handleChangePuzzleLevelNumber}
               onChangeLength={handleChangeBoardLength}
               onToggleAutoLength={handleToggleAutoLength}
               onOpenCategories={() => {
@@ -1747,7 +1816,7 @@ export default function App() {
               solveFunFact={solveFunFact}
               onChangeDirection={(dir) => {
                 setTypingDirection(dir);
-                triggerHapticPulse(8, appSettings.hapticsEnabled);
+                triggerHapticPulse(8, effectiveHapticsEnabled);
               }}
               onSelectCell={handleSelectCell}
               onKey={handleCrosswordKey}
@@ -1755,7 +1824,6 @@ export default function App() {
               onTriggerHint={() => setActiveAdPlacement('hint')}
               onTriggerWordClue={() => setClueSlotModalOpen(true)}
               onTriggerSkipBoard={() => {
-                soundService.playTapPop();
                 dealNextSessionBoard();
                 showToast('Fresh crossword board dealt!');
               }}

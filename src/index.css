@@ -7,167 +7,327 @@
     --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 
-    /* Global Semantic Surface & Text Tokens (Light Theme Default Values) */
-    --wv-bg: #F6F1E7;
-    --wv-bg-glow: rgba(29, 78, 216, 0.08);
-    --wv-surface: #FFFFFF;
-    --wv-surface-muted: #EFE8D9;
-    --wv-surface-hover: #E5DCC9;
-    --wv-text: #151C2C;
-    --wv-text-muted: #525E75;
-    --wv-border: #DDD2BF;
-
-    /* Tactile Wooden/Ivory Scrabble Tile Palette */
-    --wv-tile-wood-top: #FDE9BF;
-    --wv-tile-wood-bottom: #EBC47C;
-    --wv-tile-border: #C79645;
-    --wv-tile-shadow: #9E6E24;
-    --wv-tile-text: #221608;
-    --wv-tile-empty-bg: #FAF5EC;
-    --wv-tile-empty-border: #D2C3AA;
-
-    /* Accent Tokens (Default: Emerald) */
-    --wv-accent: #10B981;
-    --wv-accent-strong: #059669;
-    --wv-accent-soft: rgba(16, 185, 129, 0.14);
-    --wv-accent-text: #047857;
-
-    --wv-tile-correct: #15803D;
-    --wv-tile-present: #D97706;
-    --wv-tile-absent: #475569;
-
-    /* Dynamic Phone Tilt Vars updated by Gyroscope / Pointer */
+    /* Dynamic Phone Tilt & Shift Vars updated cleanly by calibrated Gyroscope / Pointer */
     --tilt-x: 0deg;
     --tilt-y: 0deg;
+    --shift-x: 0px;
+    --shift-y: 0px;
 
-    /* Theme- & Accent-Responsive Arcade Banner Gradient */
-    --wv-hero-from: #047857;
-    --wv-hero-mid: #10B981;
-    --wv-hero-to: #065F46;
-  }
+    /* Default Integrated Emerald Light Tokens (overridden cleanly by data-theme + data-accent) */
+    --wv-bg: #ECF8F2;
+    --wv-bg-glow: rgba(16, 185, 129, 0.14);
+    --wv-surface: #FFFFFF;
+    --wv-surface-muted: #DFF2E8;
+    --wv-surface-hover: #CEEADC;
+    --wv-text: #06281C;
+    --wv-text-muted: #245B46;
+    --wv-border: #9ED6BA;
 
-  /* DARK MODE — Glossy Royal Blue & Amber Game-Show Arcade */
-  html.dark,
-  html[data-theme='dark'] {
-    --wv-bg: #0B1633;
-    --wv-bg-glow: rgba(37, 99, 235, 0.28);
-    --wv-surface: #12214A;
-    --wv-surface-muted: #192E63;
-    --wv-surface-hover: #213A7A;
-    --wv-text: #F8FAFC;
-    --wv-text-muted: #B6C6E8;
-    --wv-border: rgba(147, 197, 253, 0.22);
+    /* Tactile Letter Tile Tokens (tinted subtly by active theme/accent) */
+    --wv-tile-wood-top: #E6F8EF;
+    --wv-tile-wood-bottom: #C2EBD7;
+    --wv-tile-border: #10B981;
+    --wv-tile-shadow: #047857;
+    --wv-tile-text: #052E1E;
+    --wv-tile-empty-bg: #F4FBF7;
+    --wv-tile-empty-border: #A8DAC1;
 
-    --wv-tile-wood-top: #FCEAC2;
-    --wv-tile-wood-bottom: #ECC47A;
-    --wv-tile-border: #D49C3D;
-    --wv-tile-shadow: #926018;
-    --wv-tile-text: #1B1206;
-    --wv-tile-empty-bg: #142758;
-    --wv-tile-empty-border: rgba(147, 197, 253, 0.34);
-
-    --wv-accent-text: #34D399;
-  }
-
-  /* AMOLED OLED PURE BLACK */
-  html[data-theme='amoled'] {
-    --wv-bg: #000000;
-    --wv-bg-glow: rgba(251, 191, 36, 0.12);
-    --wv-surface: #0A0D16;
-    --wv-surface-muted: #141928;
-    --wv-surface-hover: #1D253B;
-    --wv-text: #FFFFFF;
-    --wv-text-muted: #A1A9C0;
-    --wv-border: #262C3D;
-
-    --wv-tile-empty-bg: #0D111D;
-    --wv-tile-empty-border: #333C56;
-  }
-
-  /* COLORBLIND OKABE-ITO HIGH CONTRAST */
-  html[data-theme='colorblind'] {
-    --wv-bg: #0F172A;
-    --wv-bg-glow: rgba(56, 189, 248, 0.22);
-    --wv-surface: #1E293B;
-    --wv-surface-muted: #293548;
-    --wv-surface-hover: #334155;
-    --wv-text: #F8FAFC;
-    --wv-text-muted: #CBD5E1;
-    --wv-border: rgba(148, 163, 184, 0.35);
-
-    --wv-tile-correct: #0072B2;
-    --wv-tile-present: #E69F00;
-    --wv-tile-absent: #4B5563;
-    --wv-tile-empty-bg: #172033;
-    --wv-tile-empty-border: rgba(148, 163, 184, 0.45);
-  }
-
-  /* ACCENT OVERRIDES */
-  html[data-accent='emerald'] {
     --wv-accent: #10B981;
     --wv-accent-strong: #059669;
-    --wv-accent-soft: rgba(16, 185, 129, 0.17);
+    --wv-accent-soft: rgba(16, 185, 129, 0.15);
     --wv-accent-text: #047857;
+    --wv-pill-top: #6EE7B7;
+    --wv-pill-bottom: #10B981;
+    --wv-pill-text: #04281B;
+    --wv-pill-shadow: #047857;
+
+    --wv-tile-correct-top: #10B981;
+    --wv-tile-correct-bottom: #059669;
+    --wv-tile-correct-border: #6EE7B7;
+    --wv-tile-correct-shadow: #065F46;
+
     --wv-hero-from: #065F46;
     --wv-hero-mid: #059669;
-    --wv-hero-to: #0F3596;
+    --wv-hero-to: #047857;
+
+    --wv-confetti-1: #059669;
+    --wv-confetti-2: #10B981;
+    --wv-confetti-3: #34D399;
+    --wv-confetti-4: #6EE7B7;
+  }
+
+  /* ==================== INTEGRATED EMERALD ACCENT ==================== */
+  html[data-accent='emerald'] {
+    --wv-bg: #ECF8F2;
+    --wv-bg-glow: rgba(16, 185, 129, 0.14);
+    --wv-surface: #FFFFFF;
+    --wv-surface-muted: #DFF2E8;
+    --wv-surface-hover: #CEEADC;
+    --wv-text: #06281C;
+    --wv-text-muted: #245B46;
+    --wv-border: #9ED6BA;
+    --wv-tile-wood-top: #E6F8EF;
+    --wv-tile-wood-bottom: #C2EBD7;
+    --wv-tile-border: #10B981;
+    --wv-tile-shadow: #047857;
+    --wv-tile-text: #052E1E;
+    --wv-tile-empty-bg: #F4FBF7;
+    --wv-tile-empty-border: #A8DAC1;
+    --wv-accent: #10B981;
+    --wv-accent-strong: #059669;
+    --wv-accent-soft: rgba(16, 185, 129, 0.16);
+    --wv-accent-text: #047857;
+    --wv-pill-top: #6EE7B7;
+    --wv-pill-bottom: #10B981;
+    --wv-pill-text: #04281B;
+    --wv-pill-shadow: #047857;
+    --wv-tile-correct-top: #10B981;
+    --wv-tile-correct-bottom: #059669;
+    --wv-tile-correct-border: #6EE7B7;
+    --wv-tile-correct-shadow: #065F46;
+    --wv-hero-from: #065F46;
+    --wv-hero-mid: #059669;
+    --wv-hero-to: #047857;
+    --wv-confetti-1: #059669;
+    --wv-confetti-2: #10B981;
+    --wv-confetti-3: #34D399;
+    --wv-confetti-4: #A7F3D0;
   }
   html.dark[data-accent='emerald'],
-  html[data-theme='amoled'][data-accent='emerald'],
+  html[data-theme='dark'][data-accent='emerald'],
   html[data-theme='colorblind'][data-accent='emerald'] {
-    --wv-accent-text: #34D399;
+    --wv-bg: #051A13;
+    --wv-bg-glow: rgba(16, 185, 129, 0.22);
+    --wv-surface: #0B281E;
+    --wv-surface-muted: #11372A;
+    --wv-surface-hover: #174938;
+    --wv-text: #ECFDF5;
+    --wv-text-muted: #98DBC1;
+    --wv-border: rgba(52, 211, 153, 0.28);
+    --wv-tile-wood-top: #D1FAE5;
+    --wv-tile-wood-bottom: #6EE7B7;
+    --wv-tile-border: #10B981;
+    --wv-tile-shadow: #065F46;
+    --wv-tile-text: #022C22;
+    --wv-tile-empty-bg: #0D2F23;
+    --wv-tile-empty-border: rgba(52, 211, 153, 0.36);
+    --wv-accent: #34D399;
+    --wv-accent-strong: #059669;
+    --wv-accent-soft: rgba(52, 211, 153, 0.16);
+    --wv-accent-text: #6EE7B7;
   }
 
+  /* ==================== INTEGRATED ROYAL GOLD ACCENT ==================== */
   html[data-accent='gold'] {
-    --wv-accent: #F59E0B;
-    --wv-accent-strong: #D97706;
-    --wv-accent-soft: rgba(245, 158, 11, 0.18);
-    --wv-accent-text: #B45309;
-    --wv-hero-from: #92400E;
-    --wv-hero-mid: #D97706;
-    --wv-hero-to: #B45309;
+    --wv-bg: #FDF7E7;
+    --wv-bg-glow: rgba(245, 158, 11, 0.15);
+    --wv-surface: #FFFDF7;
+    --wv-surface-muted: #F8ECC9;
+    --wv-surface-hover: #F1DDA6;
+    --wv-text: #271A04;
+    --wv-text-muted: #6E5118;
+    --wv-border: #E0C178;
+    --wv-tile-wood-top: #FEF3C7;
+    --wv-tile-wood-bottom: #FDE08D;
+    --wv-tile-border: #D97706;
+    --wv-tile-shadow: #92400E;
+    --wv-tile-text: #261602;
+    --wv-tile-empty-bg: #FFF9EB;
+    --wv-tile-empty-border: #DFBE74;
+    --wv-accent: #D97706;
+    --wv-accent-strong: #B45309;
+    --wv-accent-soft: rgba(217, 119, 6, 0.16);
+    --wv-accent-text: #92400E;
+    --wv-pill-top: #FDE68A;
+    --wv-pill-bottom: #F59E0B;
+    --wv-pill-text: #271703;
+    --wv-pill-shadow: #92400E;
+    --wv-tile-correct-top: #F59E0B;
+    --wv-tile-correct-bottom: #B45309;
+    --wv-tile-correct-border: #FDE68A;
+    --wv-tile-correct-shadow: #78350F;
+    --wv-hero-from: #78350F;
+    --wv-hero-mid: #B45309;
+    --wv-hero-to: #92400E;
+    --wv-confetti-1: #D97706;
+    --wv-confetti-2: #F59E0B;
+    --wv-confetti-3: #FBBF24;
+    --wv-confetti-4: #FDE68A;
   }
   html.dark[data-accent='gold'],
-  html[data-theme='amoled'][data-accent='gold'],
+  html[data-theme='dark'][data-accent='gold'],
   html[data-theme='colorblind'][data-accent='gold'] {
-    --wv-accent-text: #FBBF24;
+    --wv-bg: #181105;
+    --wv-bg-glow: rgba(245, 158, 11, 0.22);
+    --wv-surface: #251B08;
+    --wv-surface-muted: #34260C;
+    --wv-surface-hover: #453310;
+    --wv-text: #FFFBEB;
+    --wv-text-muted: #E7CA88;
+    --wv-border: rgba(251, 191, 36, 0.3);
+    --wv-tile-wood-top: #FEF3C7;
+    --wv-tile-wood-bottom: #FCD34D;
+    --wv-tile-border: #D97706;
+    --wv-tile-shadow: #78350F;
+    --wv-tile-text: #271703;
+    --wv-tile-empty-bg: #2B1F0A;
+    --wv-tile-empty-border: rgba(251, 191, 36, 0.36);
+    --wv-accent: #FBBF24;
+    --wv-accent-strong: #D97706;
+    --wv-accent-soft: rgba(251, 191, 36, 0.16);
+    --wv-accent-text: #FCD34D;
   }
 
+  /* ==================== INTEGRATED ELECTRIC BLUE ACCENT ==================== */
   html[data-accent='blue'] {
+    --wv-bg: #EDF4FD;
+    --wv-bg-glow: rgba(37, 99, 235, 0.14);
+    --wv-surface: #FFFFFF;
+    --wv-surface-muted: #DCE9FA;
+    --wv-surface-hover: #C8DDF7;
+    --wv-text: #0C1B36;
+    --wv-text-muted: #35558A;
+    --wv-border: #9CC0F0;
+    --wv-tile-wood-top: #E0EDFF;
+    --wv-tile-wood-bottom: #BFDBFE;
+    --wv-tile-border: #2563EB;
+    --wv-tile-shadow: #1E40AF;
+    --wv-tile-text: #0A1936;
+    --wv-tile-empty-bg: #F3F8FF;
+    --wv-tile-empty-border: #A4C5F3;
     --wv-accent: #2563EB;
     --wv-accent-strong: #1D4ED8;
-    --wv-accent-soft: rgba(37, 99, 235, 0.18);
-    --wv-accent-text: #1D4ED8;
-    --wv-hero-from: #0A256B;
+    --wv-accent-soft: rgba(37, 99, 235, 0.15);
+    --wv-accent-text: #1E40AF;
+    --wv-pill-top: #93C5FD;
+    --wv-pill-bottom: #3B82F6;
+    --wv-pill-text: #0A1936;
+    --wv-pill-shadow: #1E40AF;
+    --wv-tile-correct-top: #3B82F6;
+    --wv-tile-correct-bottom: #1D4ED8;
+    --wv-tile-correct-border: #93C5FD;
+    --wv-tile-correct-shadow: #1E3A8A;
+    --wv-hero-from: #1E3A8A;
     --wv-hero-mid: #1D4ED8;
-    --wv-hero-to: #0F3596;
+    --wv-hero-to: #1E40AF;
+    --wv-confetti-1: #1D4ED8;
+    --wv-confetti-2: #3B82F6;
+    --wv-confetti-3: #60A5FA;
+    --wv-confetti-4: #BFDBFE;
   }
   html.dark[data-accent='blue'],
-  html[data-theme='amoled'][data-accent='blue'],
+  html[data-theme='dark'][data-accent='blue'],
   html[data-theme='colorblind'][data-accent='blue'] {
-    --wv-accent: #38BDF8;
-    --wv-accent-strong: #0284C7;
-    --wv-accent-text: #60A5FA;
+    --wv-bg: #07142B;
+    --wv-bg-glow: rgba(59, 130, 246, 0.24);
+    --wv-surface: #0E2044;
+    --wv-surface-muted: #152D5C;
+    --wv-surface-hover: #1D3C78;
+    --wv-text: #EFF6FF;
+    --wv-text-muted: #A9C7F5;
+    --wv-border: rgba(96, 165, 250, 0.28);
+    --wv-tile-wood-top: #DBEAFE;
+    --wv-tile-wood-bottom: #93C5FD;
+    --wv-tile-border: #3B82F6;
+    --wv-tile-shadow: #1E3A8A;
+    --wv-tile-text: #0A1936;
+    --wv-tile-empty-bg: #112650;
+    --wv-tile-empty-border: rgba(96, 165, 250, 0.38);
+    --wv-accent: #60A5FA;
+    --wv-accent-strong: #2563EB;
+    --wv-accent-soft: rgba(96, 165, 250, 0.16);
+    --wv-accent-text: #93C5FD;
   }
 
+  /* ==================== INTEGRATED ROYAL VIOLET ACCENT ==================== */
   html[data-accent='violet'] {
-    --wv-accent: #8B5CF6;
-    --wv-accent-strong: #7C3AED;
-    --wv-accent-soft: rgba(139, 92, 246, 0.18);
-    --wv-accent-text: #6D28D9;
+    --wv-bg: #F4EEFC;
+    --wv-bg-glow: rgba(124, 58, 237, 0.15);
+    --wv-surface: #FFFFFF;
+    --wv-surface-muted: #E7DAFA;
+    --wv-surface-hover: #D8C4F5;
+    --wv-text: #1F0F38;
+    --wv-text-muted: #5B3C8C;
+    --wv-border: #BC9CEF;
+    --wv-tile-wood-top: #EDE9FE;
+    --wv-tile-wood-bottom: #DDD6FE;
+    --wv-tile-border: #7C3AED;
+    --wv-tile-shadow: #5B21B6;
+    --wv-tile-text: #1E0D3B;
+    --wv-tile-empty-bg: #F8F4FF;
+    --wv-tile-empty-border: #C4A7F2;
+    --wv-accent: #7C3AED;
+    --wv-accent-strong: #6D28D9;
+    --wv-accent-soft: rgba(124, 58, 237, 0.16);
+    --wv-accent-text: #5B21B6;
+    --wv-pill-top: #C4B5FD;
+    --wv-pill-bottom: #8B5CF6;
+    --wv-pill-text: #1B0B36;
+    --wv-pill-shadow: #5B21B6;
+    --wv-tile-correct-top: #8B5CF6;
+    --wv-tile-correct-bottom: #6D28D9;
+    --wv-tile-correct-border: #C4B5FD;
+    --wv-tile-correct-shadow: #4C1D95;
     --wv-hero-from: #4C1D95;
-    --wv-hero-mid: #7C3AED;
-    --wv-hero-to: #312E81;
+    --wv-hero-mid: #6D28D9;
+    --wv-hero-to: #5B21B6;
+    --wv-confetti-1: #6D28D9;
+    --wv-confetti-2: #8B5CF6;
+    --wv-confetti-3: #A78BFA;
+    --wv-confetti-4: #DDD6FE;
   }
   html.dark[data-accent='violet'],
-  html[data-theme='amoled'][data-accent='violet'],
+  html[data-theme='dark'][data-accent='violet'],
   html[data-theme='colorblind'][data-accent='violet'] {
+    --wv-bg: #140A26;
+    --wv-bg-glow: rgba(167, 139, 250, 0.24);
+    --wv-surface: #20123B;
+    --wv-surface-muted: #2C1950;
+    --wv-surface-hover: #3A2268;
+    --wv-text: #F5F3FF;
+    --wv-text-muted: #CBB7F8;
+    --wv-border: rgba(167, 139, 250, 0.28);
+    --wv-tile-wood-top: #EDE9FE;
+    --wv-tile-wood-bottom: #C4B5FD;
+    --wv-tile-border: #8B5CF6;
+    --wv-tile-shadow: #4C1D95;
+    --wv-tile-text: #1D0B3B;
+    --wv-tile-empty-bg: #251544;
+    --wv-tile-empty-border: rgba(167, 139, 250, 0.38);
     --wv-accent: #A78BFA;
-    --wv-accent-text: #C4B5FD;
+    --wv-accent-strong: #7C3AED;
+    --wv-accent-soft: rgba(167, 139, 250, 0.16);
+    --wv-accent-text: #DDD6FE;
+  }
+
+  /* AMOLED OLED PURE BLACK (preserves chosen accent color cleanly) */
+  html[data-theme='amoled'] {
+    --wv-bg: #000000 !important;
+    --wv-bg-glow: var(--wv-accent-soft) !important;
+    --wv-surface: #0A0B0F !important;
+    --wv-surface-muted: #13151C !important;
+    --wv-surface-hover: #1B1E28 !important;
+    --wv-text: #FFFFFF !important;
+    --wv-tile-empty-bg: #0D0E14 !important;
+  }
+
+  /* COLORBLIND OKABE-ITO HIGH-CONTRAST TILE OVERRIDES */
+  html[data-theme='colorblind'] .wv-tile-correct {
+    background: linear-gradient(180deg, #0284C7 0%, #0072B2 100%) !important;
+    border-color: #38BDF8 !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 4px 0 #075985 !important;
+  }
+  html[data-theme='colorblind'] .wv-tile-present {
+    background: linear-gradient(180deg, #F59E0B 0%, #E69F00 100%) !important;
+    border-color: #FDE047 !important;
+    color: #111827 !important;
+    box-shadow: 0 4px 0 #92400E !important;
   }
 
   html {
     font-family: var(--font-sans);
+    font-size: 16.5px;
     scroll-behavior: smooth;
   }
 
@@ -192,7 +352,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Global Semantic Theme Utility Classes (Respond immediately to Light/Dark/AMOLED/Colorblind + Accent) */
+/* Global Semantic Theme Utility Classes (100% Integrated with Chosen Color) */
 .wv-app-shell {
   background-color: var(--wv-bg);
   color: var(--wv-text);
@@ -225,7 +385,7 @@
 .wv-accent-btn {
   background-color: var(--wv-accent-strong);
   color: #FFFFFF;
-  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.25);
   transition: transform 120ms ease, filter 140ms ease;
 }
 .wv-accent-btn:hover {
@@ -245,7 +405,7 @@
   border-color: var(--wv-accent);
 }
 
-/* Glossy Word-Game Tactile Wooden/Ivory Letter Tile */
+/* Tactile Accent-Tinted Letter Tiles */
 .wv-tile-wooden {
   background: linear-gradient(180deg, var(--wv-tile-wood-top) 0%, var(--wv-tile-wood-bottom) 100%);
   border-color: var(--wv-tile-border);
@@ -261,56 +421,41 @@
 }
 
 .wv-tile-correct {
-  background: linear-gradient(180deg, #16A34A 0%, #15803D 100%);
-  border-color: #4ADE80;
+  background: linear-gradient(180deg, var(--wv-tile-correct-top) 0%, var(--wv-tile-correct-bottom) 100%);
+  border-color: var(--wv-tile-correct-border);
   color: #FFFFFF;
-  box-shadow: 0 4px 0 #14532D, inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 0 var(--wv-tile-correct-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
 .wv-tile-present {
-  background: linear-gradient(180deg, #F59E0B 0%, #D97706 100%);
-  border-color: #FCD34D;
-  color: #FFFFFF;
-  box-shadow: 0 4px 0 #92400E, inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  background: var(--wv-accent-soft);
+  border-color: var(--wv-accent);
+  border-style: dashed;
+  color: var(--wv-accent-text);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .wv-tile-absent {
-  background: linear-gradient(180deg, #475569 0%, #334155 100%);
-  border-color: #64748B;
-  color: #E2E8F0;
-  box-shadow: 0 3px 0 #1E293B;
+  background: var(--wv-surface-hover);
+  border-color: var(--wv-border);
+  color: var(--wv-text-muted);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18);
 }
 
-/* Colorblind Okabe-Ito High-Contrast Tile overrides */
-html[data-theme='colorblind'] .wv-tile-correct {
-  background: linear-gradient(180deg, #0284C7 0%, #0072B2 100%) !important;
-  border-color: #38BDF8 !important;
-  color: #FFFFFF !important;
-  box-shadow: 0 4px 0 #075985 !important;
-}
-html[data-theme='colorblind'] .wv-tile-present {
-  background: linear-gradient(180deg, #F59E0B 0%, #E69F00 100%) !important;
-  border-color: #FDE047 !important;
-  color: #111827 !important;
-  box-shadow: 0 4px 0 #92400E !important;
-}
-html[data-theme='colorblind'] .wv-tile-absent {
-  background: #374151 !important;
-  border-color: #6B7280 !important;
-  color: #F3F4F6 !important;
-}
-
-/* Tactile Wooden Scrabble Rack Tray */
+/* Tactile Accent-Integrated Rack Tray */
 .wv-wooden-shelf {
-  background: linear-gradient(180deg, #D98F47 0%, #B46924 100%);
-  border-color: #8C4D14;
-  box-shadow: 0 5px 0 #6E3A0B, inset 0 1px 0 rgba(255, 232, 195, 0.5);
+  background: linear-gradient(180deg, var(--wv-hero-mid) 0%, var(--wv-hero-from) 100%);
+  border-color: var(--wv-border);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
-/* Tactile 3D Sensor Parallax Surface (controlled smoothly by device gyroscope / pointer) */
+/* Tactile Phone-Motion Surface — Strictly follows exact calibrated gyro/pointer motion, zero random drift */
 .wv-tilt-surface {
-  transform: perspective(900px) rotateX(var(--tilt-y, 0deg)) rotateY(var(--tilt-x, 0deg));
-  transition: transform 140ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translate3d(var(--shift-x, 0px), var(--shift-y, 0px), 0)
+    perspective(950px)
+    rotateX(var(--tilt-x, 0deg))
+    rotateY(var(--tilt-y, 0deg));
+  transition: transform 90ms cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
 }
 
@@ -318,23 +463,24 @@ html[data-anim='reduced'] .wv-tilt-surface {
   transform: none !important;
 }
 
-/* Game-Show Arcade Hero Banner (Adapts dynamically to active accent & theme!) */
+/* Hero Banner — Single Integrated Accent Family */
 .wv-hero-arcade {
   background: linear-gradient(135deg, var(--wv-hero-from) 0%, var(--wv-hero-mid) 52%, var(--wv-hero-to) 100%);
   color: #FFFFFF;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
+/* Highlight Pill — Integrated Bright Tonal Shade of Chosen Accent */
 .wv-gold-pill {
-  background: linear-gradient(180deg, #FDE047 0%, #F59E0B 100%);
-  color: #1E1304;
-  box-shadow: 0 3px 0 #B45309, inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  background: linear-gradient(180deg, var(--wv-pill-top) 0%, var(--wv-pill-bottom) 100%);
+  color: var(--wv-pill-text);
+  box-shadow: 0 3px 0 var(--wv-pill-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
 @keyframes stage-enter {
   0% {
     opacity: 0;
-    transform: translateY(10px) scale(0.985);
+    transform: translateY(8px) scale(0.99);
   }
   100% {
     opacity: 1;
@@ -345,7 +491,7 @@ html[data-anim='reduced'] .wv-tilt-surface {
 @keyframes tile-deal {
   0% {
     opacity: 0;
-    transform: translateY(8px) scale(0.9);
+    transform: translateY(6px) scale(0.92);
   }
   100% {
     opacity: 1;
@@ -355,10 +501,10 @@ html[data-anim='reduced'] .wv-tilt-surface {
 
 @keyframes tile-pop {
   0% {
-    transform: scale(0.84);
+    transform: scale(0.88);
   }
-  52% {
-    transform: scale(1.13);
+  55% {
+    transform: scale(1.08);
   }
   100% {
     transform: scale(1);
@@ -385,10 +531,10 @@ html[data-anim='reduced'] .wv-tilt-surface {
     transform: translateX(0);
   }
   15%, 45%, 75% {
-    transform: translateX(-6px);
+    transform: translateX(-5px);
   }
   30%, 60%, 90% {
-    transform: translateX(6px);
+    transform: translateX(5px);
   }
 }
 
@@ -397,28 +543,17 @@ html[data-anim='reduced'] .wv-tilt-surface {
     transform: translateY(0) scale(1);
   }
   35% {
-    transform: translateY(-12px) scale(1.09);
+    transform: translateY(-10px) scale(1.07);
   }
   68% {
-    transform: translateY(2px) scale(0.97);
-  }
-}
-
-@keyframes hint-glint {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 0.94;
-  }
-  50% {
-    transform: scale(1.04);
-    opacity: 1;
+    transform: translateY(2px) scale(0.98);
   }
 }
 
 @keyframes modal-pop {
   0% {
     opacity: 0;
-    transform: translateY(12px) scale(0.95);
+    transform: translateY(10px) scale(0.96);
   }
   100% {
     opacity: 1;
@@ -429,7 +564,7 @@ html[data-anim='reduced'] .wv-tilt-surface {
 @keyframes toast-up {
   0% {
     opacity: 0;
-    transform: translateY(10px) scale(0.95);
+    transform: translateY(8px) scale(0.96);
   }
   100% {
     opacity: 1;
@@ -437,33 +572,22 @@ html[data-anim='reduced'] .wv-tilt-surface {
   }
 }
 
-@keyframes flame-pulse {
-  0%, 100% {
-    transform: scale(1) rotate(-2deg);
-    filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.45));
-  }
-  50% {
-    transform: scale(1.13) rotate(3deg);
-    filter: drop-shadow(0 0 15px rgba(245, 158, 11, 0.9));
-  }
-}
-
 @keyframes float-up-fade {
   0% {
     opacity: 0;
-    transform: translateY(12px) scale(0.84);
+    transform: translateY(10px) scale(0.88);
   }
   20% {
     opacity: 1;
-    transform: translateY(0px) scale(1.08);
+    transform: translateY(0px) scale(1.06);
   }
   80% {
     opacity: 1;
-    transform: translateY(-28px) scale(1);
+    transform: translateY(-24px) scale(1);
   }
   100% {
     opacity: 0;
-    transform: translateY(-48px) scale(0.95);
+    transform: translateY(-42px) scale(0.96);
   }
 }
 
@@ -489,36 +613,25 @@ html[data-anim='reduced'] .wv-tilt-surface {
   }
   100% {
     opacity: 0;
-    transform: translate3d(var(--tx, 30px), var(--ty, -60px), 0) scale(1.15) rotate(var(--rot, 45deg));
+    transform: translate3d(var(--tx, 30px), var(--ty, -60px), 0) scale(1.12) rotate(var(--rot, 45deg));
   }
 }
 
 @keyframes caret-breathe {
   0%, 100% {
     opacity: 0.95;
-    transform: scale(1);
   }
   50% {
-    opacity: 0.35;
-    transform: scale(0.86);
-  }
-}
-
-@keyframes emblem-float {
-  0%, 100% {
-    transform: translateY(0) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-6px) rotate(3deg);
+    opacity: 0.45;
   }
 }
 
 @keyframes pop-bounce {
   0% {
-    transform: scale(0.82);
+    transform: scale(0.86);
   }
   55% {
-    transform: scale(1.14);
+    transform: scale(1.1);
   }
   100% {
     transform: scale(1);
@@ -526,73 +639,62 @@ html[data-anim='reduced'] .wv-tilt-surface {
 }
 
 .animate-stage-enter {
-  animation: stage-enter 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: stage-enter 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .animate-tile-deal {
-  animation: tile-deal 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: tile-deal 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .animate-tile-pop {
-  animation: tile-pop 170ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: tile-pop 160ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 .animate-tile-flip {
-  animation: tile-flip 440ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: tile-flip 420ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .animate-row-shake {
-  animation: row-shake 360ms ease-in-out;
+  animation: row-shake 340ms ease-in-out;
 }
 
 .animate-tile-bounce {
-  animation: tile-win-bounce 480ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: tile-win-bounce 440ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-.animate-hint-glint {
-  animation: hint-glint 2.6s ease-in-out infinite;
+/* Removed infinite idle wobble/pulse animations so UI moves only on interaction or phone motion */
+.animate-hint-glint,
+.animate-flame-pulse,
+.animate-emblem-float {
+  animation: none;
 }
 
 .animate-modal-pop {
-  animation: modal-pop 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: modal-pop 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .animate-toast-up {
-  animation: toast-up 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.animate-flame-pulse {
-  animation: flame-pulse 1.9s ease-in-out infinite;
+  animation: toast-up 160ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .animate-float-up-fade {
-  animation: float-up-fade 1600ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: float-up-fade 1500ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-confetti-fall {
-  animation: confetti-fall 1400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: confetti-fall 1350ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-confetti-burst {
-  animation: confetti-burst 750ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: confetti-burst 720ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-caret-breathe {
   animation: caret-breathe 1.1s ease-in-out infinite;
 }
 
-.animate-emblem-float {
-  animation: emblem-float 6s ease-in-out infinite;
-}
-
 .animate-pop {
-  animation: pop-bounce 240ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-html[data-anim='subtle'] .animate-flame-pulse,
-html[data-anim='subtle'] .animate-hint-glint,
-html[data-anim='subtle'] .animate-emblem-float {
-  animation: none !important;
+  animation: pop-bounce 220ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
 html[data-anim='reduced'] *,
@@ -610,15 +712,12 @@ html[data-anim='reduced'] *::after {
   .animate-tile-flip,
   .animate-row-shake,
   .animate-tile-bounce,
-  .animate-hint-glint,
   .animate-modal-pop,
   .animate-toast-up,
-  .animate-flame-pulse,
   .animate-float-up-fade,
   .animate-confetti-fall,
   .animate-confetti-burst,
   .animate-caret-breathe,
-  .animate-emblem-float,
   .animate-pop {
     animation: none !important;
     transition: none !important;

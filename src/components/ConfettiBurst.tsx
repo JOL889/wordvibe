@@ -6,13 +6,11 @@ interface ConfettiBurstProps {
   animationIntensity?: AnimationIntensity;
 }
 
-const COLORS = [
-  'bg-emerald-400',
-  'bg-amber-400',
-  'bg-sky-400',
-  'bg-violet-400',
-  'bg-rose-400',
-  'bg-teal-300',
+const COLOR_VARS = [
+  'var(--wv-confetti-1)',
+  'var(--wv-confetti-2)',
+  'var(--wv-confetti-3)',
+  'var(--wv-confetti-4)',
 ];
 
 export const ConfettiBurst: React.FC<ConfettiBurstProps> = ({
@@ -29,9 +27,9 @@ export const ConfettiBurst: React.FC<ConfettiBurstProps> = ({
       const cy2 = `${220 + (idx % 4) * 65}px`;
       const rot = `${(idx % 2 === 0 ? 1 : -1) * (240 + idx * 18)}deg`;
       const delay = `${(idx % 6) * 45}ms`;
-      const color = COLORS[idx % COLORS.length];
+      const colorVar = COLOR_VARS[idx % COLOR_VARS.length];
       const isCircle = idx % 3 === 0;
-      return { idx, leftPct, cx, cy, cx2, cy2, rot, delay, color, isCircle };
+      return { idx, leftPct, cx, cy, cx2, cy2, rot, delay, colorVar, isCircle };
     });
   }, [animationIntensity]);
 
@@ -49,6 +47,7 @@ export const ConfettiBurst: React.FC<ConfettiBurstProps> = ({
           style={
             {
               left: `${p.leftPct}%`,
+              backgroundColor: p.colorVar,
               '--cx': p.cx,
               '--cy': p.cy,
               '--cx2': p.cx2,
@@ -57,7 +56,7 @@ export const ConfettiBurst: React.FC<ConfettiBurstProps> = ({
               animationDelay: p.delay,
             } as React.CSSProperties
           }
-          className={`absolute block h-2.5 w-2.5 ${p.isCircle ? 'rounded-full' : 'rounded-xs'} ${p.color} animate-confetti-fall shadow-xs`}
+          className={`absolute block h-2.5 w-2.5 ${p.isCircle ? 'rounded-full' : 'rounded-xs'} animate-confetti-fall shadow-xs`}
         />
       ))}
     </div>

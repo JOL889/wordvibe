@@ -40,7 +40,7 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
         {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b wv-border px-5 py-4">
           <div>
-            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider wv-accent-text">
+            <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold uppercase tracking-wider wv-accent-text">
               <Crown className="h-4 w-4" aria-hidden="true" />
               <span>Weekly Grading &amp; Achievements</span>
             </div>
@@ -68,9 +68,7 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
           <div className="rounded-xl border wv-border wv-card-muted p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-medium wv-text-muted">
-                  Current Weekly XP
-                </p>
+                <p className="text-xs font-medium wv-text-muted">Current Weekly XP</p>
                 <p
                   data-testid="modal-weekly-xp"
                   className="font-mono-tabular text-2xl font-bold wv-text"
@@ -99,7 +97,7 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
               />
             </div>
 
-            <p className="mt-2 text-xs font-medium wv-text-muted">
+            <p className="mt-2 text-xs sm:text-sm font-medium wv-text-muted">
               {gradeInfo.statusHint}
             </p>
 
@@ -121,10 +119,8 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                     >
                       {g.id}
                     </div>
-                    <div className="text-[10px] font-semibold wv-text-muted">
-                      {g.tierName}
-                    </div>
-                    <div className="font-mono-tabular text-[9px] wv-text-muted">
+                    <div className="text-xs font-semibold wv-text-muted">{g.tierName}</div>
+                    <div className="font-mono-tabular text-[11px] wv-text-muted">
                       {g.minXp === 0 ? '0+' : `${g.minXp}+`}
                     </div>
                   </div>
@@ -139,25 +135,25 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
               <div className="font-mono-tabular text-lg font-bold wv-text">
                 {weeklyProgress.puzzlesSolved}
               </div>
-              <div className="text-[11px] wv-text-muted">Puzzles</div>
+              <div className="text-xs wv-text-muted">Puzzles</div>
             </div>
             <div className="rounded-xl border wv-border wv-card-muted px-2 py-2.5">
               <div className="font-mono-tabular text-lg font-bold wv-text">
                 {weeklyProgress.triviaCorrect}
               </div>
-              <div className="text-[11px] wv-text-muted">Trivia</div>
+              <div className="text-xs wv-text-muted">Trivia</div>
             </div>
             <div className="rounded-xl border wv-border wv-card-muted px-2 py-2.5">
               <div className="font-mono-tabular text-lg font-bold wv-accent-text">
                 {weeklyProgress.bestTriviaStreak}
               </div>
-              <div className="text-[11px] wv-text-muted">Top Streak</div>
+              <div className="text-xs wv-text-muted">Top Streak</div>
             </div>
             <div className="rounded-xl border wv-border wv-card-muted px-2 py-2.5">
-              <div className="font-mono-tabular text-lg font-bold text-amber-500">
+              <div className="font-mono-tabular text-lg font-bold wv-accent-text">
                 {weeklyProgress.bonusCoins}
               </div>
-              <div className="text-[11px] wv-text-muted">Coins</div>
+              <div className="text-xs wv-text-muted">Coins</div>
             </div>
           </div>
 
@@ -165,7 +161,7 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
           <div>
             <div className="flex items-center justify-between mb-2.5">
               <h3 className="inline-flex items-center gap-1.5 font-display text-base font-bold wv-text">
-                <Trophy className="h-4 w-4 text-amber-500" aria-hidden="true" />
+                <Trophy className="h-4 w-4 wv-accent-text" aria-hidden="true" />
                 <span>Achievements</span>
               </h3>
               <span className="font-mono-tabular text-xs font-semibold wv-text-muted">
@@ -198,14 +194,10 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                             aria-hidden="true"
                           />
                         )}
-                        <span className="text-sm font-semibold wv-text">
-                          {ach.title}
-                        </span>
+                        <span className="text-sm font-semibold wv-text">{ach.title}</span>
                       </div>
-                      <p className="mt-0.5 text-xs wv-text-muted">
-                        {ach.description}
-                      </p>
-                      <p className="mt-1 font-mono-tabular text-[11px] wv-text-muted">
+                      <p className="mt-0.5 text-xs wv-text-muted">{ach.description}</p>
+                      <p className="mt-1 font-mono-tabular text-xs wv-text-muted">
                         Reward: +{ach.xpReward} XP · +{ach.coinReward} Coins
                       </p>
                     </div>
@@ -247,7 +239,7 @@ export const WeeklyRolloverModal: React.FC<WeeklyRolloverModalProps> = ({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
     >
       <div className="w-full max-w-md rounded-2xl border-2 wv-border wv-card p-6 shadow-2xl">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider wv-accent-text">
+        <div className="flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-wider wv-accent-text">
           <Award className="h-4 w-4" aria-hidden="true" />
           <span>Weekly Reset · Final Grade Report</span>
         </div>
@@ -258,28 +250,27 @@ export const WeeklyRolloverModal: React.FC<WeeklyRolloverModalProps> = ({
         >
           Last Week: Rank {summary.finalGrade} ({summary.tierName})
         </h2>
-        <p className="mt-1 text-xs wv-text-muted">
-          Title earned: <strong className="wv-text">{summary.badgeTitle}</strong> · Week of {summary.weekKey}
+        <p className="mt-1 text-xs sm:text-sm wv-text-muted">
+          Title earned: <strong className="wv-text">{summary.badgeTitle}</strong> · Week of{' '}
+          {summary.weekKey}
         </p>
 
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
           <div className="rounded-xl border wv-border wv-card-muted p-2.5">
-            <div className="font-mono-tabular text-lg font-bold wv-text">
-              {summary.finalXp}
-            </div>
-            <div className="text-[11px] wv-text-muted">Weekly XP</div>
+            <div className="font-mono-tabular text-lg font-bold wv-text">{summary.finalXp}</div>
+            <div className="text-xs wv-text-muted">Weekly XP</div>
           </div>
           <div className="rounded-xl border wv-border wv-card-muted p-2.5">
             <div className="font-mono-tabular text-lg font-bold wv-text">
               {summary.puzzlesSolved + summary.triviaCorrect}
             </div>
-            <div className="text-[11px] wv-text-muted">Solves</div>
+            <div className="text-xs wv-text-muted">Solves</div>
           </div>
           <div className="rounded-xl border wv-border wv-card-muted p-2.5">
             <div className="font-mono-tabular text-lg font-bold wv-accent-text">
               {summary.achievementsCount}
             </div>
-            <div className="text-[11px] wv-text-muted">Badges</div>
+            <div className="text-xs wv-text-muted">Badges</div>
           </div>
         </div>
 

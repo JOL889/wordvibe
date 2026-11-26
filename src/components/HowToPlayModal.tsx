@@ -41,7 +41,7 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
         {/* Compact Header */}
         <div className="flex items-start justify-between gap-4 border-b wv-border px-5 pt-4 pb-3">
           <div>
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold wv-accent-text">
+            <div className="flex items-center gap-1.5 text-xs font-semibold wv-accent-text">
               <HelpCircle className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Player Guide &amp; Rules</span>
             </div>
@@ -124,7 +124,7 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
                       </div>
                     ))}
                   </div>
-                  <p className="mt-1 text-xs wv-text-muted">
+                  <p className="mt-1 text-xs sm:text-sm wv-text-muted">
                     Tap any square to start typing <strong className="wv-text">Across</strong> or{' '}
                     <strong className="wv-text">Down</strong>. Press{' '}
                     <strong className="wv-text">Enter</strong> on your phone or keyboard to check that
@@ -148,19 +148,20 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
                       </div>
                     ))}
                   </div>
-                  <p className="mt-1 text-xs wv-text-muted">
-                    <strong className="wv-text">Amber tiles</strong> show a letter belongs in that line
-                    at another spot; <strong className="wv-text">Green tiles</strong> lock in solved
+                  <p className="mt-1 text-xs sm:text-sm wv-text-muted">
+                    <strong className="wv-text">Soft-tinted tiles</strong> show a letter belongs in that line
+                    at another spot; <strong className="wv-text">Solid accent tiles</strong> lock in solved
                     letters &amp; completed rows or columns individually.
                   </p>
                 </div>
               </div>
 
-              <div className="rounded-xl border wv-border wv-card-muted p-3 text-xs leading-relaxed wv-text-muted">
-                <strong className="wv-text">Power-Ups:</strong> Tap <strong className="wv-text">Hint (∞)</strong>{' '}
-                to watch a short ad and reveal any open letter, or tap{' '}
-                <strong className="wv-text">Clue</strong> to unlock consonant/vowel counts &amp; a short
-                meaning clue (e.g. <em>3 consonants, 2 vowels — carries rain across the sky</em>).
+              <div className="rounded-xl border wv-border wv-card-muted p-3 text-xs sm:text-sm leading-relaxed wv-text-muted">
+                <strong className="wv-text">Live Word Clues &amp; Power-Ups:</strong> See the active
+                word&apos;s real dictionary meaning right above the grid! Tap{' '}
+                <strong className="wv-text">Hint (∞)</strong> to reveal an open letter, or{' '}
+                <strong className="wv-text">Clue</strong> for consonant/vowel breakdowns (e.g.{' '}
+                <em>CLOUD — Fluffy sky mass of mist responsible for the formation of rain</em>).
               </div>
             </div>
           )}
@@ -168,19 +169,20 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
           {activeTab === 'streaks' && (
             <div className="space-y-3.5 text-xs sm:text-sm leading-relaxed wv-text-muted">
               <div className="rounded-xl border wv-border wv-card-muted p-3.5">
-                <h3 className="font-semibold wv-text">5 Difficulty Tiers &amp; Level Climb</h3>
-                <p className="mt-1 text-xs leading-relaxed">
-                  Choose <strong className="wv-text">Novice, Beginner, Intermediate, Expert, or Legendary</strong>{' '}
-                  independently on Crossword, Brain Trivia, and Faith Study. In{' '}
-                  <strong className="wv-text">Level Climb</strong>, pass <strong className="wv-text">8 out of 10</strong>{' '}
-                  challenges cleanly to advance automatically to the next tier, or switch to{' '}
-                  <strong className="wv-text">Endless Sprint</strong> for non-stop play.
+                <h3 className="font-semibold wv-text">Unbounded Numbered Levels (Level 1 → 2 → 3...)</h3>
+                <p className="mt-1 text-xs sm:text-sm leading-relaxed">
+                  Start at <strong className="wv-text">Level 1</strong> and climb as high as you want
+                  on Crossword, Brain Trivia, and Faith Study. In{' '}
+                  <strong className="wv-text">Level Climb</strong>, pass{' '}
+                  <strong className="wv-text">8 out of 10</strong> challenges cleanly to advance from
+                  Level 1 to Level 2, Level 3, and beyond, or switch to{' '}
+                  <strong className="wv-text">Endless Sprint</strong>.
                 </p>
               </div>
 
               <div className="rounded-xl border wv-border wv-card-muted p-3.5">
                 <h3 className="font-semibold wv-text">Brain Trivia &amp; Faith Study</h3>
-                <p className="mt-1 text-xs leading-relaxed">
+                <p className="mt-1 text-xs sm:text-sm leading-relaxed">
                   Brain Trivia runs completely offline from a huge zero-repeat bank. Stuck on a tough
                   question? Tap <strong className="wv-text">Watch 2 Ads Concurrently</strong> to reveal
                   the exact answer. Faith Study runs as a continuous{' '}
@@ -191,19 +193,18 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
 
               <div className="rounded-xl border wv-border wv-card-muted p-3.5">
                 <h3 className="font-semibold wv-text">
-                  {CATEGORIES.length} Curated Topics &amp; Phone Sensors
+                  {CATEGORIES.length} Curated Topics &amp; Phone Motion
                 </h3>
-                <p className="mt-1 text-xs leading-relaxed">
-                  Tilt your phone for smooth 3D board parallax or shake gently during a sprint to
-                  refresh your word. {CATEGORIES.filter((c) => !c.isPremium).length} topics are always
-                  free, and bonus packs unlock 5 plays per ad preview.
+                <p className="mt-1 text-xs sm:text-sm leading-relaxed">
+                  Your board subtly responds only to your real phone movement (no idle wobble!), and
+                  each tap follows your 3-state Audio Mode (On, Mute/Vibrate, or Off).
                 </p>
               </div>
             </div>
           )}
 
           {activeTab === 'faq' && (
-            <dl className="divide-y wv-border text-xs">
+            <dl className="divide-y wv-border text-xs sm:text-sm">
               <div className="pb-3">
                 <dt className="font-semibold wv-text">
                   Are questions or crossword grids ever repeated?

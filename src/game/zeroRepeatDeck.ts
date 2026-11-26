@@ -91,7 +91,7 @@ export function pickZeroRepeatItem<T>(
   const chosenKey = normalizeKey(getKey(chosen));
 
   store[bucketKey] = {
-    seen: [...bucket.seen, chosenKey],
+    seen: [...bucket.seen, chosenKey].slice(-2000),
     lastKey: chosenKey,
   };
   saveStore(store);
@@ -112,7 +112,7 @@ export function markBucketKeySeen(bucketKey: string, key: string): void {
   const bucket = store[bucketKey] || { seen: [] };
   if (!bucket.seen.includes(norm)) {
     store[bucketKey] = {
-      seen: [...bucket.seen, norm],
+      seen: [...bucket.seen, norm].slice(-2000),
       lastKey: norm,
     };
     saveStore(store);

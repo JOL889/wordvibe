@@ -22,14 +22,14 @@ export const EditorialGuideAndAdSlot: React.FC<EditorialGuideAndAdSlotProps> = (
       >
         <div className="flex flex-col items-center justify-between gap-2 sm:flex-row sm:text-left">
           <div>
-            <p className="text-[11px] font-semibold wv-text-muted">
+            <p className="text-xs font-semibold wv-text-muted">
               Sponsored · Non-intrusive slot
             </p>
             <p className="text-xs wv-text-muted">
               100% offline play with unlimited ad-supported hints &amp; clues.
             </p>
           </div>
-          <div className="rounded-lg border wv-border wv-card px-2.5 py-1 font-mono-tabular text-[11px] wv-text-muted whitespace-nowrap">
+          <div className="rounded-lg border wv-border wv-card px-2.5 py-1 font-mono-tabular text-xs wv-text-muted whitespace-nowrap">
             Ad Slot · 728×90
           </div>
         </div>

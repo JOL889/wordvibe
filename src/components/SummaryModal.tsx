@@ -20,7 +20,11 @@ import {
   type CrosswordLevelClimbState,
 } from '../game/crosswordLogic';
 import type { StatsData } from '../game/puzzleLogic';
-import { FIVE_LEVEL_META, type SessionPlayMode } from '../game/settingsLogic';
+import {
+  formatLevelLabel,
+  normalizeLevelNumber,
+  type SessionPlayMode,
+} from '../game/settingsLogic';
 
 interface SummaryModalProps {
   open: boolean;
@@ -73,7 +77,10 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
 
   const isBoardWon = board.status === 'won';
   const prog = getCrosswordProgressSummary(board);
-  const levelLabel = FIVE_LEVEL_META[board.level]?.label || board.level;
+  const boardLevelNum = board.levelNumber ?? normalizeLevelNumber(board.level, 1);
+  const levelLabel = formatLevelLabel(boardLevelNum);
+  const climbLevelNum = climbState.levelNumber ?? normalizeLevelNumber(climbState.currentLevel, 1);
+  const promotedLevelNum = climbState.promotedToLevelNumber;
   const winRate =
     stats.gamesPlayed > 0 ? Math.round((stats.gamesWon / stats.gamesPlayed) * 100) : 0;
 
@@ -88,14 +95,14 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
       <div className="my-auto w-full max-w-md rounded-2xl border-2 wv-border wv-card p-5 sm:p-6 shadow-2xl animate-modal-pop">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider wv-accent-text">
+            <p className="text-xs sm:text-sm font-bold uppercase tracking-wider wv-accent-text">
               {sessionMode === 'level_climb' ? 'Level Climb' : 'Endless Sprint'} · {levelLabel} ·{' '}
               {board.length}×{board.length}
             </p>
             <h2 id="summary-modal-title" className="mt-1 font-display text-2xl font-bold wv-text">
               {isBoardWon ? 'Crossword Solved!' : 'Crossword Stats'}
             </h2>
-            <p className="mt-0.5 text-xs wv-text-muted">{categoryName}</p>
+            <p className="mt-0.5 text-xs sm:text-sm wv-text-muted">{categoryName}</p>
           </div>
 
           <button
@@ -110,16 +117,16 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
 
         {/* Climb Stage Status Banner */}
         {sessionMode === 'level_climb' && (
-          <div className="mt-3.5 rounded-xl border wv-border wv-card-muted p-3.5 text-xs">
+          <div className="mt-3.5 rounded-xl border wv-border wv-card-muted p-3.5 text-xs sm:text-sm">
             <div className="flex items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1.5 font-bold wv-accent-text">
                 <Trophy className="h-4 w-4" aria-hidden="true" />
                 <span>
                   {climbState.stageComplete
-                    ? climbState.promotedToLevel
-                      ? `Level Up to ${FIVE_LEVEL_META[climbState.promotedToLevel].label}!`
+                    ? promotedLevelNum
+                      ? `Level Up to ${formatLevelLabel(promotedLevelNum)}!`
                       : `Stage Complete (${climbState.roundPassedCount}/${CROSSWORD_LEVEL_CLIMB_TOTAL})`
-                    : `Climb Progress · ${FIVE_LEVEL_META[climbState.currentLevel].label}`}
+                    : `Climb Progress · ${formatLevelLabel(climbLevelNum)}`}
                 </span>
               </span>
               <span className="font-mono-tabular font-bold wv-text">
@@ -128,10 +135,10 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
             </div>
             <p className="mt-1 wv-text-muted">
               {climbState.stageComplete
-                ? climbState.promotedToLevel
-                  ? `You passed ${climbState.roundPassedCount}/10 cleanly (8 required). Next round begins at ${FIVE_LEVEL_META[climbState.promotedToLevel].label}!`
-                  : `Scored ${climbState.roundPassedCount}/10 clean boards. Pass at least ${CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD}/10 to unlock the next level.`
-                : `${climbState.roundPassedCount} clean passes so far (need ${CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD}/${CROSSWORD_LEVEL_CLIMB_TOTAL} with ≤4 wrong checks to promote).`}
+                ? promotedLevelNum
+                  ? `You passed ${climbState.roundPassedCount}/10 cleanly (8 required). Next round begins at ${formatLevelLabel(promotedLevelNum)}!`
+                  : `Scored ${climbState.roundPassedCount}/10 clean boards. Pass at least ${CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD}/10 to unlock Level ${climbLevelNum + 1}.`
+                : `${climbState.roundPassedCount} clean passes so far (need ${CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD}/${CROSSWORD_LEVEL_CLIMB_TOTAL} with ≤4 wrong checks to reach Level ${climbLevelNum + 1}).`}
             </p>
           </div>
         )}
@@ -140,7 +147,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
           <div className="mt-3.5 space-y-2.5">
             <div className="flex items-center justify-between rounded-xl border wv-border wv-card-muted px-4 py-3">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" aria-hidden="true" />
+                <CheckCircle2 className="h-5 w-5 shrink-0 wv-accent-text" aria-hidden="true" />
                 <div>
                   <span className="text-xs wv-text-muted">Linked Words Solved</span>
                   <p className="font-mono-tabular text-base font-bold wv-text">
@@ -157,7 +164,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
             </div>
 
             {personalizedReason && (
-              <div className="rounded-xl border wv-border wv-card-muted px-3.5 py-2.5 text-xs">
+              <div className="rounded-xl border wv-border wv-card-muted px-3.5 py-2.5 text-xs sm:text-sm">
                 <div className="flex items-center gap-1.5 font-bold wv-accent-text">
                   <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   <span>{personalizedReason}</span>
@@ -169,20 +176,20 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
             )}
 
             {funFact && (
-              <div className="rounded-xl border border-amber-500/35 wv-card-muted px-3.5 py-2.5 text-xs leading-relaxed wv-text">
-                <span className="font-bold text-amber-500">Did You Know? </span>
+              <div className="rounded-xl border wv-border wv-card-muted px-3.5 py-2.5 text-xs sm:text-sm leading-relaxed wv-text">
+                <span className="font-bold wv-accent-text">Did You Know? </span>
                 <span>{funFact}</span>
               </div>
             )}
 
             <div
               data-testid="summary-cross-words"
-              className="rounded-xl border wv-border wv-card-muted px-3.5 py-3 text-xs"
+              className="rounded-xl border wv-border wv-card-muted px-3.5 py-3 text-xs sm:text-sm"
             >
               <div className="font-bold wv-text">
                 Completed Linked Grid ({board.length}×{board.length})
               </div>
-              <div className="mt-2 grid grid-cols-2 gap-3 font-mono-tabular text-[11px] wv-text">
+              <div className="mt-2 grid grid-cols-2 gap-3 font-mono-tabular text-xs wv-text">
                 <div>
                   <div className="flex items-center gap-1 font-sans font-bold wv-accent-text">
                     <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -206,21 +213,21 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
         <div className="mt-4 grid grid-cols-4 gap-2 text-center">
           <div className="rounded-xl border wv-border wv-card-muted py-2.5 px-1">
             <div className="font-mono-tabular text-xl font-bold wv-text">{stats.gamesPlayed}</div>
-            <div className="mt-0.5 text-[11px] font-medium wv-text-muted">Played</div>
+            <div className="mt-0.5 text-xs font-medium wv-text-muted">Played</div>
           </div>
           <div className="rounded-xl border wv-border wv-card-muted py-2.5 px-1">
             <div className="font-mono-tabular text-xl font-bold wv-text">{winRate}%</div>
-            <div className="mt-0.5 text-[11px] font-medium wv-text-muted">Win Rate</div>
+            <div className="mt-0.5 text-xs font-medium wv-text-muted">Win Rate</div>
           </div>
           <div className="rounded-xl border wv-border wv-card-muted py-2.5 px-1">
             <div className="font-mono-tabular text-xl font-bold wv-accent-text">
               {stats.currentStreak}
             </div>
-            <div className="mt-0.5 text-[11px] font-medium wv-text-muted">Streak</div>
+            <div className="mt-0.5 text-xs font-medium wv-text-muted">Streak</div>
           </div>
           <div className="rounded-xl border wv-border wv-card-muted py-2.5 px-1">
             <div className="font-mono-tabular text-xl font-bold wv-text">{stats.bestStreak}</div>
-            <div className="mt-0.5 text-[11px] font-medium wv-text-muted">Best</div>
+            <div className="mt-0.5 text-xs font-medium wv-text-muted">Best</div>
           </div>
         </div>
 
@@ -231,7 +238,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
                 type="button"
                 data-testid="puzzle-double-xp-btn"
                 onClick={onWatchAdDoubleXp}
-                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-amber-700 cursor-pointer"
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl wv-gold-pill px-4 py-2.5 text-sm font-bold transition-transform active:scale-95 cursor-pointer"
               >
                 <Zap className="h-4 w-4" aria-hidden="true" />
                 <span>Watch Ad for 2x Weekly XP (+{lastPuzzleXpEarned} XP)</span>
@@ -251,7 +258,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
         )}
 
         {isPremiumCategory && (
-          <div className="mt-4 flex items-center justify-between rounded-xl border wv-border wv-card-muted px-3.5 py-2 text-xs">
+          <div className="mt-4 flex items-center justify-between rounded-xl border wv-border wv-card-muted px-3.5 py-2 text-xs sm:text-sm">
             <span className="font-semibold wv-text">{categoryName} Access</span>
             <span className="font-mono-tabular font-bold wv-accent-text">
               {categoryPlaysRemaining > 0
@@ -263,9 +270,9 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
 
         <div className="mt-5 flex flex-col gap-3 border-t wv-border pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
-            <Crown className="h-4 w-4 text-amber-500" aria-hidden="true" />
+            <Crown className="h-4 w-4 wv-accent-text" aria-hidden="true" />
             <div>
-              <div className="text-[11px] font-medium wv-text-muted">Daily Cycle Reset</div>
+              <div className="text-xs font-medium wv-text-muted">Daily Cycle Reset</div>
               <div className="font-mono-tabular text-sm font-bold wv-text">{countdown}</div>
             </div>
           </div>
@@ -286,7 +293,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
               <button
                 type="button"
                 onClick={onWatchAdUnlockCategory}
-                className="inline-flex min-h-12 items-center gap-1.5 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-amber-700 cursor-pointer whitespace-nowrap"
+                className="inline-flex min-h-12 items-center gap-1.5 rounded-xl wv-accent-btn px-4 py-2.5 text-sm font-bold transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
               >
                 <Lock className="h-4 w-4" aria-hidden="true" />
                 <span>+5 Plays (Ad)</span>
@@ -301,8 +308,8 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
                 <span>
                   {sessionMode === 'level_climb'
                     ? climbState.stageComplete
-                      ? climbState.promotedToLevel
-                        ? `Start ${FIVE_LEVEL_META[climbState.promotedToLevel].shortLabel}`
+                      ? promotedLevelNum
+                        ? `Start ${formatLevelLabel(promotedLevelNum)}`
                         : 'Retry Stage'
                       : 'Next Climb Board'
                     : 'Next Crossword'}

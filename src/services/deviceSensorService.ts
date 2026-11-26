@@ -79,26 +79,104 @@ export interface SensorListenersOptions {
 }
 
 /**
- * Attaches throttled gyroscope tilt and accelerometer shake listeners.
- * Returns a clean teardown callback.
+ * Attaches calibrated gyroscope tilt + subtle pointer parallax and accelerometer shake listeners.
+ * Strictly follows the actual movement of the user's phone gently (never wobbles on its own).
  */
 export function attachDeviceSensorListeners(options: SensorListenersOptions): () => void {
   if (!options.enabled || typeof window === 'undefined') {
+    if (typeof document !== 'undefined') {
+      document.documentElement.style.setProperty('--tilt-x', '0deg');
+      document.documentElement.style.setProperty('--tilt-y', '0deg');
+      document.documentElement.style.setProperty('--shift-x', '0px');
+      document.documentElement.style.setProperty('--shift-y', '0px');
+    }
     return () => {};
   }
 
   let lastShakeAt = 0;
   let lastMag = 0;
 
+  // Calibrated rest orientation so holding the phone naturally at any angle feels centered
+  let baseBeta: number | null = null;
+  let baseGamma: number | null = null;
+
+  let targetTiltX = 0;
+  let targetTiltY = 0;
+  let targetShiftX = 0;
+  let targetShiftY = 0;
+
+  let currentTiltX = 0;
+  let currentTiltY = 0;
+  let currentShiftX = 0;
+  let currentShiftY = 0;
+  let rafId = 0;
+
+  const scheduleSmoothFrame = () => {
+    if (rafId) return;
+    const step = () => {
+      const ease = 0.14;
+      currentTiltX += (targetTiltX - currentTiltX) * ease;
+      currentTiltY += (targetTiltY - currentTiltY) * ease;
+      currentShiftX += (targetShiftX - currentShiftX) * ease;
+      currentShiftY += (targetShiftY - currentShiftY) * ease;
+
+      const rootStyle = document.documentElement.style;
+      rootStyle.setProperty('--tilt-x', `${currentTiltX.toFixed(2)}deg`);
+      rootStyle.setProperty('--tilt-y', `${currentTiltY.toFixed(2)}deg`);
+      rootStyle.setProperty('--shift-x', `${currentShiftX.toFixed(2)}px`);
+      rootStyle.setProperty('--shift-y', `${currentShiftY.toFixed(2)}px`);
+      options.onTiltChange?.(Number(currentTiltX.toFixed(2)), Number(currentTiltY.toFixed(2)));
+
+      const settled =
+        Math.abs(targetTiltX - currentTiltX) < 0.02 &&
+        Math.abs(targetTiltY - currentTiltY) < 0.02 &&
+        Math.abs(targetShiftX - currentShiftX) < 0.03 &&
+        Math.abs(targetShiftY - currentShiftY) < 0.03;
+
+      if (!settled) {
+        rafId = window.requestAnimationFrame(step);
+      } else {
+        rafId = 0;
+      }
+    };
+    rafId = window.requestAnimationFrame(step);
+  };
+
+  const clamp = (val: number, maxAbs: number) => Math.max(-maxAbs, Math.min(maxAbs, val));
+
   const handleOrientation = (ev: DeviceOrientationEvent) => {
     if (ev.beta === null && ev.gamma === null) return;
-    const gamma = Math.max(-25, Math.min(25, ev.gamma ?? 0));
-    const betaOffset = Math.max(-25, Math.min(25, (ev.beta ?? 35) - 35));
-    const tiltY = Number((gamma * 0.22).toFixed(2));
-    const tiltX = Number((-betaOffset * 0.18).toFixed(2));
-    document.documentElement.style.setProperty('--tilt-x', `${tiltX}deg`);
-    document.documentElement.style.setProperty('--tilt-y', `${tiltY}deg`);
-    options.onTiltChange?.(tiltX, tiltY);
+    const rawBeta = ev.beta ?? 0;
+    const rawGamma = ev.gamma ?? 0;
+
+    if (baseBeta === null || baseGamma === null) {
+      baseBeta = rawBeta;
+      baseGamma = rawGamma;
+    } else {
+      // Gently re-center resting posture over time so sustained angles feel natural
+      baseBeta += (rawBeta - baseBeta) * 0.012;
+      baseGamma += (rawGamma - baseGamma) * 0.012;
+    }
+
+    let deltaPitch = rawBeta - baseBeta;
+    let deltaRoll = rawGamma - baseGamma;
+
+    const orientAngle = window.screen?.orientation?.angle ?? 0;
+    if (orientAngle === 90) {
+      [deltaPitch, deltaRoll] = [-deltaRoll, deltaPitch];
+    } else if (orientAngle === 270 || orientAngle === -90) {
+      [deltaPitch, deltaRoll] = [deltaRoll, -deltaPitch];
+    } else if (orientAngle === 180) {
+      deltaPitch = -deltaPitch;
+      deltaRoll = -deltaRoll;
+    }
+
+    // Gentle responsive limits: ±2.2deg tilt and ±2.5px translate so cards feel tactile without wobble
+    targetTiltX = clamp(-deltaPitch * 0.09, 2.2);
+    targetTiltY = clamp(deltaRoll * 0.1, 2.2);
+    targetShiftX = clamp(deltaRoll * 0.11, 2.5);
+    targetShiftY = clamp(deltaPitch * 0.1, 2.5);
+    scheduleSmoothFrame();
   };
 
   const handleMotion = (ev: DeviceMotionEvent) => {
@@ -112,7 +190,8 @@ export function attachDeviceSensorListeners(options: SensorListenersOptions): ()
     lastMag = mag;
 
     const now = Date.now();
-    if (delta > 16.5 && now - lastShakeAt > 1800) {
+    // Higher threshold so normal movement/tilting never triggers a false shuffle
+    if (delta > 29 && now - lastShakeAt > 2000) {
       lastShakeAt = now;
       options.onShake?.();
     }
@@ -122,12 +201,13 @@ export function attachDeviceSensorListeners(options: SensorListenersOptions): ()
     if (ev.pointerType !== 'mouse') return;
     const w = window.innerWidth || 1;
     const h = window.innerHeight || 1;
-    const nx = (ev.clientX / w - 0.5) * 2; // -1..1
+    const nx = (ev.clientX / w - 0.5) * 2;
     const ny = (ev.clientY / h - 0.5) * 2;
-    const tiltY = Number((nx * 3.2).toFixed(2));
-    const tiltX = Number((-ny * 2.6).toFixed(2));
-    document.documentElement.style.setProperty('--tilt-x', `${tiltX}deg`);
-    document.documentElement.style.setProperty('--tilt-y', `${tiltY}deg`);
+    targetTiltY = clamp(nx * 1.4, 1.6);
+    targetTiltX = clamp(-ny * 1.2, 1.6);
+    targetShiftX = clamp(nx * 1.8, 2.0);
+    targetShiftY = clamp(ny * 1.8, 2.0);
+    scheduleSmoothFrame();
   };
 
   window.addEventListener('deviceorientation', handleOrientation, { passive: true });
@@ -138,7 +218,14 @@ export function attachDeviceSensorListeners(options: SensorListenersOptions): ()
     window.removeEventListener('deviceorientation', handleOrientation);
     window.removeEventListener('devicemotion', handleMotion);
     window.removeEventListener('pointermove', handlePointerParallax);
-    document.documentElement.style.setProperty('--tilt-x', '0deg');
-    document.documentElement.style.setProperty('--tilt-y', '0deg');
+    if (rafId) {
+      window.cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+    const rootStyle = document.documentElement.style;
+    rootStyle.setProperty('--tilt-x', '0deg');
+    rootStyle.setProperty('--tilt-y', '0deg');
+    rootStyle.setProperty('--shift-x', '0px');
+    rootStyle.setProperty('--shift-y', '0px');
   };
 }

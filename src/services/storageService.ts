@@ -20,10 +20,13 @@ import {
 import type { PuzzleCluesBundle, PuzzleWordTrivia } from '../game/wordTriviaLogic';
 import {
   DEFAULT_APP_SETTINGS,
+  levelNumberToDifficultyBand,
   migrateLegacyPreferences,
+  normalizeLevelNumber,
   type AppSettings,
   type FiveDifficultyLevel,
   type SessionPlayMode,
+  type SoundMode,
 } from '../game/settingsLogic';
 import type { CrosswordBoardState, CrosswordLevelClimbState } from '../game/crosswordLogic';
 import { isReligionId, type ReligionId } from '../game/faithStudyLogic';
@@ -271,14 +274,27 @@ export interface FaithStudyProgress {
   faithTriviaCorrect: number;
 }
 
+function normalizeSoundMode(val: unknown, fallbackSoundEnabled?: boolean): SoundMode {
+  if (val === 'on' || val === 'mute' || val === 'off') return val;
+  if (fallbackSoundEnabled === false) return 'off';
+  return 'on';
+}
+
 export function loadAppSettings(): AppSettings {
   if (typeof window === 'undefined') return DEFAULT_APP_SETTINGS;
   const rawSettings = window.localStorage.getItem(SETTINGS_KEY);
   if (rawSettings) {
     const parsed = safeParse<Partial<AppSettings>>(rawSettings, {});
+    const resolvedSoundMode = normalizeSoundMode(parsed.soundMode, parsed.soundEnabled);
     return {
       ...DEFAULT_APP_SETTINGS,
       ...parsed,
+      soundMode: resolvedSoundMode,
+      soundEnabled: resolvedSoundMode === 'on',
+      bgMusicEnabled:
+        typeof parsed.bgMusicEnabled === 'boolean'
+          ? parsed.bgMusicEnabled
+          : DEFAULT_APP_SETTINGS.bgMusicEnabled,
       defaultReligion: isReligionId(parsed.defaultReligion)
         ? parsed.defaultReligion
         : DEFAULT_APP_SETTINGS.defaultReligion,
@@ -602,7 +618,7 @@ export function loadTriviaState(): PersistentTriviaState {
       parsed.bonusUnlockUntil && typeof parsed.bonusUnlockUntil === 'object'
         ? parsed.bonusUnlockUntil
         : {},
-    recentQuestions: Array.isArray(parsed.recentQuestions) ? parsed.recentQuestions.slice(-30) : [],
+    recentQuestions: Array.isArray(parsed.recentQuestions) ? parsed.recentQuestions.slice(-500) : [],
   };
 }
 
@@ -612,7 +628,7 @@ export function saveTriviaState(state: PersistentTriviaState): void {
     TRIVIA_STATE_KEY,
     JSON.stringify({
       ...state,
-      recentQuestions: state.recentQuestions.slice(-30),
+      recentQuestions: state.recentQuestions.slice(-500),
     })
   );
 }
@@ -658,6 +674,9 @@ export function savePlayerProfile(profile: PlayerProfileState): void {
 }
 
 export interface ModeConfigState {
+  puzzleLevelNumber: number;
+  triviaLevelNumber: number;
+  faithLevelNumber: number;
   puzzleLevel: FiveDifficultyLevel;
   triviaLevel: FiveDifficultyLevel;
   faithLevel: FiveDifficultyLevel;
@@ -666,10 +685,12 @@ export interface ModeConfigState {
 }
 
 export interface TriviaLevelClimbState {
+  levelNumber: number;
   currentLevel: FiveDifficultyLevel;
   questionIndex: number; // 0..9
   correctCount: number; // >= 8 promotes
   stageComplete: boolean;
+  promotedToLevelNumber: number | null;
   promotedToLevel: FiveDifficultyLevel | null;
 }
 
@@ -678,22 +699,11 @@ const CROSSWORD_BOARD_KEY = 'wordvibe_crossword_board_v1';
 const CROSSWORD_CLIMB_KEY = 'wordvibe_crossword_climb_v1';
 const TRIVIA_CLIMB_KEY = 'wordvibe_trivia_climb_v1';
 
-const VALID_FIVE_LEVELS = new Set<FiveDifficultyLevel>([
-  'novice',
-  'beginner',
-  'intermediate',
-  'expert',
-  'legendary',
-]);
-
-function cleanFiveLevel(val: unknown, fallback: FiveDifficultyLevel = 'novice'): FiveDifficultyLevel {
-  return typeof val === 'string' && VALID_FIVE_LEVELS.has(val as FiveDifficultyLevel)
-    ? (val as FiveDifficultyLevel)
-    : fallback;
-}
-
 export function loadModeConfig(): ModeConfigState {
   const defaults: ModeConfigState = {
+    puzzleLevelNumber: 1,
+    triviaLevelNumber: 1,
+    faithLevelNumber: 1,
     puzzleLevel: 'novice',
     triviaLevel: 'novice',
     faithLevel: 'novice',
@@ -702,10 +712,16 @@ export function loadModeConfig(): ModeConfigState {
   };
   if (typeof window === 'undefined') return defaults;
   const parsed = safeParse<Partial<ModeConfigState>>(window.localStorage.getItem(MODE_CONFIG_KEY), {});
+  const puzzleLevelNumber = normalizeLevelNumber(parsed.puzzleLevelNumber ?? parsed.puzzleLevel, 1);
+  const triviaLevelNumber = normalizeLevelNumber(parsed.triviaLevelNumber ?? parsed.triviaLevel, 1);
+  const faithLevelNumber = normalizeLevelNumber(parsed.faithLevelNumber ?? parsed.faithLevel, 1);
   return {
-    puzzleLevel: cleanFiveLevel(parsed.puzzleLevel, 'novice'),
-    triviaLevel: cleanFiveLevel(parsed.triviaLevel, 'novice'),
-    faithLevel: cleanFiveLevel(parsed.faithLevel, 'novice'),
+    puzzleLevelNumber,
+    triviaLevelNumber,
+    faithLevelNumber,
+    puzzleLevel: levelNumberToDifficultyBand(puzzleLevelNumber),
+    triviaLevel: levelNumberToDifficultyBand(triviaLevelNumber),
+    faithLevel: levelNumberToDifficultyBand(faithLevelNumber),
     puzzleSessionMode: parsed.puzzleSessionMode === 'sprint' ? 'sprint' : 'level_climb',
     triviaSessionMode: parsed.triviaSessionMode === 'sprint' ? 'sprint' : 'level_climb',
   };
@@ -732,7 +748,12 @@ export function loadSavedCrosswordBoard(): CrosswordBoardState | null {
   ) {
     return null;
   }
-  return parsed;
+  const levelNumber = normalizeLevelNumber(parsed.levelNumber ?? parsed.level, 1);
+  return {
+    ...parsed,
+    levelNumber,
+    level: levelNumberToDifficultyBand(levelNumber),
+  };
 }
 
 export function saveCrosswordBoard(board: CrosswordBoardState): void {
@@ -740,12 +761,15 @@ export function saveCrosswordBoard(board: CrosswordBoardState): void {
   window.localStorage.setItem(CROSSWORD_BOARD_KEY, JSON.stringify(board));
 }
 
-export function loadCrosswordLevelClimb(defaultLevel: FiveDifficultyLevel = 'novice'): CrosswordLevelClimbState {
+export function loadCrosswordLevelClimb(defaultLevel: FiveDifficultyLevel | number = 1): CrosswordLevelClimbState {
+  const defaultNum = normalizeLevelNumber(defaultLevel, 1);
   const defaults: CrosswordLevelClimbState = {
-    currentLevel: defaultLevel,
+    levelNumber: defaultNum,
+    currentLevel: levelNumberToDifficultyBand(defaultNum),
     roundIndex: 0,
     roundPassedCount: 0,
     stageComplete: false,
+    promotedToLevelNumber: null,
     promotedToLevel: null,
   };
   if (typeof window === 'undefined') return defaults;
@@ -753,12 +777,21 @@ export function loadCrosswordLevelClimb(defaultLevel: FiveDifficultyLevel = 'nov
     window.localStorage.getItem(CROSSWORD_CLIMB_KEY),
     {}
   );
+  const levelNumber = normalizeLevelNumber(parsed.levelNumber ?? parsed.currentLevel, defaultNum);
+  const promotedToLevelNumber =
+    parsed.promotedToLevelNumber != null
+      ? normalizeLevelNumber(parsed.promotedToLevelNumber)
+      : parsed.promotedToLevel
+      ? normalizeLevelNumber(parsed.promotedToLevel)
+      : null;
   return {
-    currentLevel: cleanFiveLevel(parsed.currentLevel, defaultLevel),
+    levelNumber,
+    currentLevel: levelNumberToDifficultyBand(levelNumber),
     roundIndex: typeof parsed.roundIndex === 'number' ? Math.max(0, Math.min(9, parsed.roundIndex)) : 0,
     roundPassedCount: typeof parsed.roundPassedCount === 'number' ? Math.max(0, parsed.roundPassedCount) : 0,
     stageComplete: Boolean(parsed.stageComplete),
-    promotedToLevel: parsed.promotedToLevel ? cleanFiveLevel(parsed.promotedToLevel) : null,
+    promotedToLevelNumber,
+    promotedToLevel: promotedToLevelNumber ? levelNumberToDifficultyBand(promotedToLevelNumber) : null,
   };
 }
 
@@ -767,12 +800,15 @@ export function saveCrosswordLevelClimb(state: CrosswordLevelClimbState): void {
   window.localStorage.setItem(CROSSWORD_CLIMB_KEY, JSON.stringify(state));
 }
 
-export function loadTriviaLevelClimb(defaultLevel: FiveDifficultyLevel = 'novice'): TriviaLevelClimbState {
+export function loadTriviaLevelClimb(defaultLevel: FiveDifficultyLevel | number = 1): TriviaLevelClimbState {
+  const defaultNum = normalizeLevelNumber(defaultLevel, 1);
   const defaults: TriviaLevelClimbState = {
-    currentLevel: defaultLevel,
+    levelNumber: defaultNum,
+    currentLevel: levelNumberToDifficultyBand(defaultNum),
     questionIndex: 0,
     correctCount: 0,
     stageComplete: false,
+    promotedToLevelNumber: null,
     promotedToLevel: null,
   };
   if (typeof window === 'undefined') return defaults;
@@ -780,12 +816,21 @@ export function loadTriviaLevelClimb(defaultLevel: FiveDifficultyLevel = 'novice
     window.localStorage.getItem(TRIVIA_CLIMB_KEY),
     {}
   );
+  const levelNumber = normalizeLevelNumber(parsed.levelNumber ?? parsed.currentLevel, defaultNum);
+  const promotedToLevelNumber =
+    parsed.promotedToLevelNumber != null
+      ? normalizeLevelNumber(parsed.promotedToLevelNumber)
+      : parsed.promotedToLevel
+      ? normalizeLevelNumber(parsed.promotedToLevel)
+      : null;
   return {
-    currentLevel: cleanFiveLevel(parsed.currentLevel, defaultLevel),
+    levelNumber,
+    currentLevel: levelNumberToDifficultyBand(levelNumber),
     questionIndex: typeof parsed.questionIndex === 'number' ? Math.max(0, Math.min(9, parsed.questionIndex)) : 0,
     correctCount: typeof parsed.correctCount === 'number' ? Math.max(0, parsed.correctCount) : 0,
     stageComplete: Boolean(parsed.stageComplete),
-    promotedToLevel: parsed.promotedToLevel ? cleanFiveLevel(parsed.promotedToLevel) : null,
+    promotedToLevelNumber,
+    promotedToLevel: promotedToLevelNumber ? levelNumberToDifficultyBand(promotedToLevelNumber) : null,
   };
 }
 

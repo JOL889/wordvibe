@@ -156,13 +156,13 @@ export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
           isActive
             ? 'wv-accent-pill'
             : isHeroToday
-            ? 'border-amber-500/60 wv-card-muted hover:border-amber-500'
+            ? 'border-[var(--wv-accent)]/60 wv-card-muted hover:border-[var(--wv-accent)]'
             : 'wv-border wv-card-muted hover:opacity-90'
         }`}
       >
         <div>
           <div className="flex items-start justify-between gap-2">
-            <span className="font-display text-sm font-bold wv-text leading-snug">
+            <span className="font-display text-sm sm:text-base font-bold wv-text leading-snug">
               {cat.name}
             </span>
             {isActive ? (
@@ -172,7 +172,7 @@ export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
               />
             ) : isLocked ? (
               <Lock
-                className="h-3.5 w-3.5 shrink-0 text-amber-500"
+                className="h-3.5 w-3.5 shrink-0 wv-accent-text"
                 aria-hidden="true"
               />
             ) : cat.isPremium ? (
@@ -183,12 +183,12 @@ export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
             ) : null}
           </div>
 
-          <p className="mt-1 text-xs leading-relaxed wv-text-muted line-clamp-2">
+          <p className="mt-1 text-xs sm:text-sm leading-relaxed wv-text-muted line-clamp-2">
             {cat.tagline}
           </p>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-medium">
+        <div className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-medium">
           <span
             className={
               isHeroToday || isFeaturedToday
@@ -203,7 +203,7 @@ export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
           </span>
           {cat.isPremium ? (
             isLocked ? (
-              <span className="font-semibold text-amber-500">
+              <span className="font-semibold wv-accent-text">
                 Premium · Watch Ad for {PREMIUM_UNLOCK_PLAYS} Plays
               </span>
             ) : (
@@ -384,7 +384,7 @@ export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
             <div className="mb-5 border-b wv-border pb-5">
               <div className="mb-2.5 flex items-center justify-between">
                 <h3 className="flex items-center gap-1.5 text-xs font-bold wv-text-muted">
-                  <Flame className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
+                  <Flame className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
                   <span>Most Popular Topics · Watch Ad for 5 Plays</span>
                 </h3>
               </div>

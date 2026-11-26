@@ -87,9 +87,9 @@ export const WordTriviaRowModal: React.FC<WordTriviaRowModalProps> = ({
               <h2 id="word-trivia-row-title" className="font-display text-lg font-bold wv-text">
                 Unlock Line Clue (Watch Ad)
               </h2>
-              <p className="mt-0.5 text-xs leading-relaxed wv-text-muted">
+              <p className="mt-0.5 text-xs sm:text-sm leading-relaxed wv-text-muted">
                 Pick any Row (Across) or Column (Down) to reveal its consonant/vowel count and word
-                explanation after a short rewarded ad.
+                meaning after a short rewarded ad.
               </p>
             </div>
           </div>
@@ -106,7 +106,7 @@ export const WordTriviaRowModal: React.FC<WordTriviaRowModalProps> = ({
 
         {/* Across Rows */}
         <div className="mt-4">
-          <p className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider wv-text-muted">
+          <p className="mb-1.5 flex items-center gap-1 text-xs font-bold uppercase tracking-wider wv-text-muted">
             <ArrowRight className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
             <span>Horizontal Rows (Across)</span>
           </p>
@@ -127,7 +127,7 @@ export const WordTriviaRowModal: React.FC<WordTriviaRowModalProps> = ({
                     setSlotType('row');
                     setSlotIndex(r);
                   }}
-                  className={`flex items-center justify-between rounded-xl border px-3 py-2 text-left text-xs transition-colors ${
+                  className={`flex items-center justify-between rounded-xl border px-3 py-2 text-left text-xs sm:text-sm transition-colors ${
                     solved
                       ? 'wv-border wv-card-muted opacity-45 cursor-not-allowed'
                       : isSelected
@@ -137,11 +137,11 @@ export const WordTriviaRowModal: React.FC<WordTriviaRowModalProps> = ({
                 >
                   <div>
                     <div className="font-bold">Row {r + 1}</div>
-                    <div className="text-[10px] wv-text-muted">
+                    <div className="text-xs wv-text-muted">
                       {solved ? 'Solved' : hasClue ? 'Unlocked' : 'Open'}
                     </div>
                   </div>
-                  <span className="font-mono-tabular text-[11px] font-bold tracking-widest">
+                  <span className="font-mono-tabular text-xs font-bold tracking-widest">
                     {preview}
                   </span>
                 </button>
@@ -152,7 +152,7 @@ export const WordTriviaRowModal: React.FC<WordTriviaRowModalProps> = ({
 
         {/* Down Columns */}
         <div className="mt-3.5">
-          <p className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider wv-text-muted">
+          <p className="mb-1.5 flex items-center gap-1 text-xs font-bold uppercase tracking-wider wv-text-muted">
             <ArrowDown className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
             <span>Vertical Columns (Down)</span>
           </p>
@@ -173,7 +173,7 @@ export const WordTriviaRowModal: React.FC<WordTriviaRowModalProps> = ({
                     setSlotType('col');
                     setSlotIndex(c);
                   }}
-                  className={`flex items-center justify-between rounded-xl border px-3 py-2 text-left text-xs transition-colors ${
+                  className={`flex items-center justify-between rounded-xl border px-3 py-2 text-left text-xs sm:text-sm transition-colors ${
                     solved
                       ? 'wv-border wv-card-muted opacity-45 cursor-not-allowed'
                       : isSelected
@@ -183,11 +183,11 @@ export const WordTriviaRowModal: React.FC<WordTriviaRowModalProps> = ({
                 >
                   <div>
                     <div className="font-bold">Col {c + 1}</div>
-                    <div className="text-[10px] wv-text-muted">
+                    <div className="text-xs wv-text-muted">
                       {solved ? 'Solved' : hasClue ? 'Unlocked' : 'Open'}
                     </div>
                   </div>
-                  <span className="font-mono-tabular text-[11px] font-bold tracking-widest">
+                  <span className="font-mono-tabular text-xs font-bold tracking-widest">
                     {preview}
                   </span>
                 </button>
@@ -200,7 +200,7 @@ export const WordTriviaRowModal: React.FC<WordTriviaRowModalProps> = ({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-xl border wv-border wv-card-muted px-4 py-2 text-xs font-bold wv-text hover:opacity-90 cursor-pointer"
+            className="rounded-xl border wv-border wv-card-muted px-4 py-2 text-xs sm:text-sm font-bold wv-text hover:opacity-90 cursor-pointer"
           >
             Cancel
           </button>
@@ -208,7 +208,7 @@ export const WordTriviaRowModal: React.FC<WordTriviaRowModalProps> = ({
             type="button"
             data-testid="confirm-trivia-row-btn"
             onClick={() => onConfirmSlot(slotType, slotIndex)}
-            className="inline-flex items-center gap-1.5 rounded-xl wv-accent-btn px-4 py-2 text-xs font-bold cursor-pointer whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 rounded-xl wv-accent-btn px-4 py-2 text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap"
           >
             <span>Watch Ad · {selectedLabel}</span>
             <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />

@@ -1,4 +1,5 @@
 import { VALID_WORDS, type WordLength } from '../data/words';
+import { hasCuratedWordMeaning } from './wordMeanings';
 
 export interface CompletedWordSquare {
   length: WordLength;
@@ -34,8 +35,21 @@ const SQUARE_CACHE = new Map<string, CompletedWordSquare>();
 const VERIFIED_BASE_MATRICES: Record<WordLength, string[][]> = {
   4: [
     ['STAR', 'ORCA', 'NARC', 'EPEE'],
+    ['GRIP', 'RIDE', 'ISLE', 'DEER'],
+    ['TILE', 'ACID', 'LONG', 'KNEE'],
+    ['SLOT', 'HOPE', 'OVAL', 'WELL'],
+    ['ACID', 'NODE', 'AREA', 'SEAL'],
+    ['ATOM', 'NAME', 'AMEN', 'SEND'],
+    ['BALL', 'ARIA', 'SEAT', 'EARS'],
+    ['CLAY', 'ROLE', 'OVAL', 'PEEL'],
   ],
   5: [
+    ['SUPRA', 'CLOUD', 'ACINI', 'RESET', 'PRESS'],
+    ['MUSIC', 'ELUDE', 'ACCEL', 'NERAL', 'TRESS'],
+    ['SHADE', 'LANAI', 'ACING', 'BELCH', 'SKEET'],
+    ['THOSE', 'RIATA', 'ENTER', 'AGENT', 'TENTH'],
+    ['SCAPE', 'WORLD', 'ASSAI', 'STENT', 'HADES'],
+    ['ARBOR', 'SERAI', 'STATE', 'ORIEL', 'CONNS'],
     ['HERDS', 'AVAIL', 'DIZZY', 'STEEL', 'TEENY'],
     ['OGEED', 'FUNNY', 'FADGE', 'AVOIR', 'LAWNS'],
     ['RUMAL', 'ALULA', 'JELLY', 'EMCEE', 'SATYR'],
@@ -45,8 +59,10 @@ const VERIFIED_BASE_MATRICES: Record<WordLength, string[][]> = {
     ['SQUID', 'OUTDO', 'MAILS', 'ALLEE', 'SEERS'],
   ],
   6: [
-    ['PASTAS', 'ACCUSE', 'SHARPS', 'TERBIA', 'INFORM', 'LESSEE'],
     ['CAVEAT', 'AGENDA', 'MARSHY', 'ARGUER', 'SIERRA', 'SCREES'],
+    ['PASTAS', 'ACCUSE', 'SHARPS', 'TERBIA', 'INFORM', 'LESSEE'],
+    ['CAMASS', 'AGARIC', 'VERGER', 'ENSURE', 'ADHERE', 'TAYRAS'],
+    ['PASTIL', 'ACHENE', 'SCARFS', 'TURBOS', 'ASPIRE', 'SESAME'],
   ],
 };
 
@@ -113,7 +129,10 @@ function getBitsetDict(length: WordLength): BitsetDict {
   if (cached) return cached;
 
   const words = Array.from(VALID_WORDS[length]).sort(
-    (a, b) => commonLetterScore(b) - commonLetterScore(a) || a.localeCompare(b)
+    (a, b) =>
+      Number(hasCuratedWordMeaning(b)) - Number(hasCuratedWordMeaning(a)) ||
+      commonLetterScore(b) - commonLetterScore(a) ||
+      a.localeCompare(b)
   );
   const wordCount = words.length;
   const numChunks = (wordCount + 31) >>> 5;

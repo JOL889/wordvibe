@@ -40,7 +40,7 @@ export const WordTriviaHintPanel: React.FC<WordTriviaHintPanelProps> = ({
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <BookOpen className="h-4 w-4 shrink-0 wv-accent-text" aria-hidden="true" />
-            <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs sm:text-sm">
               <span className="font-bold wv-text">Unlocked Word Clues</span>
               <span className="wv-text-muted" aria-hidden="true">
                 ·
@@ -58,9 +58,9 @@ export const WordTriviaHintPanel: React.FC<WordTriviaHintPanelProps> = ({
               type="button"
               data-testid="another-line-trivia-btn"
               onClick={onRequestAnotherLine}
-              className="inline-flex items-center gap-1 rounded-lg border wv-accent-pill px-2.5 py-1 text-[11px] font-bold cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-1 rounded-lg border wv-accent-pill px-2.5 py-1 text-xs font-bold cursor-pointer whitespace-nowrap"
             >
-              <Plus className="h-3 w-3" aria-hidden="true" />
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
               <span>More Clues (Ad)</span>
             </button>
 
@@ -69,7 +69,7 @@ export const WordTriviaHintPanel: React.FC<WordTriviaHintPanelProps> = ({
               data-testid="collapse-word-trivia-btn"
               onClick={onToggleOpen}
               aria-label="Hide word clues"
-              className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold wv-text-muted hover:opacity-80 cursor-pointer whitespace-nowrap"
+              className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold wv-text-muted hover:opacity-80 cursor-pointer whitespace-nowrap"
             >
               <span>Hide</span>
               <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
@@ -82,10 +82,10 @@ export const WordTriviaHintPanel: React.FC<WordTriviaHintPanelProps> = ({
             <div
               key={key}
               data-testid={`unlocked-clue-${key}`}
-              className="rounded-xl border wv-border wv-card-muted px-3 py-2 text-xs leading-relaxed"
+              className="rounded-xl border wv-border wv-card-muted px-3 py-2 text-sm leading-relaxed"
             >
               <span className="inline-flex items-center gap-1 font-bold wv-accent-text mr-1.5">
-                <Sparkles className="h-3 w-3" aria-hidden="true" />
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
                 {formatSlotTitle(key)}:
               </span>
               <span className="wv-text font-medium">{clueText}</span>

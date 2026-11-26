@@ -10,7 +10,7 @@ export const OfflineBanner: React.FC = () => {
   return (
     <div
       role="status"
-      className="fixed bottom-4 left-4 z-40 inline-flex items-center gap-2 rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white shadow-lg"
+      className="fixed bottom-4 left-4 z-40 inline-flex items-center gap-2 rounded-lg wv-accent-btn px-3 py-2 text-xs font-semibold shadow-lg"
     >
       <WifiOff className="h-3.5 w-3.5" aria-hidden="true" />
       <span>Offline Mode — Playing with cached puzzles</span>

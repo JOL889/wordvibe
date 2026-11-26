@@ -7,6 +7,7 @@ import {
   Cloud,
   Compass,
   MapPin,
+  Music,
   Palette,
   RotateCcw,
   Share2,
@@ -14,7 +15,9 @@ import {
   Sliders,
   Smartphone,
   Sparkles,
+  Vibrate,
   Volume2,
+  VolumeX,
   X,
 } from 'lucide-react';
 import {
@@ -28,6 +31,7 @@ import type {
   AnimationIntensity,
   AppSettings,
   DifficultyTier,
+  SoundMode,
   StartingTab,
   ThemeMode,
 } from '../game/settingsLogic';
@@ -45,28 +49,28 @@ interface SettingsModalProps {
 }
 
 const THEME_OPTIONS: Array<{ id: ThemeMode; label: string; sub: string }> = [
-  { id: 'dark', label: 'Dark Mode', sub: 'Default slate ink' },
-  { id: 'light', label: 'Light Mode', sub: 'Warm paper ink' },
+  { id: 'dark', label: 'Dark Mode', sub: 'Deep integrated tint' },
+  { id: 'light', label: 'Light Mode', sub: 'Clean tinted paper' },
   { id: 'amoled', label: 'AMOLED Black', sub: 'True #000 OLED' },
   { id: 'colorblind', label: 'Colorblind Safe', sub: 'High-contrast' },
 ];
 
-const ACCENT_OPTIONS: Array<{ id: AccentColor; label: string; dotClass: string }> = [
-  { id: 'emerald', label: 'Emerald', dotClass: 'bg-emerald-500' },
-  { id: 'gold', label: 'Royal Gold', dotClass: 'bg-amber-500' },
-  { id: 'blue', label: 'Ocean Blue', dotClass: 'bg-sky-400' },
-  { id: 'violet', label: 'Violet', dotClass: 'bg-violet-400' },
+const ACCENT_OPTIONS: Array<{ id: AccentColor; label: string; hex: string }> = [
+  { id: 'emerald', label: 'Emerald', hex: '#10B981' },
+  { id: 'gold', label: 'Royal Gold', hex: '#D97706' },
+  { id: 'blue', label: 'Ocean Blue', hex: '#2563EB' },
+  { id: 'violet', label: 'Violet', hex: '#7C3AED' },
 ];
 
 const ANIMATION_OPTIONS: Array<{ id: AnimationIntensity; label: string }> = [
-  { id: 'full', label: 'Full Fun' },
-  { id: 'subtle', label: 'Subtle' },
-  { id: 'reduced', label: 'Reduced Motion' },
+  { id: 'full', label: 'Motion Tilt' },
+  { id: 'subtle', label: 'Gentle Tilt' },
+  { id: 'reduced', label: 'Still Mode' },
 ];
 
 const DIFFICULTY_OPTIONS: Array<{ id: DifficultyTier; label: string }> = [
-  { id: 'casual', label: 'Fun & Casual' },
-  { id: 'balanced', label: 'Balanced' },
+  { id: 'casual', label: 'Balanced' },
+  { id: 'balanced', label: 'Brisk' },
   { id: 'mastermind', label: 'Mastermind' },
 ];
 
@@ -75,6 +79,17 @@ const STARTING_TABS: Array<{ id: StartingTab; label: string }> = [
   { id: 'puzzle', label: 'Puzzle' },
   { id: 'faith', label: 'Faith' },
   { id: 'trivia', label: 'AI Trivia' },
+];
+
+const SOUND_MODES: Array<{
+  id: SoundMode;
+  label: string;
+  sub: string;
+  Icon: typeof Volume2;
+}> = [
+  { id: 'on', label: 'On', sub: 'Sound + Loop', Icon: Volume2 },
+  { id: 'mute', label: 'Mute', sub: 'Vibrate Only', Icon: Vibrate },
+  { id: 'off', label: 'Off', sub: 'Total Silence', Icon: VolumeX },
 ];
 
 interface ToggleRowProps {
@@ -101,10 +116,8 @@ const ToggleRow: React.FC<ToggleRowProps> = ({
     className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:opacity-95 cursor-pointer"
   >
     <div className="min-w-0">
-      <div className="text-sm font-semibold wv-text">{label}</div>
-      {description && (
-        <div className="text-xs wv-text-muted">{description}</div>
-      )}
+      <div className="text-sm sm:text-base font-semibold wv-text">{label}</div>
+      {description && <div className="text-xs wv-text-muted">{description}</div>}
     </div>
     <span
       aria-hidden="true"
@@ -137,6 +150,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   if (!open) return null;
 
   const sensorStatus = getSensorSupportStatus();
+  const activeSoundMode: SoundMode = settings.soundMode ?? (settings.soundEnabled ? 'on' : 'off');
 
   const locationSummary =
     playerProfile.locationEnabled && !playerProfile.locationOptOut
@@ -204,13 +218,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             <div className="flex items-center justify-between gap-2 rounded-xl border wv-border wv-card px-3 py-2.5">
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5 text-xs font-semibold wv-text">
+                <div className="flex items-center gap-1.5 text-sm font-semibold wv-text">
                   <MapPin className="h-3.5 w-3.5 wv-accent-text shrink-0" aria-hidden="true" />
                   <span className="truncate">{locationSummary}</span>
                 </div>
-                <p className="text-[11px] wv-text-muted">
-                  Manual city &amp; country selector
-                </p>
+                <p className="text-xs wv-text-muted">Manual city &amp; country selector</p>
               </div>
               <button
                 type="button"
@@ -219,14 +231,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   onClose();
                   onOpenPersonalize();
                 }}
-                className="min-h-10 shrink-0 rounded-xl border wv-border wv-card-muted px-3 py-1.5 text-xs font-semibold wv-text hover:opacity-90 cursor-pointer"
+                className="min-h-10 shrink-0 rounded-xl border wv-border wv-card-muted px-3 py-1.5 text-xs sm:text-sm font-semibold wv-text hover:opacity-90 cursor-pointer"
               >
                 Edit City
               </button>
             </div>
 
             <div className="px-1 pt-1">
-              <span className="text-xs font-semibold wv-text-muted">
+              <span className="text-xs sm:text-sm font-semibold wv-text-muted">
                 Default Starting Tab
               </span>
               <div className="mt-1.5 grid grid-cols-4 gap-1.5">
@@ -238,7 +250,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       type="button"
                       data-setting-start-tab={tab.id}
                       onClick={() => onUpdateSettings({ defaultTab: tab.id })}
-                      className={`min-h-11 rounded-xl border px-2 text-xs font-semibold transition-colors cursor-pointer ${
+                      className={`min-h-11 rounded-xl border px-2 text-xs sm:text-sm font-semibold transition-colors cursor-pointer ${
                         active
                           ? 'wv-accent-btn border-transparent'
                           : 'wv-border wv-card wv-text-muted hover:opacity-90'
@@ -252,8 +264,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <div className="px-1 pt-1">
-              <span className="text-xs font-semibold wv-text-muted">
-                Difficulty Tier
+              <span className="text-xs sm:text-sm font-semibold wv-text-muted">
+                Challenge Pace
               </span>
               <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                 {DIFFICULTY_OPTIONS.map((opt) => {
@@ -264,7 +276,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       type="button"
                       data-setting-difficulty={opt.id}
                       onClick={() => onUpdateSettings({ difficultyTier: opt.id })}
-                      className={`min-h-11 rounded-xl border px-2 text-xs font-semibold transition-colors cursor-pointer ${
+                      className={`min-h-11 rounded-xl border px-2 text-xs sm:text-sm font-semibold transition-colors cursor-pointer ${
                         active
                           ? 'wv-accent-btn border-transparent'
                           : 'wv-border wv-card wv-text-muted hover:opacity-90'
@@ -294,7 +306,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </h3>
 
             <div className="px-1">
-              <span className="text-xs font-semibold wv-text-muted">
+              <span className="text-xs sm:text-sm font-semibold wv-text-muted">
                 Default Faith Tradition
               </span>
               <div className="mt-1.5 grid grid-cols-3 gap-1.5">
@@ -307,7 +319,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       type="button"
                       data-setting-religion={id}
                       onClick={() => onUpdateSettings({ defaultReligion: id })}
-                      className={`flex min-h-12 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition-colors cursor-pointer ${
+                      className={`flex min-h-12 items-center gap-1.5 rounded-xl border px-2.5 text-xs sm:text-sm font-semibold transition-colors cursor-pointer ${
                         active
                           ? 'wv-accent-btn border-transparent'
                           : 'wv-border wv-card wv-text hover:opacity-90'
@@ -346,7 +358,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <section className="rounded-2xl border wv-border wv-card-muted p-3.5 space-y-3 amoled-surface">
             <h3 className="flex items-center gap-1.5 px-1 text-xs font-bold uppercase tracking-wider wv-accent-text">
               <Palette className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Theme &amp; Visuals</span>
+              <span>Integrated Theme &amp; Color</span>
             </h3>
 
             <div className="grid grid-cols-2 gap-2">
@@ -364,16 +376,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         : 'wv-border wv-card wv-text hover:opacity-90'
                     }`}
                   >
-                    <span className="text-xs font-bold">{opt.label}</span>
-                    <span className="text-[10px] opacity-75">{opt.sub}</span>
+                    <span className="text-xs sm:text-sm font-bold">{opt.label}</span>
+                    <span className="text-xs opacity-75">{opt.sub}</span>
                   </button>
                 );
               })}
             </div>
 
             <div className="px-1">
-              <span className="text-xs font-semibold wv-text-muted">
-                Accent Color
+              <span className="text-xs sm:text-sm font-semibold wv-text-muted">
+                App Color (Integrates Every Surface)
               </span>
               <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                 {ACCENT_OPTIONS.map((acc) => {
@@ -384,13 +396,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       type="button"
                       data-testid={`setting-accent-${acc.id}`}
                       onClick={() => onUpdateSettings({ accentColor: acc.id })}
-                      className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition-colors cursor-pointer ${
+                      className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl border px-2.5 text-xs sm:text-sm font-semibold transition-colors cursor-pointer ${
                         active
                           ? 'wv-accent-pill border-2'
                           : 'wv-border wv-card wv-text-muted hover:opacity-90'
                       }`}
                     >
-                      <span className={`h-3 w-3 shrink-0 rounded-full ${acc.dotClass}`} aria-hidden="true" />
+                      <span
+                        className="h-3 w-3 shrink-0 rounded-full border border-white/30"
+                        style={{ backgroundColor: acc.hex }}
+                        aria-hidden="true"
+                      />
                       <span>{acc.label}</span>
                     </button>
                   );
@@ -399,9 +415,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <div className="px-1">
-              <span className="flex items-center gap-1 text-xs font-semibold wv-text-muted">
+              <span className="flex items-center gap-1 text-xs sm:text-sm font-semibold wv-text-muted">
                 <Sparkles className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
-                <span>Animation Intensity</span>
+                <span>Phone Motion Tilt</span>
               </span>
               <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                 {ANIMATION_OPTIONS.map((anim) => {
@@ -412,7 +428,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       type="button"
                       data-testid={`setting-anim-${anim.id}`}
                       onClick={() => onUpdateSettings({ animationIntensity: anim.id })}
-                      className={`min-h-11 rounded-xl border px-2 text-xs font-semibold transition-colors cursor-pointer ${
+                      className={`min-h-11 rounded-xl border px-2 text-xs sm:text-sm font-semibold transition-colors cursor-pointer ${
                         active
                           ? 'wv-accent-btn border-transparent'
                           : 'wv-border wv-card wv-text-muted hover:opacity-90'
@@ -427,19 +443,61 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </section>
 
           {/* 4. Audio, Haptics & Phone Sensors */}
-          <section className="rounded-2xl border wv-border wv-card-muted p-3.5 space-y-1.5 amoled-surface">
+          <section className="rounded-2xl border wv-border wv-card-muted p-3.5 space-y-2 amoled-surface">
             <h3 className="flex items-center gap-1.5 px-1 pb-1 text-xs font-bold uppercase tracking-wider wv-accent-text">
               <Volume2 className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Audio, Haptics &amp; Phone Sensors</span>
+              <span>Sound Mode, Music Loop &amp; Motion</span>
             </h3>
 
+            {/* 3-State Sound Mode Selector */}
+            <div className="px-1 pb-1">
+              <span className="text-xs sm:text-sm font-semibold wv-text-muted">
+                Icon Tap &amp; Audio Mode
+              </span>
+              <div
+                role="group"
+                aria-label="Sound feedback mode"
+                className="mt-1.5 grid grid-cols-3 gap-1.5"
+              >
+                {SOUND_MODES.map(({ id, label, sub, Icon }) => {
+                  const active = activeSoundMode === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      data-testid={`setting-sound-mode-${id}`}
+                      aria-pressed={active}
+                      onClick={() =>
+                        onUpdateSettings({
+                          soundMode: id,
+                          soundEnabled: id === 'on',
+                        })
+                      }
+                      className={`flex min-h-12 flex-col items-center justify-center rounded-xl border px-2 py-2 text-center transition-colors cursor-pointer ${
+                        active
+                          ? 'wv-accent-btn border-transparent'
+                          : 'wv-border wv-card wv-text hover:opacity-90'
+                      }`}
+                    >
+                      <span className="inline-flex items-center gap-1 text-xs sm:text-sm font-bold">
+                        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>{label}</span>
+                      </span>
+                      <span className="text-xs opacity-80">{sub}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <ToggleRow
-              testId="setting-sound"
-              label="Sound Effects"
-              description="Crisp key taps, tile flips & hint chimes"
-              checked={settings.soundEnabled}
-              onToggle={() => onUpdateSettings({ soundEnabled: !settings.soundEnabled })}
+              testId="setting-bg-music"
+              label="Looping Background Game Music"
+              description="Plays a calm game melody continuously on loop while Sound is On"
+              checked={settings.bgMusicEnabled}
+              onToggle={() => onUpdateSettings({ bgMusicEnabled: !settings.bgMusicEnabled })}
             />
+
             <ToggleRow
               testId="setting-fanfare"
               label="Victory Fanfare"
@@ -449,20 +507,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 onUpdateSettings({ victoryFanfareEnabled: !settings.victoryFanfareEnabled })
               }
             />
+
             <ToggleRow
               testId="setting-haptics"
-              label="Vibration & Haptic Feedback"
-              description="Subtle tactile taps on Android & iPhone"
+              label="Vibration on Taps (when Sound is On)"
+              description="Mute mode always vibrates gently; Off mode disables all vibration"
               checked={settings.hapticsEnabled}
               onToggle={() => onUpdateSettings({ hapticsEnabled: !settings.hapticsEnabled })}
             />
+
             <ToggleRow
               testId="setting-sensors"
-              label="Tilt 3D & Shake Sensors"
-              description="Gyroscope 3D board tilt + shake phone to nudge or switch words"
+              label="Phone Tilt Follow & Shake"
+              description="Subtly follows your real phone tilt with zero idle drift"
               checked={settings.sensorsEnabled}
               onToggle={() => onUpdateSettings({ sensorsEnabled: !settings.sensorsEnabled })}
             />
+
+            <div className="flex items-center gap-2 px-3 py-1 text-xs wv-text-muted">
+              <Music className="h-3.5 w-3.5 wv-accent-text shrink-0" aria-hidden="true" />
+              <span>
+                On = Tap sound + looping music · Mute = Vibrate only · Off = Totally silent
+              </span>
+            </div>
 
             {settings.sensorsEnabled && sensorStatus.needsPermissionPrompt && (
               <div className="px-2 pt-1">
@@ -478,13 +545,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       );
                     });
                   }}
-                  className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border wv-border wv-card px-3 py-1.5 text-xs font-bold wv-accent-text cursor-pointer"
+                  className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border wv-border wv-card px-3 py-1.5 text-xs sm:text-sm font-bold wv-accent-text cursor-pointer"
                 >
                   <Smartphone className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Enable iOS Motion Access</span>
                 </button>
                 {sensorPermFeedback && (
-                  <p className="mt-1 text-[11px] font-medium wv-text-muted">{sensorPermFeedback}</p>
+                  <p className="mt-1 text-xs font-medium wv-text-muted">{sensorPermFeedback}</p>
                 )}
               </div>
             )}
@@ -497,7 +564,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <span>Account &amp; Data</span>
             </h3>
 
-            <div className="flex items-center justify-between gap-2 rounded-xl border wv-border wv-card px-3 py-2.5 text-xs">
+            <div className="flex items-center justify-between gap-2 rounded-xl border wv-border wv-card px-3 py-2.5 text-xs sm:text-sm">
               <div>
                 <p className="font-bold wv-text">
                   {playerProfile.displayName?.trim() || 'Guest WordVibe Player'}
@@ -522,7 +589,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 type="button"
                 data-testid="setting-share-app-btn"
                 onClick={onShareApp}
-                className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border wv-border wv-card px-3 text-xs font-semibold wv-text hover:opacity-90 cursor-pointer"
+                className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border wv-border wv-card px-3 text-xs sm:text-sm font-semibold wv-text hover:opacity-90 cursor-pointer"
               >
                 <Share2 className="h-4 w-4 wv-accent-text" aria-hidden="true" />
                 <span>Share WordVibe</span>
@@ -531,7 +598,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 type="button"
                 data-testid="setting-reset-tutorial-btn"
                 onClick={onResetTutorial}
-                className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border wv-border wv-card px-3 text-xs font-semibold wv-text hover:opacity-90 cursor-pointer"
+                className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border wv-border wv-card px-3 text-xs sm:text-sm font-semibold wv-text hover:opacity-90 cursor-pointer"
               >
                 <RotateCcw className="h-4 w-4 wv-accent-text" aria-hidden="true" />
                 <span>Reset Tutorial</span>
@@ -541,7 +608,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <button
               type="button"
               onClick={() => setAboutExpanded((v) => !v)}
-              className="flex min-h-11 w-full items-center justify-between rounded-xl px-2 text-xs font-semibold wv-text-muted hover:opacity-90 cursor-pointer"
+              className="flex min-h-11 w-full items-center justify-between rounded-xl px-2 text-xs sm:text-sm font-semibold wv-text-muted hover:opacity-90 cursor-pointer"
             >
               <span className="inline-flex items-center gap-1.5">
                 <Cloud className="h-3.5 w-3.5" aria-hidden="true" />
@@ -551,10 +618,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </button>
 
             {aboutExpanded && (
-              <p className="rounded-xl border wv-border wv-card p-3 text-[11px] leading-relaxed wv-text-muted">
+              <p className="rounded-xl border wv-border wv-card p-3 text-xs leading-relaxed wv-text-muted">
                 WordVibe runs offline using your on-device zero-repeat question vault, streaks,
-                coins, Faith Study progress, and theme preferences. Optional city selection stays
-                strictly on your device.
+                coins, Faith Study progress, and integrated theme preferences. Optional city
+                selection stays strictly on your device.
               </p>
             )}
           </section>

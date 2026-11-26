@@ -124,22 +124,21 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
       className="mx-auto flex w-full max-w-xl lg:max-w-5xl flex-col gap-4 px-4 sm:px-6 pt-4 pb-24 sm:pt-5 animate-stage-enter"
     >
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-start lg:gap-5">
-        {/* Primary Column: Streamlined Arcade Streak Hero + Daily Challenges */}
+        {/* Primary Column: Arcade Streak Hero + Daily Quests */}
         <div className="flex flex-col gap-4 lg:col-span-7">
-          {/* Playful Arcade Word-Game Streak Hero */}
+          {/* Tactile Word-Game Streak Hero */}
           <div className="wv-tilt-surface relative overflow-hidden rounded-2xl border-2 wv-border wv-card shadow-md">
-            {/* Vibrant Theme-Responsive Game-Show Header Band */}
             <div className="wv-hero-arcade relative px-5 py-5 sm:px-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">
-                    <Flame className="h-3.5 w-3.5 text-amber-300 animate-flame-pulse" aria-hidden="true" />
-                    <span>WordVibe Streak · #{puzzleNumber}</span>
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-white">
+                    <Flame className="h-3.5 w-3.5 text-white" aria-hidden="true" />
+                    <span className="font-bold">WordVibe Streak · #{puzzleNumber}</span>
                   </div>
                   <div className="mt-2 flex items-baseline gap-3">
                     <span
                       data-testid="home-streak-count"
-                      className="font-display text-5xl sm:text-6xl font-bold tracking-tight text-amber-300 drop-shadow-[0_3px_0_rgba(0,0,0,0.35)] tabular-nums"
+                      className="font-display text-5xl sm:text-6xl font-black tracking-tight text-white drop-shadow-[0_3px_0_rgba(0,0,0,0.3)] tabular-nums"
                     >
                       {stats.currentStreak}
                     </span>
@@ -163,25 +162,29 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                 </div>
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-white/90">
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm font-semibold text-white/95">
                 <span>
                   Best:{' '}
-                  <strong className="font-mono-tabular text-amber-300">{stats.bestStreak}</strong>
+                  <strong className="font-mono-tabular font-extrabold text-white">
+                    {stats.bestStreak}
+                  </strong>
                 </span>
                 <span>
-                  Win Rate: <strong className="font-mono-tabular text-amber-300">{winRate}%</strong>
+                  Win Rate:{' '}
+                  <strong className="font-mono-tabular font-extrabold text-white">{winRate}%</strong>
                 </span>
                 <span>
-                  Reset in: <strong className="font-mono-tabular text-white">{countdown}</strong>
+                  Reset in:{' '}
+                  <strong className="font-mono-tabular font-extrabold text-white">{countdown}</strong>
                 </span>
               </div>
             </div>
 
             {/* Clean 7-Day Rhythm Strip */}
             <div className="p-4 sm:p-5">
-              <div className="flex items-center justify-between text-xs wv-text-muted mb-2.5">
+              <div className="flex items-center justify-between text-xs sm:text-sm wv-text-muted mb-2.5">
                 <span className="inline-flex items-center gap-1.5 font-bold wv-text">
-                  <CalendarDays className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
+                  <CalendarDays className="h-4 w-4 wv-accent-text" aria-hidden="true" />
                   <span>7-Day Rhythm</span>
                 </span>
                 <span className="font-mono-tabular font-semibold">
@@ -208,7 +211,7 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                           : 'wv-border wv-card-muted opacity-80'
                       }`}
                     >
-                      <span className="text-[10px] font-bold uppercase wv-text-muted">
+                      <span className="text-xs font-bold uppercase wv-text-muted">
                         {day.shortLabel}
                       </span>
                       <div
@@ -228,7 +231,7 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                         ) : isMissed ? (
                           <Minus className="h-3 w-3" aria-hidden="true" />
                         ) : (
-                          <span className="font-mono-tabular text-[10px]">{day.dayNumber}</span>
+                          <span className="font-mono-tabular text-xs">{day.dayNumber}</span>
                         )}
                       </div>
                     </div>
@@ -262,7 +265,7 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                   <button
                     type="button"
                     onClick={onWatchAdSaveStreak}
-                    className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-xl border wv-accent-pill px-3.5 py-2.5 text-xs font-bold cursor-pointer"
+                    className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-xl border wv-accent-pill px-3.5 py-2.5 text-xs sm:text-sm font-bold cursor-pointer"
                   >
                     <ShieldCheck className="h-4 w-4" aria-hidden="true" />
                     <span>Save ({stats.previousLostStreak}d)</span>
@@ -272,7 +275,7 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
             </div>
           </div>
 
-          {/* Streamlined Daily Challenges */}
+          {/* Streamlined Daily Quests */}
           <div className="rounded-2xl border wv-border wv-card p-4 sm:p-5 shadow-xs">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -281,7 +284,7 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
               </div>
               <span
                 data-testid="challenges-summary"
-                className="font-mono-tabular text-xs font-bold wv-accent-text"
+                className="font-mono-tabular text-xs sm:text-sm font-bold wv-accent-text"
               >
                 {completedChallenges} / {challenges.length}
               </span>
@@ -307,13 +310,17 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         {ch.completed ? (
-                          <Check className="h-4 w-4 shrink-0 wv-accent-text" strokeWidth={3} aria-hidden="true" />
+                          <Check
+                            className="h-4 w-4 shrink-0 wv-accent-text"
+                            strokeWidth={3}
+                            aria-hidden="true"
+                          />
                         ) : ch.openCategories ? (
-                          <Compass className="h-4 w-4 shrink-0 text-amber-500" aria-hidden="true" />
+                          <Compass className="h-4 w-4 shrink-0 wv-accent-text" aria-hidden="true" />
                         ) : (
                           <Trophy className="h-4 w-4 shrink-0 wv-text-muted" aria-hidden="true" />
                         )}
-                        <h3 className="truncate font-display text-sm font-bold wv-text">
+                        <h3 className="truncate font-display text-base font-bold wv-text">
                           {ch.title}
                         </h3>
                       </div>
@@ -321,12 +328,12 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                         <div className="h-1.5 flex-1 overflow-hidden rounded-full wv-card-muted">
                           <div
                             className={`h-full rounded-full transition-all duration-300 ${
-                              ch.completed ? 'wv-accent-btn' : 'bg-zinc-400 dark:bg-zinc-500'
+                              ch.completed ? 'wv-accent-btn' : 'bg-[var(--wv-text-muted)]/45'
                             }`}
                             style={{ width: `${pct}%` }}
                           />
                         </div>
-                        <span className="font-mono-tabular text-[11px] font-bold wv-text-muted">
+                        <span className="font-mono-tabular text-xs font-bold wv-text-muted">
                           {ch.current}/{ch.target}
                         </span>
                       </div>
@@ -335,8 +342,10 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                     <button
                       type="button"
                       onClick={() => onSelectChallenge(ch)}
-                      className={`shrink-0 rounded-xl border px-3 py-1.5 text-xs font-bold whitespace-nowrap cursor-pointer ${
-                        ch.completed ? 'wv-accent-pill' : 'wv-border wv-card-muted wv-text hover:opacity-85'
+                      className={`shrink-0 rounded-xl border px-3 py-1.5 text-xs sm:text-sm font-bold whitespace-nowrap cursor-pointer ${
+                        ch.completed
+                          ? 'wv-accent-pill'
+                          : 'wv-border wv-card-muted wv-text hover:opacity-85'
                       }`}
                     >
                       {ch.completed ? 'Done' : ch.actionLabel}
@@ -348,7 +357,7 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
           </div>
         </div>
 
-        {/* Compact Secondary Column: Faith Sprint, Weekly Rank & Personalized Pick */}
+        {/* Secondary Column: Faith Sprint, Weekly Rank & Personalized Pick */}
         <div className="flex flex-col gap-4 lg:col-span-5">
           {/* Endless Faith Study Card */}
           <div
@@ -361,7 +370,7 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                   <ReligionIcon religion={activeReligion} className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[11px] font-bold uppercase tracking-wider wv-accent-text">
+                  <p className="text-xs font-bold uppercase tracking-wider wv-accent-text">
                     Endless Faith Sprint · {faithTradition.name}
                   </p>
                   <h2 className="truncate font-display text-lg font-bold wv-text">
@@ -373,13 +382,13 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                 type="button"
                 data-testid="home-open-faith-btn"
                 onClick={onStartFaith}
-                className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-xl px-3.5 py-2 text-xs font-bold wv-accent-btn cursor-pointer whitespace-nowrap"
+                className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-bold wv-accent-btn cursor-pointer whitespace-nowrap"
               >
                 <span>Study</span>
                 <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </div>
-            <p className="mt-2.5 text-xs italic leading-relaxed wv-text-muted line-clamp-2">
+            <p className="mt-2.5 text-sm italic leading-relaxed wv-text-muted line-clamp-2">
               &ldquo;{dailyFaithPassage.quote}&rdquo;
             </p>
           </div>
@@ -391,17 +400,19 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-500">
-                  <Crown className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Rank {weeklyGrade.current.id} · {weeklyGrade.current.tierName}</span>
+                <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold wv-accent-text">
+                  <Crown className="h-4 w-4" aria-hidden="true" />
+                  <span>
+                    Rank {weeklyGrade.current.id} · {weeklyGrade.current.tierName}
+                  </span>
                 </div>
                 <h2 className="mt-0.5 font-display text-lg font-bold wv-text">
                   {weeklyProgress.weeklyXp} Weekly XP · {weeklyProgress.bonusCoins} Coins
                 </h2>
               </div>
 
-              <span className="inline-flex items-center gap-1 font-mono-tabular text-[11px] font-semibold wv-text-muted shrink-0">
-                <Clock className="h-3 w-3" aria-hidden="true" />
+              <span className="inline-flex items-center gap-1 font-mono-tabular text-xs font-semibold wv-text-muted shrink-0">
+                <Clock className="h-3.5 w-3.5" aria-hidden="true" />
                 {weeklyCountdown}
               </span>
             </div>
@@ -413,15 +424,16 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
               />
             </div>
 
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm">
               <span className="font-mono-tabular wv-text-muted">
-                Badges: {weeklyProgress.unlockedAchievements.length}/{ACHIEVEMENTS.length} · Topic: {activeCategoryName}
+                Badges: {weeklyProgress.unlockedAchievements.length}/{ACHIEVEMENTS.length} · Topic:{' '}
+                {activeCategoryName}
               </span>
               <button
                 type="button"
                 data-testid="home-open-weekly-rank-btn"
                 onClick={onOpenWeeklyRank}
-                className="rounded-xl border wv-border wv-card-muted px-3 py-1.5 text-xs font-bold wv-text hover:opacity-85 cursor-pointer whitespace-nowrap"
+                className="rounded-xl border wv-border wv-card-muted px-3 py-1.5 text-xs sm:text-sm font-bold wv-text hover:opacity-85 cursor-pointer whitespace-nowrap"
               >
                 Rank &amp; Badges
               </button>
@@ -435,10 +447,10 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-wider wv-accent-text">
+                <p className="text-xs font-bold uppercase tracking-wider wv-accent-text">
                   {locationLabel} · {spotlight.eventTitle}
                 </p>
-                <h2 className="mt-0.5 font-display text-base font-bold wv-text truncate">
+                <h2 className="mt-0.5 font-display text-lg font-bold wv-text truncate">
                   {heroCategory.name}
                 </h2>
               </div>
@@ -447,7 +459,7 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                 type="button"
                 data-testid="open-personalization-btn"
                 onClick={onOpenPersonalize}
-                className="shrink-0 rounded-xl border wv-border wv-card-muted px-2.5 py-1.5 text-xs font-bold wv-text hover:opacity-85 cursor-pointer"
+                className="shrink-0 rounded-xl border wv-border wv-card-muted px-3 py-1.5 text-xs sm:text-sm font-bold wv-text hover:opacity-85 cursor-pointer"
               >
                 Personalize
               </button>
@@ -458,21 +470,23 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                 type="button"
                 data-testid="home-for-you-puzzle-btn"
                 onClick={onPlayPersonalizedPuzzle}
-                className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border wv-accent-pill px-3 py-2 text-xs font-bold cursor-pointer whitespace-nowrap"
+                className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border wv-accent-pill px-3 py-2 text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap"
               >
                 <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span>{insights.favoriteLength}×{insights.favoriteLength} For You</span>
+                <span>
+                  {insights.favoriteLength}×{insights.favoriteLength} For You
+                </span>
               </button>
 
               <button
                 type="button"
                 data-testid="home-play-hero-entertainment-btn"
                 onClick={() => onPlayEntertainmentCategory(heroCategory.id)}
-                className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border wv-border wv-card-muted px-3 py-2 text-xs font-bold wv-text hover:opacity-85 cursor-pointer whitespace-nowrap"
+                className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border wv-border wv-card-muted px-3 py-2 text-xs sm:text-sm font-bold wv-text hover:opacity-85 cursor-pointer whitespace-nowrap"
               >
                 {heroCategory.isPremium ? (
                   heroLocked ? (
-                    <Lock className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
+                    <Lock className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
                   ) : (
                     <Unlock className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
                   )
@@ -484,7 +498,7 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                 type="button"
                 data-testid="home-browse-entertainment-btn"
                 onClick={onBrowseEntertainment}
-                className="inline-flex min-h-10 items-center justify-center rounded-xl border wv-border wv-card-muted px-3 py-2 text-xs font-bold wv-text-muted hover:opacity-85 cursor-pointer"
+                className="inline-flex min-h-10 items-center justify-center rounded-xl border wv-border wv-card-muted px-3 py-2 text-xs sm:text-sm font-bold wv-text-muted hover:opacity-85 cursor-pointer"
               >
                 100 Topics
               </button>
@@ -499,9 +513,9 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
             type="button"
             data-testid="home-enquiry-help-btn"
             onClick={() => onOpenHelp('rules')}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold wv-text-muted hover:underline underline-offset-4 cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold wv-text-muted hover:underline underline-offset-4 cursor-pointer"
           >
-            <HelpCircle className="h-3.5 w-3.5" aria-hidden="true" />
+            <HelpCircle className="h-4 w-4" aria-hidden="true" />
             <span>How to Play Crossword, Climb &amp; Faith Sprint</span>
           </button>
         </div>

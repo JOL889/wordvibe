@@ -1,20 +1,32 @@
 import { SOLUTION_WORDS, VALID_WORDS, type WordLength } from '../data/words';
 import { getCategoryById } from '../data/categories';
 import { evaluateGuess, type TileState, type TypingDirection } from './puzzleLogic';
-import { getNextFiveLevel, FIVE_LEVEL_META, type FiveDifficultyLevel } from './settingsLogic';
-import { buildConsonantVowelMeaningClue } from './wordMeanings';
+import {
+  formatLevelLabel,
+  getNextFiveLevel,
+  getNextLevelNumber,
+  levelNumberToDifficultyBand,
+  normalizeLevelNumber,
+  type FiveDifficultyLevel,
+} from './settingsLogic';
+import { buildConsonantVowelMeaningClue, hasCuratedWordMeaning } from './wordMeanings';
 import {
   buildCompletedWordSquare,
   getPrecomputedTargetsForLength,
   type CompletedWordSquare,
 } from './wordSquareLogic';
-import { pickZeroRepeatItem } from './zeroRepeatDeck';
+import {
+  getBucketSeenKeys,
+  markBucketKeySeen,
+  pickZeroRepeatItem,
+} from './zeroRepeatDeck';
 
 export type CrosswordSlotType = 'row' | 'col';
 
 export interface CrosswordBoardState {
   boardId: string;
   length: WordLength;
+  levelNumber: number;
   level: FiveDifficultyLevel;
   categoryId: string;
   /** Verified L x L asymmetric English word square (2*L distinct words) */
@@ -42,10 +54,12 @@ export interface CrosswordBoardState {
 }
 
 export interface CrosswordLevelClimbState {
+  levelNumber: number;
   currentLevel: FiveDifficultyLevel;
   roundIndex: number; // 0..9 (10 puzzles per climb stage)
   roundPassedCount: number; // >= 8 out of 10 promotes level
   stageComplete: boolean;
+  promotedToLevelNumber: number | null;
   promotedToLevel: FiveDifficultyLevel | null;
 }
 
@@ -107,21 +121,24 @@ function filterWordsByLevel(pool: readonly string[], level: FiveDifficultyLevel)
   return sorted.slice(Math.floor(n * 0.72));
 }
 
-function anchorCountForDifficulty(length: WordLength, level: FiveDifficultyLevel): number {
-  if (level === 'novice') return length === 4 ? 6 : length === 5 ? 9 : 13;
-  if (level === 'beginner') return length === 4 ? 4 : length === 5 ? 6 : 9;
-  if (level === 'intermediate') return length === 4 ? 3 : length === 5 ? 4 : 6;
-  if (level === 'expert') return length === 4 ? 1 : length === 5 ? 2 : 3;
-  return 0; // legendary: zero starter anchors
+function anchorCountForDifficulty(length: WordLength, levelNumber: number): number {
+  const lv = normalizeLevelNumber(levelNumber);
+  if (lv <= 1) return length === 4 ? 6 : length === 5 ? 9 : 13;
+  if (lv === 2) return length === 4 ? 4 : length === 5 ? 6 : 9;
+  if (lv === 3) return length === 4 ? 3 : length === 5 ? 4 : 6;
+  if (lv === 4) return length === 4 ? 1 : length === 5 ? 2 : 3;
+  return 0; // Level 5+: zero starter anchors
 }
 
 function pickCrosswordSolution(params: {
   length: WordLength;
-  level: FiveDifficultyLevel;
+  levelNumber: number;
   categoryId: string;
   forcedTarget?: string;
 }): CompletedWordSquare {
-  const { length, level, categoryId, forcedTarget } = params;
+  const { length, levelNumber, categoryId, forcedTarget } = params;
+  const band = levelNumberToDifficultyBand(levelNumber);
+  const globalBucket = `crossword:global:${length}`;
 
   if (forcedTarget) {
     const clean = forcedTarget.trim().toUpperCase();
@@ -135,15 +152,21 @@ function pickCrosswordSolution(params: {
   const globalPool = SOLUTION_WORDS[length];
   const precomputedForLen = getPrecomputedTargetsForLength(length);
   const mergedPool = Array.from(
-    new Set([...catWords, ...filterWordsByLevel(globalPool, level), ...precomputedForLen])
+    new Set([...catWords, ...filterWordsByLevel(globalPool, band), ...precomputedForLen])
   );
 
-  // Try up to 8 zero-repeat target draws until buildCompletedWordSquare succeeds quickly
-  const tried: string[] = [];
+  const isAllCuratedSquare = (sq: CompletedWordSquare): boolean =>
+    sq.rows.every((w) => hasCuratedWordMeaning(w)) &&
+    sq.cols.every((w) => hasCuratedWordMeaning(w));
+
+  // Try up to 10 zero-repeat target draws (respecting global seen boards) preferring squares with 100% curated meanings
+  const globalSeen = getBucketSeenKeys(globalBucket);
+  const tried: string[] = [...globalSeen];
   const maxAttempts = length === 6 ? 5 : 10;
+  let backupBuilt: CompletedWordSquare | null = null;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const pickedWord = pickZeroRepeatItem(
-      `crossword:${categoryId}:${length}:${level}`,
+      `crossword:${categoryId}:${length}:${levelNumber}`,
       mergedPool,
       (w) => w,
       tried
@@ -151,27 +174,42 @@ function pickCrosswordSolution(params: {
     tried.push(pickedWord);
     const built = buildCompletedWordSquare(pickedWord, length);
     if (built) {
-      return built;
+      if (isAllCuratedSquare(built)) {
+        markBucketKeySeen(globalBucket, built.target);
+        return built;
+      }
+      if (!backupBuilt) backupBuilt = built;
     }
   }
 
-  // Zero-repeat draw from precomputed verified asymmetric words for this length
+  // Zero-repeat draw from precomputed verified asymmetric words (100% curated dictionary meanings!)
   if (precomputedForLen.length > 0) {
     const guaranteedPick = pickZeroRepeatItem(
-      `crossword:precomputed:${length}:${level}`,
+      `crossword:precomputed:${length}`,
       precomputedForLen,
       (w) => w,
-      tried
+      globalSeen
     );
     const builtGuaranteed = buildCompletedWordSquare(guaranteedPick, length);
-    if (builtGuaranteed) return builtGuaranteed;
+    if (builtGuaranteed) {
+      markBucketKeySeen(globalBucket, builtGuaranteed.target);
+      return builtGuaranteed;
+    }
+  }
+
+  if (backupBuilt) {
+    markBucketKeySeen(globalBucket, backupBuilt.target);
+    return backupBuilt;
   }
 
   // Fallback with guaranteed common words for requested length
   for (const word of ['CRANE', 'STAR', 'AGENDA', 'INFORM', 'HEART', 'PEACE', 'LIGHT', 'MIND', 'BLUE']) {
     if (word.length === length) {
       const built = buildCompletedWordSquare(word, length);
-      if (built) return built;
+      if (built) {
+        markBucketKeySeen(globalBucket, built.target);
+        return built;
+      }
     }
   }
 
@@ -217,14 +255,17 @@ function selectAnchorPositions(length: WordLength, count: number): Array<[number
 
 export function createCrosswordBoard(params: {
   length: WordLength;
-  level: FiveDifficultyLevel;
+  level?: FiveDifficultyLevel | number;
+  levelNumber?: number;
   categoryId?: string;
   forcedTarget?: string;
 }): CrosswordBoardState {
   const categoryId = params.categoryId || 'general-classic';
+  const levelNumber = normalizeLevelNumber(params.levelNumber ?? params.level, 1);
+  const band = levelNumberToDifficultyBand(levelNumber);
   const solution = pickCrosswordSolution({
     length: params.length,
-    level: params.level,
+    levelNumber,
     categoryId,
     forcedTarget: params.forcedTarget,
   });
@@ -233,7 +274,7 @@ export function createCrosswordBoard(params: {
   const userGrid = createEmptyGrid(L);
   const anchorCells = createBoolGrid(L, false);
   const lockedCells = createBoolGrid(L, false);
-  const anchorCount = anchorCountForDifficulty(L, params.level);
+  const anchorCount = anchorCountForDifficulty(L, levelNumber);
   const anchors = selectAnchorPositions(L, anchorCount);
 
   for (const [r, c] of anchors) {
@@ -246,7 +287,8 @@ export function createCrosswordBoard(params: {
   return {
     boardId: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     length: L,
-    level: params.level,
+    levelNumber,
+    level: band,
     categoryId,
     solution,
     userGrid,
@@ -710,13 +752,16 @@ export function getCrosswordProgressSummary(board: CrosswordBoardState): {
 }
 
 export function createCrosswordClimbState(
-  level: FiveDifficultyLevel = 'novice'
+  level: FiveDifficultyLevel | number = 1
 ): CrosswordLevelClimbState {
+  const levelNumber = normalizeLevelNumber(level, 1);
   return {
-    currentLevel: level,
+    levelNumber,
+    currentLevel: levelNumberToDifficultyBand(levelNumber),
     roundIndex: 0,
     roundPassedCount: 0,
     stageComplete: false,
+    promotedToLevelNumber: null,
     promotedToLevel: null,
   };
 }
@@ -730,31 +775,37 @@ export function advanceCrosswordLevelClimb(
   passedCleanly: boolean
 ): CrosswordLevelClimbState {
   if (climb.stageComplete) return climb;
+  const levelNumber = normalizeLevelNumber(climb.levelNumber ?? climb.currentLevel, 1);
   const nextPassed = climb.roundPassedCount + (passedCleanly ? 1 : 0);
   const nextRound = climb.roundIndex + 1;
   if (nextRound >= CROSSWORD_LEVEL_CLIMB_TOTAL) {
     const promoted = nextPassed >= CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD;
-    const nextLevel = promoted ? getNextFiveLevel(climb.currentLevel) : null;
+    const nextNum = promoted ? getNextLevelNumber(levelNumber) : null;
+    const legacyNext = promoted ? getNextFiveLevel(climb.currentLevel) : null;
     return {
+      levelNumber,
       currentLevel: climb.currentLevel,
       roundIndex: CROSSWORD_LEVEL_CLIMB_TOTAL,
       roundPassedCount: nextPassed,
       stageComplete: true,
-      promotedToLevel: nextLevel,
+      promotedToLevelNumber: nextNum,
+      promotedToLevel: legacyNext,
     };
   }
   return {
     ...climb,
+    levelNumber,
     roundIndex: nextRound,
     roundPassedCount: nextPassed,
     stageComplete: false,
+    promotedToLevelNumber: null,
     promotedToLevel: null,
   };
 }
 
 export function formatCrosswordShareText(board: CrosswordBoardState): string {
   const prog = getCrosswordProgressSummary(board);
-  const levelLabel = FIVE_LEVEL_META[board.level]?.label || board.level;
+  const levelLabel = formatLevelLabel(board.levelNumber ?? normalizeLevelNumber(board.level, 1));
   const category = getCategoryById(board.categoryId);
   const rowBadges = board.solvedRows.map((s) => (s ? '🟩' : '⬜')).join('');
   const colBadges = board.solvedCols.map((s) => (s ? '🟨' : '⬜')).join('');

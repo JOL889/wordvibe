@@ -330,7 +330,7 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
             </form>
 
             {statusMessage && (
-              <p className="mt-2 text-[11px] font-medium wv-accent-text">
+              <p className="mt-2 text-xs font-medium wv-accent-text">
                 {statusMessage}
               </p>
             )}
@@ -343,7 +343,7 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
                 <Compass className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
                 <span>Your Topics (Up to 5)</span>
               </h3>
-              <span className="font-mono-tabular text-[11px] wv-text-muted">
+              <span className="font-mono-tabular text-xs wv-text-muted">
                 {profile.selectedInterests.length}/5 selected
               </span>
             </div>
@@ -392,7 +392,7 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
                     }`}
                   >
                     <div className="text-xs font-bold">{opt.label}</div>
-                    <div className="mt-0.5 text-[10px] leading-snug opacity-80">
+                    <div className="mt-0.5 text-xs leading-snug opacity-80">
                       {opt.desc}
                     </div>
                   </button>
@@ -414,9 +414,9 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
               <button
                 type="button"
                 onClick={onResetStudyStats}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold wv-text-muted hover:opacity-80 cursor-pointer"
+                className="inline-flex items-center gap-1 text-xs font-semibold wv-text-muted hover:opacity-80 cursor-pointer"
               >
-                <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>Reset Study</span>
               </button>
             </div>
@@ -426,23 +426,23 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
                 <div className="font-mono-tabular text-sm font-bold wv-text">
                   {insights.favoriteLength}-Letter
                 </div>
-                <div className="text-[10px] wv-text-muted">Top Board</div>
+                <div className="text-xs wv-text-muted">Top Board</div>
               </div>
               <div className="rounded-lg border wv-border wv-card p-2">
                 <div className="font-mono-tabular text-sm font-bold wv-accent-text">
                   {profile.triviaAnswered > 0 ? `${insights.triviaAccuracy}%` : '—'}
                 </div>
-                <div className="text-[10px] wv-text-muted">Trivia Acc.</div>
+                <div className="text-xs wv-text-muted">Trivia Acc.</div>
               </div>
               <div className="rounded-lg border wv-border wv-card p-2">
                 <div className="font-mono-tabular text-sm font-bold wv-text">
                   {profile.totalPuzzlesStudied > 0 ? insights.avgGuesses : '—'}
                 </div>
-                <div className="text-[10px] wv-text-muted">Avg Moves</div>
+                <div className="text-xs wv-text-muted">Avg Moves</div>
               </div>
             </div>
 
-            <p className="mt-2.5 text-[11px] leading-relaxed wv-text-muted">
+            <p className="mt-2.5 text-xs leading-relaxed wv-text-muted">
               {insights.topCategoryNames.length > 0
                 ? `Top studied puzzle themes: ${insights.topCategoryNames.join(', ')}. Peak window: ${insights.peakWindowLabel}.`
                 : `Play puzzles and Trivia so WordVibe can adapt your recommended pace cleanly offline.`}
@@ -459,32 +459,32 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
                 <UserCheck className="h-4 w-4 wv-accent-text" aria-hidden="true" />
                 <span>Your Active Player Context</span>
               </div>
-              <span className="font-mono-tabular text-[10px] font-semibold wv-accent-text">
+              <span className="font-mono-tabular text-xs font-semibold wv-accent-text">
                 {dossier.skillTier} Tier
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
+            <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="rounded-lg border wv-border wv-card px-2.5 py-2">
-                <div className="text-[10px] wv-text-muted">Region &amp; Timezone</div>
+                <div className="text-xs wv-text-muted">Region &amp; Timezone</div>
                 <div className="font-semibold wv-text truncate">
                   {dossier.regionLabel} · {envSnapshot.timezone}
                 </div>
               </div>
               <div className="rounded-lg border wv-border wv-card px-2.5 py-2">
-                <div className="text-[10px] wv-text-muted">Language &amp; Window</div>
+                <div className="text-xs wv-text-muted">Language &amp; Window</div>
                 <div className="font-semibold wv-text truncate">
                   {dossier.locale} · {envSnapshot.dayOfWeek} {dossier.timeOfDay}
                 </div>
               </div>
               <div className="rounded-lg border wv-border wv-card px-2.5 py-2">
-                <div className="text-[10px] wv-text-muted">Device &amp; Input</div>
+                <div className="text-xs wv-text-muted">Device &amp; Input</div>
                 <div className="font-semibold wv-text truncate">
                   {dossier.deviceLabel} · {envSnapshot.inputMethod}
                 </div>
               </div>
               <div className="rounded-lg border wv-border wv-card px-2.5 py-2">
-                <div className="text-[10px] wv-text-muted">Active Focus</div>
+                <div className="text-xs wv-text-muted">Active Focus</div>
                 <div className="font-semibold wv-text truncate">
                   {dossier.focusLabel}
                 </div>
@@ -493,7 +493,7 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <label className="block">
-                <span className="text-[10px] font-semibold wv-text-muted">
+                <span className="text-xs font-semibold wv-text-muted">
                   Name (Optional)
                 </span>
                 <input
@@ -512,7 +512,7 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
               </label>
 
               <label className="block">
-                <span className="text-[10px] font-semibold wv-text-muted">
+                <span className="text-xs font-semibold wv-text-muted">
                   Field or Vibe (Optional)
                 </span>
                 <input

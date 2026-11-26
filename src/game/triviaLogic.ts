@@ -1,5 +1,13 @@
-import { FIVE_LEVEL_ORDER, getNextFiveLevel, type FiveDifficultyLevel } from './settingsLogic';
+import {
+  FIVE_LEVEL_ORDER,
+  getNextFiveLevel,
+  getNextLevelNumber,
+  levelNumberToDifficultyBand,
+  normalizeLevelNumber,
+  type FiveDifficultyLevel,
+} from './settingsLogic';
 import { CURATED_TRIVIA_BANK, type CuratedBankTriviaItem } from './triviaBank';
+import { CURATED_WORD_MEANINGS } from './wordMeanings';
 import {
   getBucketRemainingCount,
   getBucketSeenKeys,
@@ -36,19 +44,26 @@ export const TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD = 8;
 export const TRIVIA_BONUS_UNLOCK_HOURS = 24;
 
 export interface TriviaClimbProgress {
+  levelNumber: number;
   currentLevel: FiveDifficultyLevel;
   questionIndex: number; // 0..9 within current 10-question stage
-  correctCount: number; // >= 8 unlocks next difficulty tier
+  correctCount: number; // >= 8 unlocks next level
   stageComplete: boolean;
+  promotedToLevelNumber: number | null;
   promotedToLevel: FiveDifficultyLevel | null;
 }
 
-export function createTriviaClimbState(level: FiveDifficultyLevel = 'novice'): TriviaClimbProgress {
+export function createTriviaClimbState(
+  level: FiveDifficultyLevel | number = 1
+): TriviaClimbProgress {
+  const levelNumber = normalizeLevelNumber(level, 1);
   return {
-    currentLevel: level,
+    levelNumber,
+    currentLevel: levelNumberToDifficultyBand(levelNumber),
     questionIndex: 0,
     correctCount: 0,
     stageComplete: false,
+    promotedToLevelNumber: null,
     promotedToLevel: null,
   };
 }
@@ -58,24 +73,30 @@ export function advanceTriviaLevelClimb(
   isCorrect: boolean
 ): TriviaClimbProgress {
   if (climb.stageComplete) return climb;
+  const levelNumber = normalizeLevelNumber(climb.levelNumber ?? climb.currentLevel, 1);
   const nextCorrect = climb.correctCount + (isCorrect ? 1 : 0);
   const nextIndex = climb.questionIndex + 1;
   if (nextIndex >= TRIVIA_LEVEL_CLIMB_TOTAL) {
     const passed = nextCorrect >= TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD;
-    const nextLevel = passed ? getNextFiveLevel(climb.currentLevel) : null;
+    const nextNum = passed ? getNextLevelNumber(levelNumber) : null;
+    const legacyNext = passed ? getNextFiveLevel(climb.currentLevel) : null;
     return {
+      levelNumber,
       currentLevel: climb.currentLevel,
       questionIndex: TRIVIA_LEVEL_CLIMB_TOTAL,
       correctCount: nextCorrect,
       stageComplete: true,
-      promotedToLevel: nextLevel,
+      promotedToLevelNumber: nextNum,
+      promotedToLevel: legacyNext,
     };
   }
   return {
     ...climb,
+    levelNumber,
     questionIndex: nextIndex,
     correctCount: nextCorrect,
     stageComplete: false,
+    promotedToLevelNumber: null,
     promotedToLevel: null,
   };
 }
@@ -257,72 +278,131 @@ function getTierPoolWithNeighborFallback(
   return expanded.length > 0 ? expanded : pool;
 }
 
+const CURATED_VOCAB_WORDS = Object.keys(CURATED_WORD_MEANINGS);
+
+function hashString(str: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function generateProceduralTriviaQuestion(params: {
+  categoryId: string;
+  level: FiveDifficultyLevel;
+  excludeSet: Set<string>;
+  personalizationReason?: string;
+}): TriviaQuestion {
+  const { categoryId, level, excludeSet, personalizationReason } = params;
+  const catMeta = getTriviaCategoryById(categoryId);
+
+  // Pick a unique word from 1,800+ curated English dictionary definitions that hasn't been used in trivia
+  const startOffset = Math.floor(Math.random() * CURATED_VOCAB_WORDS.length);
+  for (let i = 0; i < CURATED_VOCAB_WORDS.length; i++) {
+    const word = CURATED_VOCAB_WORDS[(startOffset + i) % CURATED_VOCAB_WORDS.length];
+    const id = `proc:vocab:${categoryId}:${word}`;
+    const qText =
+      categoryId === 'logic-riddles'
+        ? `Word Riddle: Which ${word.length}-letter English word matches this meaning — "${CURATED_WORD_MEANINGS[word]}"?`
+        : `Vocabulary Challenge: Which ${word.length}-letter word means "${CURATED_WORD_MEANINGS[word]}"?`;
+
+    if (excludeSet.has(id.toLowerCase()) || excludeSet.has(qText.toLowerCase())) {
+      continue;
+    }
+
+    const sameLen = CURATED_VOCAB_WORDS.filter((w) => w !== word && w.length === word.length);
+    const distractors: string[] = [];
+    const stepBase = hashString(word) % Math.max(1, sameLen.length);
+    for (let d = 0; d < sameLen.length && distractors.length < 3; d++) {
+      const candidate = sameLen[(stepBase + d * 17) % sameLen.length];
+      if (!distractors.includes(candidate)) {
+        distractors.push(candidate);
+      }
+    }
+    while (distractors.length < 3) {
+      distractors.push(CURATED_VOCAB_WORDS[(distractors.length * 43 + 7) % CURATED_VOCAB_WORDS.length]);
+    }
+
+    const rawOptions = [word, ...distractors];
+    const correctSlot = hashString(id) % 4;
+    const ordered: [string, string, string, string] = ['', '', '', ''];
+    ordered[correctSlot] = word;
+    let di = 1;
+    for (let s = 0; s < 4; s++) {
+      if (s !== correctSlot) {
+        ordered[s] = rawOptions[di++];
+      }
+    }
+
+    return {
+      id,
+      question: qText,
+      options: ordered,
+      correctIndex: correctSlot,
+      explanation: `${word}: ${CURATED_WORD_MEANINGS[word]}.`,
+      funFact: `${word} has ${word.length} letters and makes a great crossword anchor!`,
+      category: catMeta.name,
+      difficulty: level,
+      ...(personalizationReason ? { personalizationReason } : {}),
+    };
+  }
+
+  // Fallback mathematical sequence riddle stamped with unique seed
+  const step = 3 + Math.floor(Math.random() * 9);
+  const start = 4 + Math.floor(Math.random() * 20);
+  const seq = [start, start + step, start + step * 2, start + step * 3];
+  const answer = start + step * 4;
+  const uid = `proc:seq:${start}:${step}:${Date.now()}`;
+  return {
+    id: uid,
+    question: `Number Pattern: What comes next in the sequence ${seq.join(', ')}, ...?`,
+    options: [
+      String(answer - step),
+      String(answer),
+      String(answer + 2),
+      String(answer + step),
+    ],
+    correctIndex: 1,
+    explanation: `Each term increases steadily by +${step}, so ${seq[3]} + ${step} = ${answer}.`,
+    funFact: 'Arithmetic progressions keep patterns predictable across unlimited steps.',
+    category: catMeta.name,
+    difficulty: level,
+    ...(personalizationReason ? { personalizationReason } : {}),
+  };
+}
+
 /**
- * Draws the next zero-repeat question from the massive curated offline bank for `categoryId` + `level`.
- * Uses `zeroRepeatDeck.ts` persisted to `localStorage` so repeat probability is 0% even across
- * new sessions and page reloads until an entire deck is exhausted.
+ * Draws the next zero-repeat question from the curated offline bank for `categoryId` + `level`.
+ * Uses global + bucket zero-repeat tracking and unlimited procedural word/logic generation when pools finish.
  */
 export function drawZeroRepeatTriviaQuestion(params: {
   categoryId: string;
-  level: FiveDifficultyLevel;
+  level?: FiveDifficultyLevel | number;
+  levelNumber?: number;
   excludeTexts?: string[];
   context?: {
     locationLabel?: string;
     interests?: string[];
   };
 }): TriviaQuestion {
-  const { categoryId, level, excludeTexts = [], context } = params;
+  const { categoryId, excludeTexts = [], context } = params;
+  const levelNumber = normalizeLevelNumber(params.levelNumber ?? params.level, 1);
+  const level = levelNumberToDifficultyBand(levelNumber);
+
   const basePool = filterBankForCategory(categoryId);
   const exactOnly = basePool.filter((q) => q.level === level);
   const tierPool = getTierPoolWithNeighborFallback(basePool, level);
 
-  const globalBucket = `trivia:${categoryId}:seen_all`;
-  const alreadySeenGlobal = getBucketSeenKeys(globalBucket);
-  const combinedExcludes = Array.from(new Set([...excludeTexts, ...alreadySeenGlobal]));
+  const catGlobalBucket = `trivia:${categoryId}:seen_all`;
+  const allVaultBucket = `trivia:global_vault:seen_all`;
+  const alreadySeenCat = getBucketSeenKeys(catGlobalBucket);
+  const alreadySeenAll = getBucketSeenKeys(allVaultBucket);
+  const combinedExcludes = Array.from(
+    new Set([...excludeTexts, ...alreadySeenCat, ...alreadySeenAll])
+  );
   const excludeSet = new Set(combinedExcludes.map((t) => t.trim().toLowerCase()));
-
-  const exactRemaining =
-    exactOnly.length > 0
-      ? getBucketRemainingCount(
-          `trivia:${categoryId}:${level}`,
-          exactOnly,
-          (q) => q.id,
-          combinedExcludes
-        )
-      : 0;
-
-  let chosen: CuratedBankTriviaItem;
-  if (exactRemaining > 0) {
-    const filteredExact = exactOnly.filter(
-      (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
-    );
-    chosen = pickZeroRepeatItem(
-      `trivia:${categoryId}:${level}`,
-      filteredExact.length > 0 ? filteredExact : exactOnly,
-      (q) => q.id,
-      combinedExcludes
-    );
-  } else {
-    const fallbackPool = tierPool.length > 0 ? tierPool : basePool;
-    const filteredFallback = fallbackPool.filter(
-      (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
-    );
-    const poolToUse =
-      filteredFallback.length > 0
-        ? filteredFallback
-        : basePool.filter(
-            (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
-          );
-    chosen = pickZeroRepeatItem(
-      `trivia:${categoryId}:${level}`,
-      poolToUse.length > 0 ? poolToUse : fallbackPool,
-      (q) => q.id,
-      excludeTexts
-    );
-  }
-
-  markBucketKeySeen(globalBucket, chosen.id);
-  markBucketKeySeen(globalBucket, chosen.question);
 
   let personalizationReason: string | undefined;
   if (categoryId === 'for-you-local') {
@@ -334,7 +414,80 @@ export function drawZeroRepeatTriviaQuestion(params: {
     personalizationReason = `Regional Highlight · ${context.locationLabel}`;
   }
 
-  return toTriviaQuestion(chosen, personalizationReason);
+  const exactRemaining =
+    exactOnly.length > 0
+      ? getBucketRemainingCount(
+          `trivia:${categoryId}:${level}`,
+          exactOnly,
+          (q) => q.id,
+          combinedExcludes
+        )
+      : 0;
+
+  let chosen: CuratedBankTriviaItem | null = null;
+  if (exactRemaining > 0) {
+    const filteredExact = exactOnly.filter(
+      (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
+    );
+    if (filteredExact.length > 0) {
+      chosen = pickZeroRepeatItem(
+        `trivia:${categoryId}:${level}`,
+        filteredExact,
+        (q) => q.id,
+        combinedExcludes
+      );
+    }
+  }
+
+  if (!chosen) {
+    const unseenTier = tierPool.filter(
+      (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
+    );
+    const unseenBase = basePool.filter(
+      (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
+    );
+    const unseenWholeBank = CURATED_TRIVIA_BANK.filter(
+      (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
+    );
+
+    const poolToUse =
+      unseenTier.length > 0
+        ? unseenTier
+        : unseenBase.length > 0
+        ? unseenBase
+        : unseenWholeBank;
+
+    if (poolToUse.length > 0) {
+      chosen = pickZeroRepeatItem(
+        `trivia:${categoryId}:spillover`,
+        poolToUse,
+        (q) => q.id,
+        combinedExcludes
+      );
+    }
+  }
+
+  if (chosen) {
+    markBucketKeySeen(catGlobalBucket, chosen.id);
+    markBucketKeySeen(catGlobalBucket, chosen.question);
+    markBucketKeySeen(allVaultBucket, chosen.id);
+    markBucketKeySeen(allVaultBucket, chosen.question);
+    return toTriviaQuestion(chosen, personalizationReason);
+  }
+
+  const procedural = generateProceduralTriviaQuestion({
+    categoryId,
+    level,
+    excludeSet,
+    personalizationReason,
+  });
+  if (procedural.id) {
+    markBucketKeySeen(catGlobalBucket, procedural.id);
+    markBucketKeySeen(allVaultBucket, procedural.id);
+  }
+  markBucketKeySeen(catGlobalBucket, procedural.question);
+  markBucketKeySeen(allVaultBucket, procedural.question);
+  return procedural;
 }
 
 /**

@@ -24,7 +24,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onChangeTab }) 
       aria-label="Primary screen switcher"
       className="fixed inset-x-0 bottom-0 z-40 border-t wv-border wv-card backdrop-blur-md"
     >
-      <div className="relative mx-auto grid h-[62px] max-w-lg grid-cols-4 px-2">
+      <div className="relative mx-auto grid h-[64px] max-w-lg grid-cols-4 px-2">
         {/* Sliding Top Accent Pill */}
         <div
           aria-hidden="true"
@@ -50,13 +50,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onChangeTab }) 
                 e.currentTarget.blur();
                 onChangeTab(tab.id);
               }}
-              className={`relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-bold transition-transform active:scale-95 whitespace-nowrap cursor-pointer ${
+              className={`relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-bold transition-transform active:scale-95 whitespace-nowrap cursor-pointer ${
                 isActive ? 'wv-accent-text' : 'wv-text-muted hover:opacity-90'
               }`}
             >
               {tab.id === 'home' && (
                 <Flame
-                  className={`h-5 w-5 ${isActive ? 'animate-flame-pulse' : ''}`}
+                  className="h-5 w-5"
                   strokeWidth={isActive ? 2.5 : 2}
                   aria-hidden="true"
                 />

@@ -6,6 +6,8 @@ import {
   Flame,
   Lock,
   MapPin,
+  Minus,
+  Plus,
   RefreshCw,
   ShieldCheck,
   Sparkles,
@@ -20,9 +22,9 @@ import {
   type PlayerProfileState,
 } from '../game/playerProfileLogic';
 import {
-  FIVE_LEVEL_META,
-  FIVE_LEVEL_ORDER,
-  type FiveDifficultyLevel,
+  formatLevelLabel,
+  levelNumberToDifficultyBand,
+  normalizeLevelNumber,
   type SessionPlayMode,
 } from '../game/settingsLogic';
 import {
@@ -46,7 +48,7 @@ import { soundService } from '../services/soundService';
 interface TriviaViewProps {
   selectedCategoryId: string;
   sessionMode: SessionPlayMode;
-  activeLevel: FiveDifficultyLevel;
+  levelNumber: number;
   climbState: TriviaClimbProgress;
   streak: number;
   bestStreak: number;
@@ -57,9 +59,9 @@ interface TriviaViewProps {
   onOpenPersonalize: () => void;
   onSelectCategory: (categoryId: string) => void;
   onChangeSessionMode: (mode: SessionPlayMode) => void;
-  onChangeLevel: (level: FiveDifficultyLevel) => void;
+  onChangeLevelNumber: (levelNumber: number) => void;
   onUpdateClimbState: (next: TriviaClimbProgress) => void;
-  onPromoteLevel: (nextLevel: FiveDifficultyLevel) => void;
+  onPromoteLevelNumber: (nextLevel: number) => void;
   onUnlockBonusCategory: () => void;
   onRequestAdPlacement: (placement: RewardPlacement, onGranted: () => void) => void;
   onAnswerRecorded: (params: {
@@ -81,10 +83,14 @@ interface TriviaViewProps {
 
 const OPTION_LETTERS = ['A', 'B', 'C', 'D'] as const;
 
+// Session cache preserves unanswered question across React StrictMode remounts & tab switches
+const pendingTriviaByKey = new Map<string, TriviaQuestion>();
+let lastHandledRefreshSignal = 0;
+
 export const TriviaView: React.FC<TriviaViewProps> = ({
   selectedCategoryId,
   sessionMode,
-  activeLevel,
+  levelNumber,
   climbState,
   streak,
   bestStreak,
@@ -95,15 +101,16 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
   onOpenPersonalize,
   onSelectCategory,
   onChangeSessionMode,
-  onChangeLevel,
+  onChangeLevelNumber,
   onUpdateClimbState,
-  onPromoteLevel,
+  onPromoteLevelNumber,
   onUnlockBonusCategory,
   onRequestAdPlacement,
   onAnswerRecorded,
   onRoundCompleted,
   onDoubleXpClaimed,
 }) => {
+  const safeLevel = normalizeLevelNumber(levelNumber, 1);
   const [question, setQuestion] = useState<TriviaQuestion | null>(null);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [revivedThisQuestion, setRevivedThisQuestion] = useState(false);
@@ -116,22 +123,27 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
   const [adsWatchedForReveal, setAdsWatchedForReveal] = useState(0);
 
   const drawNextQuestion = useCallback(
-    (categoryId: string, level: FiveDifficultyLevel) => {
-      const interestLabels = playerProfile.selectedInterests.map(
-        (id) => INTEREST_CATALOG.find((item) => item.id === id)?.label || id
-      );
-      const q = drawZeroRepeatTriviaQuestion({
-        categoryId,
-        level,
-        excludeTexts: recentQuestions,
-        context: {
-          locationLabel:
-            playerProfile.locationEnabled && !playerProfile.locationOptOut
-              ? formatLocationLabel(playerProfile.location)
-              : undefined,
-          interests: interestLabels,
-        },
-      });
+    (categoryId: string, lvNum: number, forceFresh = false) => {
+      const cacheKey = `${categoryId}::${lvNum}`;
+      let q = !forceFresh ? pendingTriviaByKey.get(cacheKey) : undefined;
+      if (!q) {
+        const interestLabels = playerProfile.selectedInterests.map(
+          (id) => INTEREST_CATALOG.find((item) => item.id === id)?.label || id
+        );
+        q = drawZeroRepeatTriviaQuestion({
+          categoryId,
+          levelNumber: lvNum,
+          excludeTexts: recentQuestions,
+          context: {
+            locationLabel:
+              playerProfile.locationEnabled && !playerProfile.locationOptOut
+                ? formatLocationLabel(playerProfile.location)
+                : undefined,
+            interests: interestLabels,
+          },
+        });
+        pendingTriviaByKey.set(cacheKey, q);
+      }
       setQuestion(q);
       setSelectedIdx(null);
       setRevivedThisQuestion(false);
@@ -142,21 +154,22 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
     [playerProfile, recentQuestions]
   );
 
-  // Sync fresh question when category, level, session mode, or shake refreshSignal changes
+  // Restore cached unanswered question or draw fresh if force-refreshed
   useEffect(() => {
-    drawNextQuestion(selectedCategoryId, activeLevel);
+    const forceFresh = refreshSignal !== lastHandledRefreshSignal;
+    lastHandledRefreshSignal = refreshSignal;
+    drawNextQuestion(selectedCategoryId, safeLevel, forceFresh);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategoryId, activeLevel, sessionMode, refreshSignal]);
+  }, [selectedCategoryId, safeLevel, sessionMode, refreshSignal]);
 
   const handleCategoryClick = (catId: string) => {
     if (!isTriviaCategoryUnlocked(catId, bonusUnlockUntil)) {
       onUnlockBonusCategory();
       return;
     }
-    soundService.playTapPop();
     onSelectCategory(catId);
     if (sessionMode === 'level_climb') {
-      onUpdateClimbState(createTriviaClimbState(activeLevel));
+      onUpdateClimbState(createTriviaClimbState(safeLevel));
       setStageXpEarned(0);
       setDoubleXpClaimed(false);
     }
@@ -165,8 +178,9 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
   const handleSelectOption = (optionIdx: number) => {
     if (!question || selectedIdx !== null) return;
     setSelectedIdx(optionIdx);
-    const isCorrect = optionIdx === question.correctIndex;
+    pendingTriviaByKey.delete(`${selectedCategoryId}::${safeLevel}`);
 
+    const isCorrect = optionIdx === question.correctIndex;
     let xpGained = 5;
     if (isCorrect) {
       const nextStreak = streak + 1;
@@ -237,7 +251,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
       setRevivedThisQuestion(true);
       onAnswerRecorded({
         correct: true,
-        difficulty: question?.difficulty || activeLevel,
+        difficulty: question?.difficulty || levelNumberToDifficultyBand(safeLevel),
         streakAfter: streakBeforeMiss,
         xpAwarded: 25,
         categoryId: selectedCategoryId,
@@ -247,20 +261,18 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
   };
 
   const handleNextStep = () => {
-    soundService.playTapPop();
-    drawNextQuestion(selectedCategoryId, activeLevel);
+    drawNextQuestion(selectedCategoryId, safeLevel, true);
   };
 
   const handleStartNextClimbStage = () => {
-    soundService.playTapPop();
-    const targetLevel = climbState.promotedToLevel || climbState.currentLevel;
-    if (climbState.promotedToLevel) {
-      onPromoteLevel(climbState.promotedToLevel);
+    const targetLevelNum = climbState.promotedToLevelNumber || safeLevel;
+    if (climbState.promotedToLevelNumber) {
+      onPromoteLevelNumber(climbState.promotedToLevelNumber);
     }
-    onUpdateClimbState(createTriviaClimbState(targetLevel));
+    onUpdateClimbState(createTriviaClimbState(targetLevelNum));
     setStageXpEarned(0);
     setDoubleXpClaimed(false);
-    drawNextQuestion(selectedCategoryId, targetLevel);
+    drawNextQuestion(selectedCategoryId, targetLevelNum, true);
   };
 
   const handleDoubleStageXp = () => {
@@ -288,7 +300,8 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
     stageXpEarned > 0 &&
     rewardedAdService.canShowOptionalPrompt();
 
-  const showClimbSummary = sessionMode === 'level_climb' && climbState.stageComplete && selectedIdx === null;
+  const showClimbSummary =
+    sessionMode === 'level_climb' && climbState.stageComplete && selectedIdx === null;
 
   return (
     <section
@@ -296,16 +309,16 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
       aria-label="WordVibe Brain Trivia"
       className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 pt-3 pb-24 sm:pt-5 animate-stage-enter"
     >
-      {/* Top Trivia Studio Card: Mode, Category, 5-Level Selector */}
+      {/* Top Trivia Studio Card: Mode, Category, Unbounded Level Stepper */}
       <div className="rounded-2xl border wv-border wv-card p-4 sm:p-5 shadow-xs space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 font-display text-sm font-bold wv-accent-text">
+          <div className="flex items-center gap-1.5 font-display text-base font-bold wv-accent-text">
             <Brain className="h-4 w-4" aria-hidden="true" />
             <span>Brain Trivia · {activeCategory.name}</span>
           </div>
-          <div className="flex items-center gap-2 font-mono-tabular text-xs font-bold wv-text">
+          <div className="flex items-center gap-2 font-mono-tabular text-xs sm:text-sm font-bold wv-text">
             <span className="inline-flex items-center gap-1">
-              <Flame className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
+              <Flame className="h-4 w-4 wv-accent-text" aria-hidden="true" />
               <span data-testid="trivia-streak-count">{streak}</span>
             </span>
             <span className="wv-text-muted">·</span>
@@ -327,12 +340,9 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
             <button
               type="button"
               data-testid="trivia-mode-climb-btn"
-              onClick={() => {
-                soundService.playTapPop();
-                onChangeSessionMode('level_climb');
-              }}
+              onClick={() => onChangeSessionMode('level_climb')}
               aria-pressed={sessionMode === 'level_climb'}
-              className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold cursor-pointer ${
+              className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs sm:text-sm font-bold cursor-pointer ${
                 sessionMode === 'level_climb' ? 'wv-accent-btn' : 'wv-text-muted hover:opacity-90'
               }`}
             >
@@ -342,12 +352,9 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
             <button
               type="button"
               data-testid="trivia-mode-sprint-btn"
-              onClick={() => {
-                soundService.playTapPop();
-                onChangeSessionMode('sprint');
-              }}
+              onClick={() => onChangeSessionMode('sprint')}
               aria-pressed={sessionMode === 'sprint'}
-              className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold cursor-pointer ${
+              className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs sm:text-sm font-bold cursor-pointer ${
                 sessionMode === 'sprint' ? 'wv-accent-btn' : 'wv-text-muted hover:opacity-90'
               }`}
             >
@@ -356,7 +363,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
             </button>
           </div>
 
-          <span className="font-mono-tabular text-xs font-bold wv-text-muted">
+          <span className="font-mono-tabular text-xs sm:text-sm font-bold wv-text-muted">
             {sessionMode === 'level_climb'
               ? `Q ${
                   selectedIdx === null
@@ -382,70 +389,74 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                 type="button"
                 data-trivia-category={cat.id}
                 onClick={() => handleCategoryClick(cat.id)}
-                className={`inline-flex min-h-9 items-center gap-1.5 rounded-xl border px-3 py-1 text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
+                className={`inline-flex min-h-9 items-center gap-1.5 rounded-xl border px-3 py-1 text-xs sm:text-sm font-bold transition-colors whitespace-nowrap cursor-pointer ${
                   isSelected
                     ? 'wv-accent-btn border-transparent'
                     : cat.isBonusLocked && !unlocked
-                    ? 'border-amber-500/40 wv-card-muted text-amber-500'
+                    ? 'wv-accent-pill'
                     : 'wv-border wv-card-muted wv-text hover:opacity-85'
                 }`}
               >
                 {cat.isBonusLocked &&
                   (unlocked ? (
-                    <Unlock className="h-3.5 w-3.5 text-emerald-400" aria-hidden="true" />
+                    <Unlock className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
                   ) : (
-                    <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+                    <Lock className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
                   ))}
                 <span>{cat.name}</span>
                 {cat.isBonusLocked && unlocked && (
-                  <span className="font-mono-tabular text-[10px] opacity-80">({hrsLeft}h)</span>
+                  <span className="font-mono-tabular text-xs opacity-80">({hrsLeft}h)</span>
                 )}
               </button>
             );
           })}
         </div>
 
-        {/* Interactive 5-Level Difficulty Switcher */}
-        <div className="border-t wv-border pt-3">
-          <div className="flex items-center justify-between gap-2 mb-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider wv-text-muted">
-              Difficulty Tier
+        {/* Unbounded Numbered Level Stepper (Level 1 -> Level 2 -> Level 3...) */}
+        <div className="flex items-center justify-between gap-2 border-t wv-border pt-3">
+          <div className="flex flex-col">
+            <span className="text-xs font-bold uppercase tracking-wider wv-text-muted">
+              Current Level
             </span>
-            <span
-              data-testid="trivia-active-level-badge"
-              className="font-mono-tabular text-[11px] font-bold wv-accent-text"
-            >
-              {FIVE_LEVEL_META[activeLevel].label} ({FIVE_LEVEL_META[activeLevel].badge})
+            <span className="text-xs wv-text-muted">
+              {sessionMode === 'level_climb'
+                ? `Score 8/10 to reach Level ${safeLevel + 1}`
+                : `Endless climb · ${formatLevelLabel(safeLevel)}`}
             </span>
           </div>
-          <div className="grid grid-cols-5 gap-1.5">
-            {FIVE_LEVEL_ORDER.map((lvlId) => {
-              const meta = FIVE_LEVEL_META[lvlId];
-              const active = activeLevel === lvlId;
-              return (
-                <button
-                  key={lvlId}
-                  type="button"
-                  data-trivia-level={lvlId}
-                  aria-pressed={active}
-                  onClick={() => {
-                    soundService.playTapPop();
-                    onChangeLevel(lvlId);
-                  }}
-                  className={`flex min-h-10 flex-col items-center justify-center rounded-xl border px-1 py-1.5 text-center transition-all active:scale-95 cursor-pointer ${
-                    active
-                      ? 'wv-accent-btn border-transparent font-bold'
-                      : 'wv-border wv-card-muted wv-text hover:opacity-85 font-semibold'
-                  }`}
-                >
-                  <span className="text-[11px] sm:text-xs">{meta.shortLabel}</span>
-                </button>
-              );
-            })}
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              data-testid="trivia-level-dec"
+              disabled={safeLevel <= 1}
+              onClick={() => onChangeLevelNumber(Math.max(1, safeLevel - 1))}
+              aria-label="Previous level"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border wv-border wv-card-muted wv-text transition-transform active:scale-95 disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed"
+            >
+              <Minus className="h-4 w-4" aria-hidden="true" />
+            </button>
+
+            <span
+              data-testid="trivia-active-level-badge"
+              className="inline-flex min-h-10 min-w-[96px] items-center justify-center rounded-xl wv-accent-btn px-3.5 py-1.5 font-mono-tabular text-sm font-extrabold"
+            >
+              {formatLevelLabel(safeLevel)}
+            </span>
+
+            <button
+              type="button"
+              data-testid="trivia-level-inc"
+              onClick={() => onChangeLevelNumber(safeLevel + 1)}
+              aria-label="Next level"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border wv-border wv-card-muted wv-text transition-transform active:scale-95 cursor-pointer"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+            </button>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t wv-border pt-2.5 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t wv-border pt-2.5 text-xs sm:text-sm">
           <div className="flex items-center gap-1.5 wv-text-muted">
             <MapPin className="h-3.5 w-3.5 wv-accent-text shrink-0" aria-hidden="true" />
             <span>
@@ -471,12 +482,12 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
           data-testid="trivia-round-summary"
           className="wv-tilt-surface rounded-2xl border-2 wv-border wv-card p-5 sm:p-6 shadow-md animate-modal-pop"
         >
-          <div className="flex items-center gap-2 text-xs font-bold wv-accent-text">
+          <div className="flex items-center gap-2 text-xs sm:text-sm font-bold wv-accent-text">
             <Sparkles className="h-4 w-4" aria-hidden="true" />
             <span>
-              {climbState.promotedToLevel
-                ? `Level Up Unlocked: ${FIVE_LEVEL_META[climbState.promotedToLevel].label}!`
-                : `${FIVE_LEVEL_META[climbState.currentLevel].label} Stage Complete`}
+              {climbState.promotedToLevelNumber
+                ? `Level Up Unlocked: ${formatLevelLabel(climbState.promotedToLevelNumber)}!`
+                : `${formatLevelLabel(climbState.levelNumber ?? safeLevel)} Stage Complete`}
             </span>
           </div>
 
@@ -484,11 +495,9 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
             {climbState.correctCount} / {TRIVIA_LEVEL_CLIMB_TOTAL} Answered Correctly
           </h2>
           <p className="mt-1 text-sm wv-text-muted">
-            {climbState.promotedToLevel
-              ? `Awesome! You passed ${TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD}+ questions and promoted to ${FIVE_LEVEL_META[climbState.promotedToLevel].label}.`
-              : climbState.correctCount >= TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD
-              ? 'Mastered Legendary tier! Ready for another championship set.'
-              : `Score ${TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD}/10 or higher to advance to the next tier.`}
+            {climbState.promotedToLevelNumber
+              ? `Awesome! You passed ${TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD}+ questions and promoted to ${formatLevelLabel(climbState.promotedToLevelNumber)}.`
+              : `Score ${TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD}/10 or higher to unlock Level ${(climbState.levelNumber ?? safeLevel) + 1}.`}
           </p>
 
           <div className="mt-4 grid grid-cols-3 gap-2.5 text-center">
@@ -496,17 +505,17 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
               <div className="font-mono-tabular text-xl font-bold wv-text">
                 {Math.round((climbState.correctCount / TRIVIA_LEVEL_CLIMB_TOTAL) * 100)}%
               </div>
-              <div className="text-[11px] wv-text-muted">Accuracy</div>
+              <div className="text-xs wv-text-muted">Accuracy</div>
             </div>
             <div className="rounded-xl border wv-border wv-card-muted p-3">
               <div className="font-mono-tabular text-xl font-bold wv-accent-text">
                 +{doubleXpClaimed ? stageXpEarned * 2 : stageXpEarned}
               </div>
-              <div className="text-[11px] wv-text-muted">Weekly XP</div>
+              <div className="text-xs wv-text-muted">Weekly XP</div>
             </div>
             <div className="rounded-xl border wv-border wv-card-muted p-3">
-              <div className="font-mono-tabular text-xl font-bold text-amber-500">{streak}</div>
-              <div className="text-[11px] wv-text-muted">Streak</div>
+              <div className="font-mono-tabular text-xl font-bold wv-accent-text">{streak}</div>
+              <div className="text-xs wv-text-muted">Streak</div>
             </div>
           </div>
 
@@ -516,7 +525,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                 type="button"
                 data-testid="trivia-double-xp-btn"
                 onClick={handleDoubleStageXp}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-3 text-sm font-bold text-white hover:bg-amber-700 cursor-pointer"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl wv-accent-btn px-4 py-3 text-sm font-bold cursor-pointer"
               >
                 <Zap className="h-4 w-4" aria-hidden="true" />
                 <span>Watch Ad: 2x Weekly XP (+{stageXpEarned})</span>
@@ -531,8 +540,8 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
             >
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
               <span>
-                {climbState.promotedToLevel
-                  ? `Start ${FIVE_LEVEL_META[climbState.promotedToLevel].label} Stage`
+                {climbState.promotedToLevelNumber
+                  ? `Start ${formatLevelLabel(climbState.promotedToLevelNumber)}`
                   : 'Play Next 10 Questions'}
               </span>
             </button>
@@ -544,7 +553,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
           className="wv-tilt-surface rounded-2xl border-2 wv-border wv-card p-5 sm:p-6 shadow-md"
         >
           <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b wv-border">
-            <div className="flex items-center gap-2 text-xs font-bold wv-text-muted">
+            <div className="flex items-center gap-2 text-xs sm:text-sm font-bold wv-text-muted">
               <span data-testid="trivia-round-progress" className="font-mono-tabular wv-text">
                 {sessionMode === 'level_climb'
                   ? `Question ${
@@ -555,18 +564,18 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                   : `Sprint Question #${sprintAnswered + (selectedIdx !== null ? 0 : 1)}`}
               </span>
               <span aria-hidden="true">·</span>
-              <span className="capitalize wv-accent-text">{activeLevel} Tier</span>
+              <span className="wv-accent-text">{formatLevelLabel(safeLevel)}</span>
               {lastXpFlash !== null && (
                 <span
                   data-testid="trivia-xp-gain"
-                  className="font-mono-tabular font-extrabold text-amber-500 animate-pop"
+                  className="font-mono-tabular font-extrabold wv-accent-text animate-pop"
                 >
                   +{lastXpFlash} XP
                 </span>
               )}
             </div>
 
-            <span className="rounded-lg border wv-border wv-card-muted px-2 py-0.5 font-mono-tabular text-[10px] font-bold wv-text-muted">
+            <span className="rounded-lg border wv-border wv-card-muted px-2.5 py-0.5 font-mono-tabular text-xs font-bold wv-text-muted">
               0% Repeat Bank
             </span>
           </div>
@@ -574,16 +583,16 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
           {question.personalizationReason && (
             <p
               data-testid="trivia-personalization-reason"
-              className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-bold wv-accent-text"
+              className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold wv-accent-text"
             >
-              <Sparkles className="h-3 w-3 shrink-0" aria-hidden="true" />
+              <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span>{question.personalizationReason}</span>
             </p>
           )}
 
           <h2
             data-testid="trivia-question-text"
-            className="mt-3 font-display text-xl sm:text-[23px] font-bold leading-snug wv-text"
+            className="mt-3 font-display text-xl sm:text-2xl font-bold leading-snug wv-text"
           >
             {question.question}
           </h2>
@@ -593,7 +602,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
               type="button"
               data-testid="trivia-watch-two-ads-btn"
               onClick={handleWatchTwoAdsForAnswer}
-              className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl border border-amber-500/40 wv-card-muted px-4 py-2.5 text-xs font-bold text-amber-500 transition-transform active:scale-98 cursor-pointer"
+              className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl border wv-accent-pill px-4 py-2.5 text-xs sm:text-sm font-bold transition-transform active:scale-98 cursor-pointer"
             >
               <Zap className="h-4 w-4 shrink-0" aria-hidden="true" />
               <span>
@@ -615,7 +624,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                 if (isCorrectOpt) {
                   styleClass = 'wv-tile-correct border-2 font-bold';
                 } else if (isPicked) {
-                  styleClass = 'border-2 border-rose-500 bg-rose-500/15 wv-text font-bold';
+                  styleClass = 'wv-tile-absent border-2 font-bold line-through';
                 } else {
                   styleClass = 'wv-border wv-card-muted wv-text-muted opacity-65';
                 }
@@ -628,7 +637,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                   data-testid={`trivia-option-${idx}`}
                   disabled={isAnswered}
                   onClick={() => handleSelectOption(idx)}
-                  className={`flex min-h-12 items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition-all active:scale-[0.985] cursor-pointer disabled:cursor-default ${styleClass} ${
+                  className={`flex min-h-12 items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-base font-semibold transition-all active:scale-[0.985] cursor-pointer disabled:cursor-default ${styleClass} ${
                     isAnswered && isCorrectOpt
                       ? 'animate-tile-pop'
                       : isAnswered && isPicked && !isCorrectOpt
@@ -647,7 +656,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                     <CheckCircle2 className="h-5 w-5 shrink-0" aria-hidden="true" />
                   )}
                   {isAnswered && isPicked && !isCorrectOpt && (
-                    <XCircle className="h-5 w-5 shrink-0 text-rose-500" aria-hidden="true" />
+                    <XCircle className="h-5 w-5 shrink-0 opacity-85" aria-hidden="true" />
                   )}
                 </button>
               );
@@ -660,31 +669,25 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
               className="mt-4 rounded-xl border wv-border wv-card-muted p-4 animate-stage-enter"
             >
               <div className="flex items-center justify-between gap-2">
-                <span
-                  className={`text-xs font-bold ${
-                    selectedIdx === question.correctIndex
-                      ? 'wv-accent-text'
-                      : revivedThisQuestion
-                      ? 'text-amber-500'
-                      : 'text-rose-500'
-                  }`}
-                >
+                <span className="text-xs sm:text-sm font-bold wv-accent-text">
                   {selectedIdx === question.correctIndex
                     ? `Correct! +${lastXpFlash || 30} Weekly XP`
                     : revivedThisQuestion
                     ? `Streak Restored (${streakBeforeMiss})`
                     : 'Study Note'}
                 </span>
-                <span className="text-[11px] font-semibold wv-text-muted">{question.category}</span>
+                <span className="text-xs font-semibold wv-text-muted">{question.category}</span>
               </div>
-              <p className="mt-1.5 text-sm leading-relaxed wv-text">{question.explanation}</p>
+              <p className="mt-1.5 text-sm sm:text-base leading-relaxed wv-text">
+                {question.explanation}
+              </p>
 
               {question.funFact && (
                 <div
                   data-testid="trivia-fun-fact"
-                  className="mt-2.5 rounded-lg border border-amber-500/35 wv-card px-3 py-2 text-xs leading-relaxed wv-text"
+                  className="mt-2.5 rounded-lg border wv-border wv-card px-3 py-2 text-xs sm:text-sm leading-relaxed wv-text"
                 >
-                  <span className="font-bold text-amber-500">Did You Know? </span>
+                  <span className="font-bold wv-accent-text">Did You Know? </span>
                   <span>{question.funFact}</span>
                 </div>
               )}
@@ -695,7 +698,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                     type="button"
                     data-testid="trivia-revive-btn"
                     onClick={handleReviveStreak}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border wv-accent-pill px-4 py-2.5 text-xs font-bold cursor-pointer"
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border wv-accent-pill px-4 py-2.5 text-xs sm:text-sm font-bold cursor-pointer"
                   >
                     <ShieldCheck className="h-4 w-4" aria-hidden="true" />
                     <span>Watch Ad: Keep {streakBeforeMiss}-Streak</span>

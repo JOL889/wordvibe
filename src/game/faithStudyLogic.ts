@@ -1,5 +1,9 @@
 import { VALID_WORDS, type WordLength } from '../data/words';
-import type { FiveDifficultyLevel } from './settingsLogic';
+import {
+  levelNumberToDifficultyBand,
+  normalizeLevelNumber,
+  type FiveDifficultyLevel,
+} from './settingsLogic';
 import { CURATED_TRIVIA_BANK } from './triviaBank';
 import {
   normalizeToFiveLevel,
@@ -996,12 +1000,123 @@ export function getFaithTriviaQuestions(
   return out;
 }
 
+function generateProceduralFaithQuestion(
+  religion: ReligionId,
+  level: FiveDifficultyLevel,
+  excludeSet: Set<string>
+): TriviaQuestion {
+  const profile = getFaithTradition(religion);
+
+  // 1) Sacred term & clue challenge from the tradition's verified word list
+  for (let i = 0; i < profile.words.length; i++) {
+    const entry = profile.words[i];
+    const id = `faith-proc:word:${religion}:${entry.word}`;
+    const qText = `${profile.name} Study: Which ${entry.length}-letter sacred term matches "${entry.clue}"?`;
+    if (excludeSet.has(id.toLowerCase()) || excludeSet.has(qText.toLowerCase())) {
+      continue;
+    }
+    const otherWords = profile.words.filter((w) => w.word !== entry.word).map((w) => w.word);
+    const distractors = otherWords.slice(0, 3);
+    while (distractors.length < 3) {
+      distractors.push('WISDOM');
+    }
+    const slot = (i + entry.word.charCodeAt(0)) % 4;
+    const options: [string, string, string, string] = ['', '', '', ''];
+    options[slot] = entry.word;
+    let di = 0;
+    for (let s = 0; s < 4; s++) {
+      if (s !== slot) options[s] = distractors[di++];
+    }
+    return {
+      id,
+      question: qText,
+      options,
+      correctIndex: slot,
+      explanation: `${entry.word}: ${entry.clue}.`,
+      funFact: entry.funFact,
+      category: `Faith Study · ${profile.name}`,
+      difficulty: level,
+    };
+  }
+
+  // 2) Scripture passage quote / reference match
+  for (let i = 0; i < profile.passages.length; i++) {
+    const p = profile.passages[i];
+    const id = `faith-proc:passage:${religion}:${p.id}`;
+    const qText = `In ${profile.name} (${profile.sacredTextLabel}), which passage matches: "${p.quote}"?`;
+    if (!excludeSet.has(id.toLowerCase()) && !excludeSet.has(qText.toLowerCase())) {
+      const otherRefs = RELIGION_IDS.filter((r) => r !== religion)
+        .map((r) => FAITH_TRADITIONS[r].passages[0]?.reference || 'Proverbs 3:5')
+        .slice(0, 3);
+      const slot = i % 4;
+      const options: [string, string, string, string] = ['', '', '', ''];
+      options[slot] = p.reference;
+      let di = 0;
+      for (let s = 0; s < 4; s++) {
+        if (s !== slot) options[s] = otherRefs[di++] || 'Psalm 23:1';
+      }
+      return {
+        id,
+        question: qText,
+        options,
+        correctIndex: slot,
+        explanation: `${p.reference}: ${p.reflection}`,
+        funFact: `Primary text in ${profile.name}: ${profile.sacredTextLabel}.`,
+        category: `Faith Study · ${profile.name}`,
+        difficulty: level,
+      };
+    }
+  }
+
+  // 3) Cross-tradition unseen spillover question from CURATED_TRIVIA_BANK
+  const crossBank = CURATED_TRIVIA_BANK.filter(
+    (item) =>
+      item.categoryId.startsWith('faith:') &&
+      !excludeSet.has(item.id.toLowerCase()) &&
+      !excludeSet.has(item.question.trim().toLowerCase())
+  );
+  if (crossBank.length > 0) {
+    const item = crossBank[Math.floor(Math.random() * crossBank.length)];
+    return {
+      id: item.id,
+      question: item.question,
+      options: item.options,
+      correctIndex: item.correctIndex,
+      explanation: item.explanation,
+      funFact: item.funFact,
+      category: `Faith Study · ${item.categoryLabel}`,
+      difficulty: level,
+    };
+  }
+
+  // 4) Dynamic comparative scripture reflection
+  const idx = Math.floor(Math.random() * 10000);
+  return {
+    id: `faith-proc:wisdom:${religion}:${idx}`,
+    question: `Which sacred text serves as the foundational scripture anchor for ${profile.name} study in WordVibe?`,
+    options: [
+      profile.sacredTextLabel,
+      'Astronomical Almanac',
+      'Maritime Trade Ledger',
+      'Botanical Field Atlas',
+    ],
+    correctIndex: 0,
+    explanation: `${profile.name} study draws daily passages from ${profile.sacredTextLabel}.`,
+    funFact: profile.tagline,
+    category: `Faith Study · ${profile.name}`,
+    difficulty: level,
+  };
+}
+
 export function drawZeroRepeatFaithQuestion(params: {
   religion: ReligionId;
-  level: FiveDifficultyLevel;
+  level?: FiveDifficultyLevel | number;
+  levelNumber?: number;
   excludeIdsOrQuestions?: string[];
 }): TriviaQuestion {
-  const { religion, level, excludeIdsOrQuestions = [] } = params;
+  const { religion, excludeIdsOrQuestions = [] } = params;
+  const levelNumber = normalizeLevelNumber(params.levelNumber ?? params.level, 1);
+  const level = levelNumberToDifficultyBand(levelNumber);
   const profile = getFaithTradition(religion);
 
   const bankItems = CURATED_TRIVIA_BANK.filter(
@@ -1051,30 +1166,42 @@ export function drawZeroRepeatFaithQuestion(params: {
     combinedExcludes
   );
 
-  let chosen: (typeof bankItems)[number];
+  let chosen: TriviaQuestion | null = null;
   if (remainingPrimary > 0) {
     const filteredPrimary = primaryPool.filter(
       (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
     );
-    chosen = pickZeroRepeatItem(
-      `faith:${religion}:${level}`,
-      filteredPrimary.length > 0 ? filteredPrimary : primaryPool,
-      (q) => q.id,
-      combinedExcludes
-    );
-  } else {
+    if (filteredPrimary.length > 0) {
+      chosen = pickZeroRepeatItem(
+        `faith:${religion}:${level}`,
+        filteredPrimary,
+        (q) => q.id,
+        combinedExcludes
+      );
+    }
+  }
+
+  if (!chosen) {
     const remainingAll = allForReligion.filter(
       (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
     );
-    chosen = pickZeroRepeatItem(
-      `faith:${religion}:all`,
-      remainingAll.length > 0 ? remainingAll : allForReligion,
-      (q) => q.id,
-      excludeIdsOrQuestions
-    );
+    if (remainingAll.length > 0) {
+      chosen = pickZeroRepeatItem(
+        `faith:${religion}:all`,
+        remainingAll,
+        (q) => q.id,
+        combinedExcludes
+      );
+    }
   }
 
-  markBucketKeySeen(globalSeenBucket, chosen.id);
+  if (!chosen) {
+    chosen = generateProceduralFaithQuestion(religion, level, excludeSet);
+  }
+
+  if (chosen.id) {
+    markBucketKeySeen(globalSeenBucket, chosen.id);
+  }
   markBucketKeySeen(globalSeenBucket, chosen.question);
   return chosen;
 }

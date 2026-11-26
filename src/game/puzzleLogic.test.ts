@@ -7,6 +7,7 @@ import {
   resolveDailyEntertainmentSpotlight,
 } from './entertainmentLogic';
 import {
+  CATEGORY_UNLOCK_REQUIRED_ADS,
   evaluateGuess,
   deriveKeyboardStates,
   getDailyTargetWord,
@@ -30,8 +31,10 @@ import {
   moveCursorDirection,
   isCategoryAccessible,
   getCategoryRemainingPlays,
+  getCategoryUnlockAdProgress,
   grantCategoryPlays,
   consumeCategoryPlay,
+  recordCategoryUnlockAdWatch,
   getWeekStreakDays,
   getHomeChallenges,
   canPlaceHintBox,
@@ -634,5 +637,35 @@ test('progressive smart nudges avoid leaking target word', () => {
   }
 });
 
+test('locked puzzle category unlocks after 1 ad for 5 plays and re-locks after 5 plays', () => {
+  const lockedCat = getCategoryById('awards-red-carpet');
+  assert.equal(lockedCat.isPremium, true);
+  assert.equal(CATEGORY_UNLOCK_REQUIRED_ADS, 1);
+  assert.equal(PREMIUM_UNLOCK_PLAYS, 5);
 
+  const unlockAdProgress: Record<string, number> = {};
+  const playsRemaining: Record<string, number> = {};
 
+  assert.equal(isCategoryAccessible(lockedCat, playsRemaining), false);
+  assert.equal(getCategoryUnlockAdProgress(unlockAdProgress, lockedCat.id), 0);
+
+  const unlockedRes = recordCategoryUnlockAdWatch({
+    unlockAdProgress,
+    playsRemaining,
+    categoryId: lockedCat.id,
+  });
+  assert.equal(unlockedRes.unlocked, true);
+  assert.equal(unlockedRes.adsWatched, 1);
+  assert.equal(getCategoryUnlockAdProgress(unlockedRes.unlockAdProgress, lockedCat.id), 0);
+  assert.equal(getCategoryRemainingPlays(lockedCat, unlockedRes.playsRemaining), 5);
+  assert.equal(isCategoryAccessible(lockedCat, unlockedRes.playsRemaining), true);
+
+  let remainingState = unlockedRes.playsRemaining;
+  for (let p = 5; p >= 1; p--) {
+    assert.equal(getCategoryRemainingPlays(lockedCat, remainingState), p);
+    assert.equal(isCategoryAccessible(lockedCat, remainingState), true);
+    remainingState = consumeCategoryPlay(lockedCat, remainingState);
+  }
+  assert.equal(getCategoryRemainingPlays(lockedCat, remainingState), 0);
+  assert.equal(isCategoryAccessible(lockedCat, remainingState), false);
+});

@@ -1,5 +1,6 @@
 import React from 'react';
 import { BookOpen, Brain, Flame, Grid3X3 } from 'lucide-react';
+import { useHorizontalSwitch } from '../hooks/useHorizontalSwitch';
 
 export type AppTab = 'home' | 'puzzle' | 'faith' | 'trivia';
 
@@ -14,15 +15,23 @@ const TABS: Array<{ id: AppTab; label: string; testId: string; aria: string }> =
   { id: 'faith', label: 'Faith', testId: 'nav-faith', aria: 'Faith Study Endless Sprint screen' },
   { id: 'trivia', label: 'Trivia', testId: 'nav-trivia', aria: 'Brain Trivia mode screen' },
 ];
+const TAB_IDS = TABS.map((t) => t.id);
 
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onChangeTab }) => {
   const activeIdx = Math.max(0, TABS.findIndex((t) => t.id === activeTab));
+  const { containerProps } = useHorizontalSwitch({
+    items: TAB_IDS,
+    activeItem: activeTab,
+    onChange: onChangeTab,
+    minSwipePx: 36,
+  });
 
   return (
     <nav
+      {...containerProps}
       data-testid="bottom-nav"
       aria-label="Primary screen switcher"
-      className="fixed inset-x-0 bottom-0 z-40 border-t wv-border wv-card backdrop-blur-md"
+      className="fixed inset-x-0 bottom-0 z-40 border-t wv-border wv-card backdrop-blur-md touch-pan-y select-none"
     >
       <div className="relative mx-auto grid h-[68px] max-w-lg grid-cols-4 px-2">
         {/* Sliding Top Accent Pill */}

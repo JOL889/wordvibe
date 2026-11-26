@@ -70,7 +70,7 @@ export interface PuzzleRoundState {
 export interface CategoryProgressState {
   activeCategoryId: string;
   playsRemaining: Record<string, number>;
-  permanentlyUnlockedCategories: string[];
+  unlockAdProgress: Record<string, number>;
   solvedByCategory: Record<string, number>;
   exploredCategories: string[];
   /** dateKey -> categoryId -> wordLength -> array of words already served today */
@@ -349,7 +349,7 @@ export function loadCategoryProgress(): CategoryProgressState {
   const defaults: CategoryProgressState = {
     activeCategoryId: 'general-classic',
     playsRemaining: {},
-    permanentlyUnlockedCategories: [],
+    unlockAdProgress: {},
     solvedByCategory: {},
     exploredCategories: ['general-classic'],
     usedWordsByDate: {},
@@ -359,13 +359,20 @@ export function loadCategoryProgress(): CategoryProgressState {
     window.localStorage.getItem(CATEGORY_PROGRESS_KEY),
     {}
   );
-  const rawPermanent = Array.isArray(parsed.permanentlyUnlockedCategories)
-    ? parsed.permanentlyUnlockedCategories.filter((id): id is string => typeof id === 'string')
-    : [];
+  const rawAdProgress = parsed.unlockAdProgress;
+  const unlockAdProgress: Record<string, number> = {};
+  if (rawAdProgress && typeof rawAdProgress === 'object') {
+    for (const [key, val] of Object.entries(rawAdProgress)) {
+      if (typeof val === 'number' && Number.isFinite(val)) {
+        const clamped = Math.max(0, Math.min(4, Math.floor(val)));
+        if (clamped > 0) unlockAdProgress[key] = clamped;
+      }
+    }
+  }
   return {
     activeCategoryId: parsed.activeCategoryId || 'general-classic',
     playsRemaining: parsed.playsRemaining || {},
-    permanentlyUnlockedCategories: Array.from(new Set(rawPermanent)),
+    unlockAdProgress,
     solvedByCategory: parsed.solvedByCategory || {},
     exploredCategories:
       Array.isArray(parsed.exploredCategories) && parsed.exploredCategories.length > 0

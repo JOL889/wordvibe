@@ -6,7 +6,6 @@ import {
   Check,
   Compass,
   Flame,
-  HelpCircle,
   Lock,
   Minus,
   ShieldCheck,
@@ -28,7 +27,6 @@ import {
   type StatsData,
   type WeekStreakDay,
 } from '../game/puzzleLogic';
-import type { HelpSectionTab } from './HowToPlayModal';
 import {
   getDailyFaithPassage,
   getFaithTradition,
@@ -57,7 +55,6 @@ interface StreakHomeViewProps {
   onSelectChallenge: (challenge: HomeChallenge) => void;
   onPlayEntertainmentCategory: (categoryId: string) => void;
   onBrowseEntertainment: () => void;
-  onOpenHelp?: (tab?: HelpSectionTab) => void;
 }
 
 export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
@@ -80,7 +77,6 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
   onSelectChallenge,
   onPlayEntertainmentCategory,
   onBrowseEntertainment,
-  onOpenHelp,
 }) => {
   const faithTradition = getFaithTradition(activeReligion);
   const dailyFaithPassage = getDailyFaithPassage(activeReligion, dateKey);
@@ -434,20 +430,6 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
           </div>
         </div>
       </div>
-
-      {onOpenHelp && (
-        <div className="flex items-center justify-center pt-1">
-          <button
-            type="button"
-            data-testid="home-enquiry-help-btn"
-            onClick={() => onOpenHelp('rules')}
-            className="inline-flex min-h-11 items-center gap-2 px-4 py-2 text-sm sm:text-base font-semibold wv-text-muted hover:underline underline-offset-4 cursor-pointer"
-          >
-            <HelpCircle className="h-5 w-5" aria-hidden="true" />
-            <span>How to Play Crossword, Climb &amp; Faith Sprint</span>
-          </button>
-        </div>
-      )}
     </section>
   );
 };

@@ -7,6 +7,8 @@ import {
   type PuzzleCategory,
 } from '../data/categories';
 
+export { PREMIUM_UNLOCK_PLAYS };
+
 export type GameMode = 'daily' | 'sprint';
 export type TileState = 'empty' | 'tbd' | 'correct' | 'present' | 'absent';
 export type PuzzleStatus = 'playing' | 'won' | 'lost';
@@ -240,24 +242,81 @@ export function pickNextCategoryWord(params: {
   return candidates[(hash >>> 0) % candidates.length];
 }
 
+export const CATEGORY_UNLOCK_REQUIRED_ADS = 1;
+
 export function isCategoryAccessible(
   category: PuzzleCategory,
-  playsRemaining: Record<string, number>,
-  permanentlyUnlocked: string[] = []
+  playsRemaining: Record<string, number>
 ): boolean {
   if (!category.isPremium) return true;
-  if (permanentlyUnlocked.includes(category.id)) return true;
   return (playsRemaining[category.id] || 0) > 0;
 }
 
 export function getCategoryRemainingPlays(
   category: PuzzleCategory,
-  playsRemaining: Record<string, number>,
-  permanentlyUnlocked: string[] = []
+  playsRemaining: Record<string, number>
 ): number {
   if (!category.isPremium) return Infinity;
-  if (permanentlyUnlocked.includes(category.id)) return Infinity;
   return Math.max(0, playsRemaining[category.id] || 0);
+}
+
+export function getCategoryUnlockAdProgress(
+  unlockAdProgress: Record<string, number> | undefined,
+  categoryId: string,
+  requiredAds: number = CATEGORY_UNLOCK_REQUIRED_ADS
+): number {
+  const raw = unlockAdProgress?.[categoryId];
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return 0;
+  return Math.max(0, Math.min(Math.max(0, requiredAds - 1), Math.floor(raw)));
+}
+
+export interface CategoryUnlockAdWatchResult {
+  adsWatched: number;
+  requiredAds: number;
+  unlocked: boolean;
+  unlockAdProgress: Record<string, number>;
+  playsRemaining: Record<string, number>;
+}
+
+export function recordCategoryUnlockAdWatch(params: {
+  unlockAdProgress: Record<string, number> | undefined;
+  playsRemaining: Record<string, number>;
+  categoryId: string;
+  requiredAds?: number;
+  playsToGrant?: number;
+}): CategoryUnlockAdWatchResult {
+  const requiredAds = Math.max(1, Math.floor(params.requiredAds ?? CATEGORY_UNLOCK_REQUIRED_ADS));
+  const playsToGrant = Math.max(1, Math.floor(params.playsToGrant ?? PREMIUM_UNLOCK_PLAYS));
+  const prevWatched = getCategoryUnlockAdProgress(
+    params.unlockAdProgress,
+    params.categoryId,
+    requiredAds
+  );
+  const nextWatched = prevWatched + 1;
+
+  if (nextWatched >= requiredAds) {
+    return {
+      adsWatched: requiredAds,
+      requiredAds,
+      unlocked: true,
+      unlockAdProgress: {
+        ...(params.unlockAdProgress || {}),
+        [params.categoryId]: 0,
+      },
+      playsRemaining: grantCategoryPlays(params.playsRemaining, params.categoryId, playsToGrant),
+    };
+  }
+
+  return {
+    adsWatched: nextWatched,
+    requiredAds,
+    unlocked: false,
+    unlockAdProgress: {
+      ...(params.unlockAdProgress || {}),
+      [params.categoryId]: nextWatched,
+    },
+    playsRemaining: params.playsRemaining,
+  };
 }
 
 export function grantCategoryPlays(
@@ -274,10 +333,9 @@ export function grantCategoryPlays(
 
 export function consumeCategoryPlay(
   category: PuzzleCategory,
-  playsRemaining: Record<string, number>,
-  permanentlyUnlocked: string[] = []
+  playsRemaining: Record<string, number>
 ): Record<string, number> {
-  if (!category.isPremium || permanentlyUnlocked.includes(category.id)) {
+  if (!category.isPremium) {
     return playsRemaining;
   }
   const current = Math.max(0, playsRemaining[category.id] || 0);

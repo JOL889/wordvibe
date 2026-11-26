@@ -1,15 +1,14 @@
 import React from 'react';
-import { HelpCircle } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface EditorialGuideAndAdSlotProps {
   isActivelyTyping: boolean;
-  onOpenHelp: (tab?: 'rules' | 'streaks' | 'faq') => void;
+  onOpenPrivacyPolicy?: () => void;
 }
 
 export const EditorialGuideAndAdSlot: React.FC<EditorialGuideAndAdSlotProps> = ({
   isActivelyTyping,
-  onOpenHelp,
+  onOpenPrivacyPolicy,
 }) => {
   return (
     <div className="mx-auto mt-4 w-full max-w-2xl lg:max-w-3xl px-3 sm:px-6 pb-6">
@@ -36,23 +35,23 @@ export const EditorialGuideAndAdSlot: React.FC<EditorialGuideAndAdSlotProps> = (
       </aside>
 
       <footer className="mt-3.5 flex flex-wrap items-center justify-between gap-2 border-t wv-border pt-3 text-xs sm:text-sm wv-text-muted">
-        <button
-          type="button"
-          data-testid="open-help-enquiry-btn"
-          onClick={(e) => {
-            e.currentTarget.blur();
-            onOpenHelp('rules');
-          }}
-          className="inline-flex min-h-10 items-center gap-1.5 font-semibold wv-text hover:underline underline-offset-4 cursor-pointer"
-        >
-          <HelpCircle className="h-4 w-4 wv-accent-text" aria-hidden="true" />
-          <span>How to Play, Streak Rules &amp; FAQ</span>
-        </button>
-
-        <div className="flex items-center gap-3">
-          <PWAInstallButton compact />
-          <span>Offline Ready</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <span>On-Device Offline Ready</span>
+          <a
+            href="/privacy"
+            data-testid="footer-privacy-link"
+            onClick={(e) => {
+              if (onOpenPrivacyPolicy) {
+                e.preventDefault();
+                onOpenPrivacyPolicy();
+              }
+            }}
+            className="font-semibold underline underline-offset-4 hover:opacity-85 cursor-pointer"
+          >
+            Privacy Policy
+          </a>
         </div>
+        <PWAInstallButton compact />
       </footer>
     </div>
   );

@@ -52,7 +52,12 @@ import {
   type WeeklyActivityState,
   type WeeklyRolloverSummary,
 } from '../game/weeklyLogic';
+import { useHorizontalSwitch } from '../hooks/useHorizontalSwitch';
 import { UserAvatar } from './UserAvatar';
+
+type WeeklyRankModalTab = 'leaderboard' | 'rewards' | 'tiers';
+const WEEKLY_MODAL_TABS: readonly WeeklyRankModalTab[] = ['leaderboard', 'rewards', 'tiers'];
+const LEADERBOARD_SCOPES: readonly LeaderboardScope[] = ['weekly', 'all_time'];
 
 interface WeeklyRankModalProps {
   open: boolean;
@@ -224,6 +229,20 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
     ]
   );
 
+  const modalTabSwitch = useHorizontalSwitch({
+    items: WEEKLY_MODAL_TABS,
+    activeItem: activeTab,
+    onChange: setActiveTab,
+    disabled: !open,
+  });
+
+  const scopeSwitch = useHorizontalSwitch({
+    items: LEADERBOARD_SCOPES,
+    activeItem: scope,
+    onChange: setScope,
+    disabled: !open,
+  });
+
   if (!open) return null;
 
   const gradeInfo = computeWeeklyGrade(
@@ -344,6 +363,7 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
         {/* Sub-Tabs: Leaderboard | ₦10,000 Rewards | Tiers & Badges */}
         <div className="border-b wv-border px-4 sm:px-5 pt-3 pb-3">
           <div
+            {...modalTabSwitch.containerProps}
             role="tablist"
             aria-label="Leaderboard sections"
             className="grid grid-cols-3 rounded-xl border wv-border wv-card-muted p-1 text-xs font-bold gap-1"
@@ -391,7 +411,10 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-4">
+        <div
+          {...modalTabSwitch.containerProps}
+          className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-4"
+        >
           {activeTab === 'leaderboard' ? (
             <div data-testid="xp-leaderboard-panel" className="space-y-4">
               {/* Weekly #1 Prize Pool Banner */}
@@ -672,6 +695,7 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
               {/* Weekly vs All-Time Scope Toggle + 30-min Cache Info */}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div
+                  {...scopeSwitch.containerProps}
                   role="group"
                   aria-label="Leaderboard timeframe"
                   className="inline-flex rounded-xl border wv-border wv-card-muted p-0.5 text-xs font-bold"

@@ -4,7 +4,6 @@ import { computeWeeklyGrade, reconcileWeeklyRollover } from './weeklyLogic';
 export const XP_COSTS = {
   PUZZLE_CLUE: 300,
   PUZZLE_HINT: 300,
-  PUZZLE_CATEGORY_UNLOCK: 300,
   TRIVIA_SOLVE: 500,
   TRIVIA_MASTERMIND_UNLOCK: 200,
 } as const;

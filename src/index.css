@@ -737,6 +737,15 @@ html[data-anim='reduced'] *::after {
   animation: swipe-from-right 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-stage-enter,
   .animate-tile-deal,

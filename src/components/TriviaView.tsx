@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
   Brain,
@@ -50,6 +50,7 @@ import {
 import { calculateOfflineWrongXp } from '../game/verifiedRewardsLogic';
 import { recordModeOutcome } from '../game/retirementQueueLogic';
 import { XP_COSTS } from '../game/xpEconomyLogic';
+import { useHorizontalSwitch, useScrollSelectedIntoView } from '../hooks/useHorizontalSwitch';
 import { rewardedAdService, type RewardPlacement } from '../services/rewardedAdService';
 import { soundService } from '../services/soundService';
 
@@ -101,6 +102,8 @@ interface TriviaViewProps {
 }
 
 const OPTION_LETTERS = ['A', 'B', 'C', 'D'] as const;
+const TRIVIA_SESSION_MODES: readonly SessionPlayMode[] = ['level_climb', 'sprint'];
+const TRIVIA_CATEGORY_IDS: readonly string[] = TRIVIA_CATEGORIES.map((c) => c.id);
 
 // Session cache preserves unanswered question across React StrictMode remounts & tab switches
 const pendingTriviaByKey = new Map<string, TriviaQuestion>();
@@ -155,6 +158,19 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
   const [questionTimeLeft, setQuestionTimeLeft] = useState<number>(() =>
     getTriviaQuestionTimeLimitSeconds(safeLevel, climbState.questionIndex)
   );
+  const categoryStripRef = useRef<HTMLDivElement | null>(null);
+  const latestStateRef = useRef({
+    streak,
+    climbState,
+    onAnswerRecorded,
+    onUpdateClimbState,
+  });
+  latestStateRef.current = {
+    streak,
+    climbState,
+    onAnswerRecorded,
+    onUpdateClimbState,
+  };
 
   const drawNextQuestion = useCallback(
     (categoryId: string, lvNum: number, nextClimbIdx: number, forceFresh = false) => {
@@ -237,17 +253,18 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
     ) {
       return;
     }
+    const live = latestStateRef.current;
     setTimedOut(true);
     setLastXpFlash(0);
     pendingTriviaByKey.delete(`${selectedCategoryId}::${safeLevel}`);
     soundService.playTriviaWrong();
-    setStreakBeforeMiss(streak);
+    setStreakBeforeMiss(live.streak);
     setStageXpEarned(0);
     recordModeOutcome('trivia', question.id || `trivia-text:${question.question}`, false, {
       categoryId: selectedCategoryId,
       question,
     });
-    onAnswerRecorded({
+    live.onAnswerRecorded({
       correct: false,
       timedOut: true,
       difficulty: question.difficulty,
@@ -259,10 +276,13 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
       categoryId: selectedCategoryId,
       questionText: question.question,
     });
-    const resetClimb = advanceTriviaLevelClimb(climbState, false);
-    onUpdateClimbState(resetClimb);
+    const resetClimb = advanceTriviaLevelClimb(live.climbState, false);
+    live.onUpdateClimbState(resetClimb);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [questionTimeLeft, sessionMode, question, selectedIdx, timedOut, showClimbSummary]);
+
+  const drawNextQuestionRef = useRef(drawNextQuestion);
+  drawNextQuestionRef.current = drawNextQuestion;
 
   // Auto-advance smoothly after timeout banner shows, resetting timer back to 15s on the next question
   useEffect(() => {
@@ -270,11 +290,10 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
       return;
     }
     const advanceTimer = window.setTimeout(() => {
-      drawNextQuestion(selectedCategoryId, safeLevel, 0, true);
+      drawNextQuestionRef.current(selectedCategoryId, safeLevel, 0, true);
     }, 1100);
     return () => window.clearTimeout(advanceTimer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timedOut, sessionMode]);
+  }, [timedOut, sessionMode, selectedCategoryId, safeLevel]);
 
   const handleCategoryClick = (catId: string) => {
     if (!isTriviaCategoryUnlocked(catId, bonusUnlockUntil, Date.now(), mastermindUnlocked)) {
@@ -390,8 +409,12 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
     }
   };
 
+  const handleSelectOptionRef = useRef(handleSelectOption);
+  handleSelectOptionRef.current = handleSelectOption;
+
   const handleWatchTwoAdsForAnswer = () => {
     if (!question || selectedIdx !== null) return;
+    const correctIdx = question.correctIndex;
     if (adsWatchedForReveal === 0) {
       onRequestAdPlacement('trivia_reveal_answer_1', () => {
         setAdsWatchedForReveal(1);
@@ -401,7 +424,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
       onRequestAdPlacement('trivia_reveal_answer_2', () => {
         setAdsWatchedForReveal(2);
         soundService.playHintChime();
-        handleSelectOption(question.correctIndex);
+        handleSelectOptionRef.current(correctIdx);
       });
     }
   };
@@ -484,6 +507,24 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
 
   const isLowTime = sessionMode === 'level_climb' && questionTimeLeft <= 5 && selectedIdx === null;
 
+  const triviaModeSwitch = useHorizontalSwitch({
+    items: TRIVIA_SESSION_MODES,
+    activeItem: sessionMode,
+    onChange: onChangeSessionMode,
+  });
+
+  const triviaCategorySwitch = useHorizontalSwitch({
+    items: TRIVIA_CATEGORY_IDS,
+    activeItem: selectedCategoryId,
+    onChange: handleCategoryClick,
+  });
+
+  useScrollSelectedIntoView(
+    categoryStripRef,
+    `[data-trivia-category="${selectedCategoryId}"]`,
+    [selectedCategoryId]
+  );
+
   return (
     <section
       data-testid="trivia-view"
@@ -514,16 +555,17 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
         {/* 2 Session Modes: Level Climb vs Endless Sprint */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div
+            {...triviaModeSwitch.containerProps}
             role="group"
             aria-label="Trivia session mode"
-            className="inline-flex items-center rounded-xl border wv-border wv-card-muted p-1"
+            className="inline-flex max-w-full items-center overflow-x-auto no-scrollbar rounded-xl border wv-border wv-card-muted p-1"
           >
             <button
               type="button"
               data-testid="trivia-mode-climb-btn"
               onClick={() => onChangeSessionMode('level_climb')}
               aria-pressed={sessionMode === 'level_climb'}
-              className={`inline-flex min-h-11 sm:min-h-12 items-center gap-2 rounded-lg px-4 py-2 text-sm sm:text-base font-bold cursor-pointer ${
+              className={`inline-flex min-h-11 sm:min-h-12 items-center gap-2 rounded-lg px-4 py-2 text-sm sm:text-base font-bold whitespace-nowrap shrink-0 cursor-pointer ${
                 sessionMode === 'level_climb' ? 'wv-accent-btn' : 'wv-text-muted hover:opacity-90'
               }`}
             >
@@ -535,7 +577,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
               data-testid="trivia-mode-sprint-btn"
               onClick={() => onChangeSessionMode('sprint')}
               aria-pressed={sessionMode === 'sprint'}
-              className={`inline-flex min-h-11 sm:min-h-12 items-center gap-2 rounded-lg px-4 py-2 text-sm sm:text-base font-bold cursor-pointer ${
+              className={`inline-flex min-h-11 sm:min-h-12 items-center gap-2 rounded-lg px-4 py-2 text-sm sm:text-base font-bold whitespace-nowrap shrink-0 cursor-pointer ${
                 sessionMode === 'sprint' ? 'wv-accent-btn' : 'wv-text-muted hover:opacity-90'
               }`}
             >
@@ -545,8 +587,13 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
           </div>
         </div>
 
-        {/* Category Pills */}
-        <div data-testid="trivia-category-selector" className="flex flex-wrap gap-2">
+        {/* Category Pills (Horizontal Scroll & Swipe Switcher) */}
+        <div
+          ref={categoryStripRef}
+          {...triviaCategorySwitch.containerProps}
+          data-testid="trivia-category-selector"
+          className="flex items-center gap-2 overflow-x-auto snap-x no-scrollbar pb-1"
+        >
           {TRIVIA_CATEGORIES.map((cat) => {
             const isSelected = cat.id === selectedCategoryId;
             const unlocked = isTriviaCategoryUnlocked(

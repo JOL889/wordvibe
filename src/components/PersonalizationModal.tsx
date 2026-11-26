@@ -27,6 +27,7 @@ import {
   buildUserResearchDossier,
   gatherUserEnvironmentDetails,
 } from '../game/userResearchLogic';
+import { useHorizontalSwitch } from '../hooks/useHorizontalSwitch';
 
 interface PersonalizationModalProps {
   open: boolean;
@@ -43,6 +44,7 @@ const PACE_OPTIONS: Array<{ id: ChallengePace; label: string; desc: string }> = 
   { id: 'adaptive', label: 'Adaptive', desc: 'Balances challenge as you win' },
   { id: 'brainiac', label: 'Brainiac', desc: 'Sharper clues & high-tier trivia' },
 ];
+const PACE_IDS: readonly ChallengePace[] = PACE_OPTIONS.map((p) => p.id);
 
 export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
   open,
@@ -57,6 +59,13 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [customCity, setCustomCity] = useState(profile.location?.city || '');
   const [customCc, setCustomCc] = useState(profile.location?.countryCode || 'US');
+
+  const paceSwitch = useHorizontalSwitch({
+    items: PACE_IDS,
+    activeItem: profile.challengePace,
+    onChange: (challengePace) => onUpdateProfile({ ...profile, challengePace }),
+    disabled: !open,
+  });
 
   if (!open) return null;
 
@@ -264,13 +273,16 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
               </button>
             </div>
 
-            <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div
+              data-no-swipe="true"
+              className="mt-3 flex items-center gap-2 overflow-x-auto snap-x no-scrollbar pb-0.5 sm:flex-wrap"
+            >
               <button
                 type="button"
                 data-testid="detect-location-btn"
                 disabled={detecting}
                 onClick={handleAutoDetect}
-                className="inline-flex items-center gap-1.5 rounded-lg wv-accent-btn px-3 py-2 text-xs font-semibold disabled:opacity-60 cursor-pointer"
+                className="inline-flex shrink-0 snap-start items-center gap-1.5 rounded-lg wv-accent-btn px-3 py-2 text-xs font-semibold disabled:opacity-60 cursor-pointer whitespace-nowrap"
               >
                 {detecting ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
@@ -291,7 +303,7 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
                     type="button"
                     data-testid={`preset-city-${preset.city.toLowerCase().replace(/\s+/g, '-')}-${preset.countryCode.toLowerCase()}`}
                     onClick={() => handleApplyPreset(preset)}
-                    className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
+                    className={`shrink-0 snap-start rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                       isSelected
                         ? 'wv-accent-pill border'
                         : 'wv-border wv-card wv-text-muted hover:opacity-90'
@@ -376,7 +388,10 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
             <h3 className="text-xs font-bold uppercase tracking-wider wv-text-muted">
               Challenge Pace
             </h3>
-            <div className="mt-2 grid grid-cols-3 gap-2">
+            <div
+              {...paceSwitch.containerProps}
+              className="mt-2 grid grid-cols-3 gap-2"
+            >
               {PACE_OPTIONS.map((opt) => {
                 const active = profile.challengePace === opt.id;
                 return (

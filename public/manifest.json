@@ -1,0 +1,33 @@
+{
+  "id": "/",
+  "name": "WordVibe: Daily Word Puzzle, Brain Trivia & Faith Study",
+  "short_name": "WordVibe",
+  "description": "Play WordVibe free online or offline: 4x4, 5x5 & 6x6 linked word puzzles, Brain Trivia, and Bible, Quran, Torah, Gita & Dharma Faith Study.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#062118",
+  "theme_color": "#062118",
+  "categories": ["games", "education", "lifestyle"],
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

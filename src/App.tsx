@@ -10,23 +10,23 @@ import { EditorialGuideAndAdSlot } from './components/EditorialGuideAndAdSlot';
 import { FaithStudyView } from './components/FaithStudyView';
 import { FloatingReward, type FloatingRewardItem } from './components/FloatingReward';
 import { Header } from './components/Header';
-import { HowToPlayModal, type HelpSectionTab } from './components/HowToPlayModal';
 import { ModeControls } from './components/ModeControls';
 import { OfflineBanner } from './components/OfflineBanner';
 import { PersonalizationModal } from './components/PersonalizationModal';
+import { PrivacyPolicyView } from './components/PrivacyPolicyView';
 import { ProfileAuthModal, type ProfileAuthMode } from './components/ProfileAuthModal';
 import { ProfileViewModal } from './components/ProfileViewModal';
 import { PuzzleGrid, type SelectedDictionaryWord } from './components/PuzzleGrid';
 import { RewardedAdModal } from './components/RewardedAdModal';
 import { RewardedDock } from './components/RewardedDock';
-import { SettingsModal } from './components/SettingsModal';
+import { SettingsModal, type SettingsOpenRequest } from './components/SettingsModal';
 import { StreakHomeView } from './components/StreakHomeView';
 import { SummaryModal } from './components/SummaryModal';
 import { TriviaView } from './components/TriviaView';
 import { WeeklyRankModal, WeeklyRolloverModal } from './components/WeeklyRankModal';
 import { WordTriviaHintPanel } from './components/WordTriviaHintPanel';
 import { WordTriviaRowModal } from './components/WordTriviaRowModal';
-import { getCategoryById, PREMIUM_UNLOCK_PLAYS, type PuzzleCategory } from './data/categories';
+import { getCategoryById, type PuzzleCategory } from './data/categories';
 import type { WordLength } from './data/words';
 import {
   advanceCrosswordLevelClimb,
@@ -63,16 +63,18 @@ import {
 import {
   applyStreakRecovery,
   canRecoverStreak,
+  CATEGORY_UNLOCK_REQUIRED_ADS,
   consumeCategoryPlay,
   formatCountdown,
   getCategoryRemainingPlays,
+  getCategoryUnlockAdProgress,
   getDailyPuzzleNumber,
   getHomeChallenges,
   getLocalDateKey,
   getTimeUntilMidnightMs,
   getWeekStreakDays,
-  grantCategoryPlays,
   isCategoryAccessible,
+  recordCategoryUnlockAdWatch,
   rollProbabilityWordLength,
   updateStatsOnCompletion,
   type CursorDirection,
@@ -97,7 +99,14 @@ import {
   type TriviaClimbProgress,
   type TriviaQuestion,
 } from './game/triviaLogic';
-import { isSwipeIgnoredTarget, resolveSwipeTabChange } from './game/navigationLogic';
+import {
+  APP_TAB_ORDER,
+  isPrivacyPath,
+  isSwipeIgnoredTarget,
+  resolveSwipeTabChange,
+  resolveWheelStepDirection,
+  stepHorizontalSelection,
+} from './game/navigationLogic';
 import { recordModeOutcome } from './game/retirementQueueLogic';
 import { gatherUserEnvironmentDetails } from './game/userResearchLogic';
 import {
@@ -230,6 +239,10 @@ export default function App() {
     return appSettings.defaultTab;
   });
 
+  const [isPrivacyRoute, setIsPrivacyRoute] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? isPrivacyPath(window.location.pathname) : false
+  );
+
   const [dateKey, setDateKey] = useState<string>(() => getLocalDateKey());
 
   const [initialBoot] = useState(() => {
@@ -250,11 +263,7 @@ export default function App() {
     const progress = loadCategoryProgress();
     const savedBoard = loadSavedCrosswordBoard();
     const cat = getCategoryById(savedBoard?.categoryId || progress.activeCategoryId);
-    const accessibleCat = isCategoryAccessible(
-      cat,
-      progress.playsRemaining,
-      progress.permanentlyUnlockedCategories
-    )
+    const accessibleCat = isCategoryAccessible(cat, progress.playsRemaining)
       ? cat
       : getCategoryById('general-classic');
 
@@ -320,6 +329,7 @@ export default function App() {
   const [weeklyRankOpen, setWeeklyRankOpen] = useState(false);
   const [personalizationOpen, setPersonalizationOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOpenRequest, setSettingsOpenRequest] = useState<SettingsOpenRequest | null>(null);
   const [playerProfile, setPlayerProfile] = useState<PlayerProfileState>(initialBoot.profile);
   const [achievementBanner, setAchievementBanner] = useState<AchievementDefinition | null>(null);
   const [confettiActive, setConfettiActive] = useState(false);
@@ -379,6 +389,7 @@ export default function App() {
   );
   const [profileModalOpen, setProfileModalOpen] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
+    if (isPrivacyPath(window.location.pathname)) return false;
     const params = new URLSearchParams(window.location.search);
     if (params.get('autostart') === '1') return false;
     return loadLocalUserAccount() === null;
@@ -392,6 +403,15 @@ export default function App() {
     time: number;
     ignored: boolean;
   } | null>(null);
+  const swipePointerStartRef = useRef<{
+    x: number;
+    y: number;
+    time: number;
+    pointerId: number;
+    ignored: boolean;
+  } | null>(null);
+  const lastMainWheelAtRef = useRef<number>(0);
+  const suppressMainClickUntilRef = useRef<number>(0);
   const swipeAnimTimerRef = useRef<number | null>(null);
 
   const [cluePanelOpen, setCluePanelOpen] = useState<boolean>(
@@ -411,8 +431,6 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
 
   const [summaryOpen, setSummaryOpen] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
-  const [helpTab, setHelpTab] = useState<HelpSectionTab>('rules');
   const [categoryExplorerOpen, setCategoryExplorerOpen] = useState(false);
   const [categoryExplorerInitialTab, setCategoryExplorerInitialTab] =
     useState<CategoryFilterTab>('All');
@@ -450,18 +468,17 @@ export default function App() {
     [crosswordBoard.categoryId]
   );
 
+  const categoryProgressRef = useRef(categoryProgress);
+  categoryProgressRef.current = categoryProgress;
+
   const categoryPlaysRemaining = useMemo(
-    () =>
-      getCategoryRemainingPlays(
-        activeCategory,
-        categoryProgress.playsRemaining,
-        categoryProgress.permanentlyUnlockedCategories
-      ),
-    [
-      activeCategory,
-      categoryProgress.permanentlyUnlockedCategories,
-      categoryProgress.playsRemaining,
-    ]
+    () => getCategoryRemainingPlays(activeCategory, categoryProgress.playsRemaining),
+    [activeCategory, categoryProgress.playsRemaining]
+  );
+
+  const activeCategoryUnlockAdsWatched = useMemo(
+    () => getCategoryUnlockAdProgress(categoryProgress.unlockAdProgress, activeCategory.id),
+    [activeCategory.id, categoryProgress.unlockAdProgress]
   );
 
   const weeklyProgressRef = useRef(weeklyProgress);
@@ -1015,7 +1032,6 @@ export default function App() {
     Boolean(activeAdPlacement) ||
     clueSlotModalOpen ||
     summaryOpen ||
-    helpOpen ||
     categoryExplorerOpen ||
     weeklyRankOpen ||
     personalizationOpen ||
@@ -1126,11 +1142,7 @@ export default function App() {
       } = params;
       if (
         !forcedTarget &&
-        !isCategoryAccessible(
-          nextCategory,
-          categoryProgress.playsRemaining,
-          categoryProgress.permanentlyUnlockedCategories
-        )
+        !isCategoryAccessible(nextCategory, categoryProgressRef.current.playsRemaining)
       ) {
         promptUnlockCategory(nextCategory);
         return false;
@@ -1180,18 +1192,14 @@ export default function App() {
       setPersonalizedMeta(meta);
       setCrosswordBoard(freshBoard);
 
-      setCategoryProgress((prev) =>
-        recordUsedCategoryWord(
+      setCategoryProgress((prev) => {
+        const nextState = recordUsedCategoryWord(
           {
             ...prev,
             activeCategoryId: nextCategory.id,
             playsRemaining: forcedTarget
               ? prev.playsRemaining
-              : consumeCategoryPlay(
-                  nextCategory,
-                  prev.playsRemaining,
-                  prev.permanentlyUnlockedCategories
-                ),
+              : consumeCategoryPlay(nextCategory, prev.playsRemaining),
             exploredCategories: prev.exploredCategories.includes(nextCategory.id)
               ? prev.exploredCategories
               : [...prev.exploredCategories, nextCategory.id],
@@ -1200,18 +1208,14 @@ export default function App() {
           nextCategory.id,
           freshBoard.length,
           freshBoard.solution.target
-        )
-      );
+        );
+        categoryProgressRef.current = nextState;
+        return nextState;
+      });
 
       return true;
     },
-    [
-      categoryProgress.permanentlyUnlockedCategories,
-      categoryProgress.playsRemaining,
-      crosswordClimb.roundIndex,
-      dateKey,
-      promptUnlockCategory,
-    ]
+    [crosswordClimb.roundIndex, dateKey, promptUnlockCategory]
   );
 
   const dealNextSessionBoard = useCallback(
@@ -1369,8 +1373,7 @@ export default function App() {
     (category: PuzzleCategory) => {
       const remaining = getCategoryRemainingPlays(
         category,
-        categoryProgress.playsRemaining,
-        categoryProgress.permanentlyUnlockedCategories
+        categoryProgressRef.current.playsRemaining
       );
       if (category.isPremium && remaining <= 0) {
         setActiveTab('puzzle');
@@ -1392,8 +1395,6 @@ export default function App() {
     },
     [
       activateNewBoard,
-      categoryProgress.permanentlyUnlockedCategories,
-      categoryProgress.playsRemaining,
       crosswordBoard.length,
       modeConfig.puzzleLevelNumber,
       promptUnlockCategory,
@@ -1602,78 +1603,6 @@ export default function App() {
     [boardCategory.name, crosswordBoard, showToast, trySpendXp]
   );
 
-  const handleSpendXpUnlockCategory = useCallback(
-    (category: PuzzleCategory) => {
-      if (
-        !category.isPremium ||
-        categoryProgress.permanentlyUnlockedCategories.includes(category.id)
-      ) {
-        handleSelectCategory(category);
-        return;
-      }
-      if (!trySpendXp(XP_COSTS.PUZZLE_CATEGORY_UNLOCK)) return;
-      soundService.playHintChime();
-      const nextPermanent = Array.from(
-        new Set([...categoryProgress.permanentlyUnlockedCategories, category.id])
-      );
-      const freshBoard = createCrosswordBoard({
-        length: crosswordBoard.length,
-        level: modeConfig.puzzleLevelNumber,
-        categoryId: category.id,
-      });
-      const firstCell = getFirstEditableCell(freshBoard);
-      cursorRef.current = firstCell;
-      setActiveRow(firstCell.row);
-      setActiveCol(firstCell.col);
-      setSelectedDictWord(null);
-      setPuzzleTimedOut(false);
-      setSummaryOpen(false);
-      setCategoryExplorerOpen(false);
-      setActiveTab('puzzle');
-      window.scrollTo({ top: 0, behavior: 'instant' });
-
-      const freshLimit = getCrosswordRoundTimeLimitSeconds(
-        freshBoard.length,
-        modeConfig.puzzleLevelNumber,
-        crosswordClimb.roundIndex
-      );
-      puzzleTimeLeftRef.current = freshLimit;
-      setPuzzleTimeLeftSec(freshLimit);
-      setCrosswordBoard(freshBoard);
-
-      setCategoryProgress((prev) =>
-        recordUsedCategoryWord(
-          {
-            ...prev,
-            activeCategoryId: category.id,
-            permanentlyUnlockedCategories: nextPermanent,
-            exploredCategories: prev.exploredCategories.includes(category.id)
-              ? prev.exploredCategories
-              : [...prev.exploredCategories, category.id],
-          },
-          dateKey,
-          category.id,
-          freshBoard.length,
-          freshBoard.solution.target
-        )
-      );
-      showToast(
-        `${category.name} unlocked forever! (-${XP_COSTS.PUZZLE_CATEGORY_UNLOCK} XP)`,
-        3200
-      );
-    },
-    [
-      categoryProgress.permanentlyUnlockedCategories,
-      crosswordBoard.length,
-      crosswordClimb.roundIndex,
-      dateKey,
-      handleSelectCategory,
-      modeConfig.puzzleLevelNumber,
-      showToast,
-      trySpendXp,
-    ]
-  );
-
   const handleSpendXpUnlockMastermind = useCallback((): boolean => {
     if (triviaState.mastermindUnlocked) {
       setTriviaState((prev) => ({ ...prev, selectedCategoryId: 'mastermind-vault' }));
@@ -1768,7 +1697,6 @@ export default function App() {
         activeAdPlacement ||
         clueSlotModalOpen ||
         summaryOpen ||
-        helpOpen ||
         categoryExplorerOpen ||
         weeklyRankOpen ||
         personalizationOpen ||
@@ -1850,7 +1778,6 @@ export default function App() {
       clueSlotModalOpen,
       crosswordBoard,
       effectiveHapticsEnabled,
-      helpOpen,
       modeConfig.puzzleSessionMode,
       personalizationOpen,
       puzzleTimedOut,
@@ -1873,7 +1800,6 @@ export default function App() {
       const targetEl = e.target as HTMLElement | null;
       if (e.key === 'Escape') {
         setSummaryOpen(false);
-        setHelpOpen(false);
         setCategoryExplorerOpen(false);
         setWeeklyRankOpen(false);
         setPersonalizationOpen(false);
@@ -1902,7 +1828,6 @@ export default function App() {
         activeAdPlacement ||
         clueSlotModalOpen ||
         summaryOpen ||
-        helpOpen ||
         categoryExplorerOpen ||
         weeklyRankOpen ||
         personalizationOpen ||
@@ -1950,7 +1875,6 @@ export default function App() {
     crosswordBoard.status,
     handleCrosswordKey,
     handleMoveCursor,
-    helpOpen,
     personalizationOpen,
     profileModalMode,
     profileModalOpen,
@@ -2000,18 +1924,40 @@ export default function App() {
 
   const handleRewardEarned = useCallback(
     (placement: RewardPlacement) => {
-      setActiveAdPlacement(null);
       soundService.playHintChime();
 
       if (placement === 'unlock_category') {
         const targetCat = pendingCategoryForAd || activeCategory;
+        const latestProgress = categoryProgressRef.current;
+        const res = recordCategoryUnlockAdWatch({
+          unlockAdProgress: latestProgress.unlockAdProgress,
+          playsRemaining: latestProgress.playsRemaining,
+          categoryId: targetCat.id,
+        });
+
+        if (!res.unlocked) {
+          const updatedProgress: CategoryProgressState = {
+            ...latestProgress,
+            unlockAdProgress: res.unlockAdProgress,
+            playsRemaining: res.playsRemaining,
+          };
+          categoryProgressRef.current = updatedProgress;
+          setCategoryProgress(updatedProgress);
+          const remainingAds = res.requiredAds - res.adsWatched;
+          showToast(
+            `Ad ${res.adsWatched}/${res.requiredAds} watched! Watch ${remainingAds} more for 5 plays.`,
+            2800
+          );
+          return;
+        }
+
+        setActiveAdPlacement(null);
         setPendingCategoryForAd(null);
         setCategoryExplorerOpen(false);
-        const granted = grantCategoryPlays(
-          categoryProgress.playsRemaining,
-          targetCat.id,
-          PREMIUM_UNLOCK_PLAYS
-        );
+        setSummaryOpen(false);
+        setActiveTab('puzzle');
+        window.scrollTo({ top: 0, behavior: 'instant' });
+
         const freshBoard = createCrosswordBoard({
           length: crosswordBoard.length,
           level: modeConfig.puzzleLevelNumber,
@@ -2021,6 +1967,14 @@ export default function App() {
         cursorRef.current = firstCell;
         setActiveRow(firstCell.row);
         setActiveCol(firstCell.col);
+        setTypingDirection('across');
+        setShakeLine(null);
+        setShowWinBurst(false);
+        setPersonalizedMeta(null);
+        setCluePanelOpen(false);
+        setClueSlotModalOpen(false);
+        setPendingClueSlot(null);
+        pendingClueSlotRef.current = null;
         setSelectedDictWord(null);
         setPuzzleTimedOut(false);
         const freshLimit = getCrosswordRoundTimeLimitSeconds(
@@ -2032,12 +1986,13 @@ export default function App() {
         setPuzzleTimeLeftSec(freshLimit);
         setCrosswordBoard(freshBoard);
 
-        const afterConsume = consumeCategoryPlay(targetCat, granted);
-        setCategoryProgress((prev) =>
-          recordUsedCategoryWord(
+        const afterConsume = consumeCategoryPlay(targetCat, res.playsRemaining);
+        setCategoryProgress((prev) => {
+          const nextState = recordUsedCategoryWord(
             {
               ...prev,
               activeCategoryId: targetCat.id,
+              unlockAdProgress: res.unlockAdProgress,
               playsRemaining: afterConsume,
               exploredCategories: prev.exploredCategories.includes(targetCat.id)
                 ? prev.exploredCategories
@@ -2047,11 +2002,15 @@ export default function App() {
             targetCat.id,
             freshBoard.length,
             freshBoard.solution.target
-          )
-        );
-        showToast(`${targetCat.name} unlocked! ${PREMIUM_UNLOCK_PLAYS} plays ready.`, 3200);
+          );
+          categoryProgressRef.current = nextState;
+          return nextState;
+        });
+        showToast(`${targetCat.name} unlocked! 5 plays granted!`, 3400);
         return;
       }
+
+      setActiveAdPlacement(null);
 
       if (placement === 'hint') {
         const hintRes = applyUnlimitedCrosswordHint(
@@ -2138,7 +2097,6 @@ export default function App() {
       activeCol,
       activeRow,
       boardCategory.name,
-      categoryProgress.playsRemaining,
       crosswordBoard,
       crosswordClimb.roundIndex,
       dateKey,
@@ -2198,11 +2156,7 @@ export default function App() {
       const cat = getCategoryById(categoryId);
       setActiveTab('puzzle');
       window.scrollTo({ top: 0, behavior: 'instant' });
-      const remaining = getCategoryRemainingPlays(
-        cat,
-        categoryProgress.playsRemaining,
-        categoryProgress.permanentlyUnlockedCategories
-      );
+      const remaining = getCategoryRemainingPlays(cat, categoryProgressRef.current.playsRemaining);
       if (cat.isPremium && remaining <= 0) {
         promptUnlockCategory(cat);
         return;
@@ -2218,30 +2172,11 @@ export default function App() {
     },
     [
       activateNewBoard,
-      categoryProgress.permanentlyUnlockedCategories,
-      categoryProgress.playsRemaining,
       crosswordBoard.length,
       modeConfig.puzzleLevelNumber,
       promptUnlockCategory,
       showToast,
     ]
-  );
-
-  const openHelpModal = useCallback((tab: HelpSectionTab = 'rules') => {
-    setHelpTab(tab);
-    setHelpOpen(true);
-  }, []);
-
-  const handleNavigateHeaderSection = useCallback(
-    (section: 'streak' | 'rules' | 'faq') => {
-      if (section === 'streak') {
-        setActiveTab('home');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
-      }
-      openHelpModal(section === 'faq' ? 'faq' : 'rules');
-    },
-    [openHelpModal]
   );
 
   const weeklyGradeInfo = useMemo(
@@ -2410,13 +2345,22 @@ export default function App() {
     const ids = [
       spotlight.heroCategoryId,
       ...spotlight.featuredCategoryIds,
-      'daily-news-pop',
-      'music-charts',
-      'history-heritage',
+      'awards-red-carpet',
+      'kpop-global-pop',
+      'sports-spectacle',
+      'astrology',
     ];
-    return Array.from(new Set(ids))
-      .map((id) => getCategoryById(id))
-      .slice(0, 3);
+    const seen = new Set<string>();
+    const out: PuzzleCategory[] = [];
+    for (const id of ids) {
+      const cat = getCategoryById(id);
+      if (!seen.has(cat.id)) {
+        seen.add(cat.id);
+        out.push(cat);
+      }
+      if (out.length >= 6) break;
+    }
+    return out;
   }, [spotlight.featuredCategoryIds, spotlight.heroCategoryId]);
 
   const handleRequestAdPlacement = useCallback(
@@ -2709,11 +2653,74 @@ export default function App() {
     }
   }, [buildEmailProgressBundle, showToast, userAccount]);
 
+  const openPrivacyPolicy = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      if (!isPrivacyPath(window.location.pathname)) {
+        window.history.pushState({ page: 'privacy' }, '', '/privacy');
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    setIsPrivacyRoute(true);
+  }, []);
+
+  const closePrivacyPolicy = useCallback(() => {
+    if (typeof window !== 'undefined' && isPrivacyPath(window.location.pathname)) {
+      window.history.pushState({ page: 'app' }, '', '/');
+    }
+    setIsPrivacyRoute(false);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handlePopState = () => {
+      setIsPrivacyRoute(isPrivacyPath(window.location.pathname));
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.title = isPrivacyRoute
+      ? 'Privacy Policy — WordVibe'
+      : 'WordVibe: Daily Word Puzzle, Brain Trivia & Faith Study';
+  }, [isPrivacyRoute]);
+
+  const handleClearAllLocalData = useCallback(async () => {
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.clear();
+      } catch {
+        // Ignore storage restrictions
+      }
+      if ('indexedDB' in window) {
+        try {
+          window.indexedDB.deleteDatabase('wordvibe_offline_accounts_db');
+        } catch {
+          // Ignore IndexedDB deletion restrictions
+        }
+      }
+      if ('caches' in window) {
+        try {
+          const keys = await window.caches.keys();
+          await Promise.all(
+            keys.filter((k) => k.startsWith('wordvibe-')).map((k) => window.caches.delete(k))
+          );
+        } catch {
+          // Ignore Cache API errors
+        }
+      }
+    }
+    setUserAccount(null);
+    showToast('Local profiles, scores, and browser caches cleared.');
+  }, [showToast]);
+
   const anyModalBlockingSwipe =
+    isPrivacyRoute ||
     Boolean(activeAdPlacement) ||
     clueSlotModalOpen ||
     summaryOpen ||
-    helpOpen ||
     categoryExplorerOpen ||
     weeklyRankOpen ||
     personalizationOpen ||
@@ -2731,7 +2738,6 @@ export default function App() {
         weeklyGradeId={weeklyGradeInfo.current.id}
         weeklyXp={weeklyProgress.weeklyXp}
         leaderboardRank={leaderboardSummary.rank}
-        bonusCoins={weeklyProgress.bonusCoins}
         userAccount={userAccount}
         onToggleSound={() => {
           const nextMode: SoundMode =
@@ -2747,10 +2753,15 @@ export default function App() {
         }}
         onOpenStats={() => setSummaryOpen(true)}
         onOpenWeeklyRank={handleOpenWeeklyRankModal}
-        onOpenHelp={() => openHelpModal('rules')}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={() => {
+          setSettingsOpenRequest(null);
+          setSettingsOpen(true);
+        }}
         onOpenProfile={() => setProfileViewOpen(true)}
-        onNavigateSection={handleNavigateHeaderSection}
+        onNavigateHome={() => {
+          closePrivacyPolicy();
+          setActiveTab('home');
+        }}
         showXp={activeTab !== 'home'}
       />
 
@@ -2802,6 +2813,9 @@ export default function App() {
             closestHorizontalScroll: Boolean(
               targetEl?.closest('[data-no-swipe="true"], .overflow-x-auto')
             ),
+            closestHorizontalSwitcher: Boolean(
+              targetEl?.closest('[data-horizontal-switcher="true"]')
+            ),
           });
           swipeTouchStartRef.current = {
             x: e.touches[0].clientX,
@@ -2826,6 +2840,85 @@ export default function App() {
             switchTabWithSwipe(resolution.nextTab, resolution.direction);
           }
         }}
+        onPointerDown={(e) => {
+          if (e.pointerType === 'touch' || e.button !== 0 || anyModalBlockingSwipe) {
+            swipePointerStartRef.current = null;
+            return;
+          }
+          const targetEl = e.target as HTMLElement | null;
+          const ignored = isSwipeIgnoredTarget({
+            tagName: targetEl?.tagName,
+            isContentEditable: targetEl?.isContentEditable,
+            closestHorizontalScroll: Boolean(
+              targetEl?.closest('[data-no-swipe="true"], .overflow-x-auto')
+            ),
+            closestHorizontalSwitcher: Boolean(
+              targetEl?.closest('[data-horizontal-switcher="true"]')
+            ),
+          });
+          swipePointerStartRef.current = {
+            x: e.clientX,
+            y: e.clientY,
+            time: Date.now(),
+            pointerId: e.pointerId,
+            ignored,
+          };
+        }}
+        onPointerUp={(e) => {
+          const start = swipePointerStartRef.current;
+          swipePointerStartRef.current = null;
+          if (!start || start.ignored || e.pointerId !== start.pointerId || anyModalBlockingSwipe) {
+            return;
+          }
+          const resolution = resolveSwipeTabChange({
+            currentTab: activeTab,
+            deltaX: e.clientX - start.x,
+            deltaY: e.clientY - start.y,
+            durationMs: Date.now() - start.time,
+          });
+          if (resolution.nextTab && resolution.direction) {
+            suppressMainClickUntilRef.current = Date.now() + 260;
+            switchTabWithSwipe(resolution.nextTab, resolution.direction);
+          }
+        }}
+        onClickCapture={(e) => {
+          if (Date.now() < suppressMainClickUntilRef.current) {
+            suppressMainClickUntilRef.current = 0;
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}
+        onWheel={(e) => {
+          if (anyModalBlockingSwipe) return;
+          const targetEl = e.target as HTMLElement | null;
+          if (
+            isSwipeIgnoredTarget({
+              tagName: targetEl?.tagName,
+              isContentEditable: targetEl?.isContentEditable,
+              closestHorizontalScroll: Boolean(
+                targetEl?.closest('[data-no-swipe="true"], .overflow-x-auto')
+              ),
+              closestHorizontalSwitcher: Boolean(
+                targetEl?.closest('[data-horizontal-switcher="true"]')
+              ),
+            })
+          ) {
+            return;
+          }
+          const step = resolveWheelStepDirection({
+            deltaX: e.deltaX,
+            deltaY: e.deltaY,
+            shiftKey: e.shiftKey,
+          });
+          if (!step) return;
+          const now = Date.now();
+          if (now - lastMainWheelAtRef.current < 380) return;
+          const nextTab = stepHorizontalSelection(APP_TAB_ORDER, activeTab, step);
+          if (nextTab) {
+            lastMainWheelAtRef.current = now;
+            switchTabWithSwipe(nextTab, step > 0 ? 'left' : 'right');
+          }
+        }}
         className={`flex-1 flex flex-col items-center pb-[78px] ${
           swipeTransitionDir === 'left'
             ? 'animate-swipe-from-right'
@@ -2834,8 +2927,14 @@ export default function App() {
             : ''
         }`}
       >
-        {activeTab === 'home' ? (
-          <StreakHomeView
+        {isPrivacyRoute ? (
+          <PrivacyPolicyView
+            onBack={closePrivacyPolicy}
+            onClearLocalData={handleClearAllLocalData}
+          />
+        ) : activeTab === 'home' ? (
+          <>
+            <StreakHomeView
             stats={stats}
             dateKey={dateKey}
             activeReligion={faithProgress.activeReligion}
@@ -2868,39 +2967,69 @@ export default function App() {
               setCategoryExplorerInitialTab('Entertainment');
               setCategoryExplorerOpen(true);
             }}
-            onOpenHelp={openHelpModal}
           />
+            <footer className="mx-auto mb-6 w-full max-w-3xl lg:max-w-4xl px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm wv-text-muted">
+              <span>On-Device Offline Ready</span>
+              <a
+                href="/privacy"
+                data-testid="footer-privacy-link"
+                onClick={(e) => {
+                  e.preventDefault();
+                  openPrivacyPolicy();
+                }}
+                className="font-semibold underline underline-offset-4 hover:opacity-85 cursor-pointer"
+              >
+                Privacy Policy
+              </a>
+            </footer>
+          </>
         ) : activeTab === 'faith' ? (
-          <FaithStudyView
-            dateKey={dateKey}
-            activeReligion={faithProgress.activeReligion}
-            showScriptureReferences={appSettings.showScriptureReferences}
-            completedToday={faithProgress.completedSessionsByDate[dateKey] || []}
-            refreshSignal={refreshSignal}
-            isOnline={isOnline}
-            onChangeReligion={handleChangeFaithReligion}
-            onPlayFaithPuzzle={handlePlayFaithPuzzle}
-            onFaithAnswerRecorded={handleFaithAnswerRecorded}
-          />
+          <>
+            <FaithStudyView
+              dateKey={dateKey}
+              activeReligion={faithProgress.activeReligion}
+              showScriptureReferences={appSettings.showScriptureReferences}
+              completedToday={faithProgress.completedSessionsByDate[dateKey] || []}
+              refreshSignal={refreshSignal}
+              isOnline={isOnline}
+              onChangeReligion={handleChangeFaithReligion}
+              onPlayFaithPuzzle={handlePlayFaithPuzzle}
+              onFaithAnswerRecorded={handleFaithAnswerRecorded}
+            />
+            <footer className="mx-auto mb-6 w-full max-w-3xl lg:max-w-4xl px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm wv-text-muted">
+              <span>On-Device Offline Ready</span>
+              <a
+                href="/privacy"
+                data-testid="footer-privacy-link"
+                onClick={(e) => {
+                  e.preventDefault();
+                  openPrivacyPolicy();
+                }}
+                className="font-semibold underline underline-offset-4 hover:opacity-85 cursor-pointer"
+              >
+                Privacy Policy
+              </a>
+            </footer>
+          </>
         ) : activeTab === 'trivia' ? (
-          <TriviaView
-            selectedCategoryId={triviaState.selectedCategoryId}
-            sessionMode={modeConfig.triviaSessionMode}
-            levelNumber={modeConfig.triviaLevelNumber}
-            maxUnlockedLevel={modeConfig.highestUnlockedTriviaLevel}
-            climbState={triviaClimb}
-            streak={triviaState.streak}
-            bestStreak={triviaState.bestStreak}
-            bonusUnlockUntil={triviaState.bonusUnlockUntil}
-            mastermindUnlocked={triviaState.mastermindUnlocked}
-            currentXp={currentSpendableXp}
-            recentQuestions={triviaState.recentQuestions}
-            playerProfile={playerProfile}
-            refreshSignal={refreshSignal}
+          <>
+            <TriviaView
+              selectedCategoryId={triviaState.selectedCategoryId}
+              sessionMode={modeConfig.triviaSessionMode}
+              levelNumber={modeConfig.triviaLevelNumber}
+              maxUnlockedLevel={modeConfig.highestUnlockedTriviaLevel}
+              climbState={triviaClimb}
+              streak={triviaState.streak}
+              bestStreak={triviaState.bestStreak}
+              bonusUnlockUntil={triviaState.bonusUnlockUntil}
+              mastermindUnlocked={triviaState.mastermindUnlocked}
+              currentXp={currentSpendableXp}
+              recentQuestions={triviaState.recentQuestions}
+              playerProfile={playerProfile}
+              refreshSignal={refreshSignal}
             isOnline={isOnline}
             isPaused={
               Boolean(activeAdPlacement) ||
-              helpOpen ||
               categoryExplorerOpen ||
               weeklyRankOpen ||
               personalizationOpen ||
@@ -2952,6 +3081,21 @@ export default function App() {
             onRoundCompleted={handleTriviaRoundCompleted}
             onDoubleXpClaimed={handleTriviaDoubleXpClaimed}
           />
+            <footer className="mx-auto mb-6 w-full max-w-3xl lg:max-w-4xl px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm wv-text-muted">
+              <span>On-Device Offline Ready</span>
+              <a
+                href="/privacy"
+                data-testid="footer-privacy-link"
+                onClick={(e) => {
+                  e.preventDefault();
+                  openPrivacyPolicy();
+                }}
+                className="font-semibold underline underline-offset-4 hover:opacity-85 cursor-pointer"
+              >
+                Privacy Policy
+              </a>
+            </footer>
+          </>
         ) : (
           <div key="puzzle-stage" className="w-full flex flex-col items-center animate-stage-enter">
             <ModeControls
@@ -2973,6 +3117,7 @@ export default function App() {
               autoLengthMode={autoLengthMode}
               activeCategory={activeCategory}
               categoryPlaysRemaining={categoryPlaysRemaining}
+              categoryUnlockAdsWatched={activeCategoryUnlockAdsWatched}
               currentStreak={stats.currentStreak}
               sprintSolved={stats.sprintSolved}
               isPersonalizedRound={personalizedMeta?.isPersonalized}
@@ -3004,7 +3149,7 @@ export default function App() {
               puzzleTimedOut={modeConfig.puzzleSessionMode === 'level_climb' && puzzleTimedOut}
               featuredTopics={featuredTopics}
               categoryPlaysRemainingMap={categoryProgress.playsRemaining}
-              permanentlyUnlockedCategories={categoryProgress.permanentlyUnlockedCategories}
+              categoryUnlockAdProgress={categoryProgress.unlockAdProgress}
               currentXp={currentSpendableXp}
               onChangeDirection={(dir) => {
                 setTypingDirection(dir);
@@ -3059,6 +3204,7 @@ export default function App() {
               canSaveStreak={isStreakRecoverable}
               previousLostStreak={stats.previousLostStreak}
               isCategoryLockedForNext={isCategoryLockedForNext}
+              categoryUnlockAdsWatched={activeCategoryUnlockAdsWatched}
               onToggleCluePanel={() => setCluePanelOpen((prev) => !prev)}
               onWatchAdSaveStreak={() => setActiveAdPlacement('save_streak')}
               onWatchAdUnlockCategory={() => promptUnlockCategory(activeCategory)}
@@ -3075,7 +3221,7 @@ export default function App() {
 
             <EditorialGuideAndAdSlot
               isActivelyTyping={isActivelyTyping}
-              onOpenHelp={openHelpModal}
+              onOpenPrivacyPolicy={openPrivacyPolicy}
             />
           </div>
         )}
@@ -3099,8 +3245,8 @@ export default function App() {
       <BottomNav
         activeTab={activeTab}
         onChangeTab={(tab) => {
+          closePrivacyPolicy();
           setActiveTab(tab);
-          window.scrollTo({ top: 0, behavior: 'instant' });
         }}
       />
 
@@ -3109,14 +3255,12 @@ export default function App() {
         initialTab={categoryExplorerInitialTab}
         activeCategoryId={activeCategory.id}
         playsRemaining={categoryProgress.playsRemaining}
-        permanentlyUnlockedCategories={categoryProgress.permanentlyUnlockedCategories}
-        currentXp={currentSpendableXp}
+        unlockAdProgress={categoryProgress.unlockAdProgress}
         solvedByCategory={categoryProgress.solvedByCategory}
         exploredCategories={categoryProgress.exploredCategories}
         spotlight={spotlight}
         onClose={() => setCategoryExplorerOpen(false)}
         onSelectCategory={handleSelectCategory}
-        onUnlockCategoryWithXp={handleSpendXpUnlockCategory}
       />
 
       <SummaryModal
@@ -3127,6 +3271,7 @@ export default function App() {
         categoryName={personalizedMeta?.isPersonalized ? 'For You Pick' : boardCategory.name}
         isPremiumCategory={!personalizedMeta?.isPersonalized && activeCategory.isPremium}
         categoryPlaysRemaining={categoryPlaysRemaining}
+        categoryUnlockAdsWatched={activeCategoryUnlockAdsWatched}
         countdown={countdown}
         stats={stats}
         canSaveStreak={isStreakRecoverable}
@@ -3198,6 +3343,7 @@ export default function App() {
         settings={appSettings}
         playerProfile={playerProfile}
         userAccount={userAccount}
+        openRequest={settingsOpenRequest}
         onClose={() => setSettingsOpen(false)}
         onUpdateSettings={handleUpdateSettings}
         onOpenPersonalize={() => {
@@ -3212,10 +3358,14 @@ export default function App() {
         onShareApp={() => void handleInviteFriends()}
         onResetTutorial={() => {
           handleUpdateSettings({ tutorialCompleted: false });
-          setSettingsOpen(false);
-          openHelpModal('rules');
-          showToast('Tutorial guide reopened.');
+          setSettingsOpenRequest({
+            section: 'about',
+            aboutTab: 'rules',
+            nonce: Date.now(),
+          });
+          showToast('Tutorial guide opened in Settings → About.');
         }}
+        onOpenPrivacyPolicy={openPrivacyPolicy}
       />
 
       <WeeklyRankModal
@@ -3536,8 +3686,6 @@ export default function App() {
         }
       />
 
-      <HowToPlayModal open={helpOpen} initialTab={helpTab} onClose={() => setHelpOpen(false)} />
-
       <WordTriviaRowModal
         open={clueSlotModalOpen}
         board={crosswordBoard}
@@ -3605,13 +3753,22 @@ export default function App() {
               : `Col ${pendingClueSlot.index + 1} Down`
             : pendingCategoryForAd?.name || activeCategory.name
         }
+        multiAdProgress={
+          activeAdPlacement === 'unlock_category' && CATEGORY_UNLOCK_REQUIRED_ADS > 1
+            ? {
+                current: getCategoryUnlockAdProgress(
+                  categoryProgress.unlockAdProgress,
+                  (pendingCategoryForAd || activeCategory).id
+                ),
+                total: CATEGORY_UNLOCK_REQUIRED_ADS,
+              }
+            : null
+        }
         xpCost={
           activeAdPlacement === 'hint'
             ? XP_COSTS.PUZZLE_HINT
             : activeAdPlacement === 'puzzle_clue' || activeAdPlacement === 'puzzle_word_trivia'
             ? XP_COSTS.PUZZLE_CLUE
-            : activeAdPlacement === 'unlock_category'
-            ? XP_COSTS.PUZZLE_CATEGORY_UNLOCK
             : activeAdPlacement === 'unlock_trivia_24h'
             ? XP_COSTS.TRIVIA_MASTERMIND_UNLOCK
             : undefined
@@ -3622,8 +3779,6 @@ export default function App() {
             ? 'Reveal Letter Hint Offline'
             : activeAdPlacement === 'puzzle_clue' || activeAdPlacement === 'puzzle_word_trivia'
             ? 'Unlock Word Clue Offline'
-            : activeAdPlacement === 'unlock_category'
-            ? `Unlock ${pendingCategoryForAd?.name || activeCategory.name} Forever`
             : activeAdPlacement === 'unlock_trivia_24h'
             ? 'Unlock Mastermind Forever'
             : undefined
@@ -3644,13 +3799,6 @@ export default function App() {
                 pendingClueSlotRef.current = null;
                 setPendingClueSlot(null);
                 handleSpendXpForPuzzleClue(chosen.slotType, chosen.index);
-              }
-            : activeAdPlacement === 'unlock_category'
-            ? () => {
-                const targetCat = pendingCategoryForAd || activeCategory;
-                setActiveAdPlacement(null);
-                setPendingCategoryForAd(null);
-                handleSpendXpUnlockCategory(targetCat);
               }
             : activeAdPlacement === 'unlock_trivia_24h'
             ? () => {

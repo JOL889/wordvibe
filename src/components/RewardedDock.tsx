@@ -17,6 +17,7 @@ interface RewardedDockProps {
   canSaveStreak: boolean;
   previousLostStreak: number;
   isCategoryLockedForNext: boolean;
+  categoryUnlockAdsWatched?: number;
   onToggleCluePanel: () => void;
   onWatchAdSaveStreak: () => void;
   onWatchAdUnlockCategory: () => void;
@@ -33,6 +34,7 @@ export const RewardedDock: React.FC<RewardedDockProps> = ({
   canSaveStreak,
   previousLostStreak,
   isCategoryLockedForNext,
+  categoryUnlockAdsWatched = 0,
   onToggleCluePanel,
   onWatchAdSaveStreak,
   onWatchAdUnlockCategory,
@@ -133,7 +135,11 @@ export const RewardedDock: React.FC<RewardedDockProps> = ({
               className="inline-flex min-h-12 sm:min-h-[52px] items-center gap-2 rounded-2xl wv-accent-btn px-4 sm:px-5 py-2.5 text-sm sm:text-base font-bold transition-transform active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Lock className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
-              <span>Unlock Topic</span>
+              <span>
+                {categoryUnlockAdsWatched > 0
+                  ? `Unlock Topic (${categoryUnlockAdsWatched}/1)`
+                  : 'Unlock Topic (1 Ad)'}
+              </span>
             </button>
           ) : (
             <button

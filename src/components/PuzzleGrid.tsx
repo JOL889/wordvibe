@@ -21,8 +21,10 @@ import {
   type CrosswordSlotType,
 } from '../game/crosswordLogic';
 import type { CursorDirection, TileState, TypingDirection } from '../game/puzzleLogic';
+import { getCategoryUnlockAdProgress } from '../game/puzzleLogic';
 import { getWordMeaningClue } from '../game/wordMeanings';
 import { XP_COSTS } from '../game/xpEconomyLogic';
+import { useHorizontalSwitch } from '../hooks/useHorizontalSwitch';
 
 export interface SelectedDictionaryWord {
   word: string;
@@ -43,7 +45,7 @@ interface PuzzleGridProps {
   puzzleTimedOut?: boolean;
   featuredTopics?: PuzzleCategory[];
   categoryPlaysRemainingMap?: Record<string, number>;
-  permanentlyUnlockedCategories?: string[];
+  categoryUnlockAdProgress?: Record<string, number>;
   currentXp?: number;
   onChangeDirection: (dir: TypingDirection) => void;
   onSelectCell: (rowIdx: number, colIdx: number, explicitDirection?: TypingDirection) => void;
@@ -122,7 +124,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
   puzzleTimedOut = false,
   featuredTopics = [],
   categoryPlaysRemainingMap = {},
-  permanentlyUnlockedCategories = [],
+  categoryUnlockAdProgress = {},
   currentXp = 0,
   onChangeDirection,
   onSelectCell,
@@ -141,6 +143,11 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
 }) => {
   const [isDealing, setIsDealing] = useState(true);
   const deviceInputRef = useRef<HTMLInputElement | null>(null);
+  const directionSwitch = useHorizontalSwitch<TypingDirection>({
+    items: ['across', 'down'],
+    activeItem: typingDirection,
+    onChange: onChangeDirection,
+  });
 
   useEffect(() => {
     setIsDealing(true);
@@ -309,6 +316,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
 
       {/* Across & Down Direction Quick Strip */}
       <div
+        {...directionSwitch.containerProps}
         data-testid="crossword-progress-bar"
         className="flex w-full max-w-xl sm:max-w-2xl items-center justify-between gap-2 rounded-2xl border wv-border wv-card px-4 py-2 text-sm sm:text-base shadow-xs"
       >
@@ -955,10 +963,13 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
               All Topics →
             </button>
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-2 sm:gap-3">
-            {featuredTopics.slice(0, 3).map((topic) => {
-              const isPermanent = permanentlyUnlockedCategories.includes(topic.id);
+          <div
+            data-no-swipe="true"
+            className="mt-3 flex gap-2.5 overflow-x-auto snap-x no-scrollbar pb-1"
+          >
+            {featuredTopics.slice(0, 6).map((topic) => {
               const plays = topic.isPremium ? categoryPlaysRemainingMap[topic.id] || 0 : -1;
+              const adsWatched = getCategoryUnlockAdProgress(categoryUnlockAdProgress, topic.id);
               const isSelected = topic.id === board.categoryId;
               return (
                 <button
@@ -966,7 +977,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
                   type="button"
                   data-testid={`featured-topic-${topic.id}`}
                   onClick={() => onSelectFeaturedTopic(topic)}
-                  className={`flex min-h-14 sm:min-h-16 flex-col items-start justify-between rounded-xl border p-2.5 sm:p-3 text-left transition-transform active:scale-95 cursor-pointer ${
+                  className={`flex min-h-14 sm:min-h-16 min-w-[144px] sm:min-w-[164px] shrink-0 snap-start flex-col items-start justify-between rounded-xl border p-2.5 sm:p-3 text-left transition-transform active:scale-95 cursor-pointer ${
                     isSelected
                       ? 'wv-accent-btn border-transparent'
                       : 'wv-border wv-card-muted wv-text hover:opacity-90'
@@ -977,12 +988,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
                   </span>
                   <span className="mt-1 inline-flex items-center gap-1 text-[11px] sm:text-xs font-bold opacity-90">
                     {topic.isPremium ? (
-                      isPermanent ? (
-                        <>
-                          <Unlock className="h-3 w-3 shrink-0" aria-hidden="true" />
-                          <span>Forever</span>
-                        </>
-                      ) : plays > 0 ? (
+                      plays > 0 ? (
                         <>
                           <Unlock className="h-3 w-3 shrink-0" aria-hidden="true" />
                           <span>{plays} left</span>
@@ -990,7 +996,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
                       ) : (
                         <>
                           <Play className="h-3 w-3 shrink-0" aria-hidden="true" />
-                          <span>Ad / 300 XP</span>
+                          <span>{adsWatched > 0 ? `${adsWatched}/1 Ad` : '1 Ad · 5 Plays'}</span>
                         </>
                       )
                     ) : (

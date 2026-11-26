@@ -19,6 +19,7 @@ import {
 import { recordModeOutcome } from '../game/retirementQueueLogic';
 import type { TriviaQuestion } from '../game/triviaLogic';
 import { soundService } from '../services/soundService';
+import { useHorizontalSwitch } from '../hooks/useHorizontalSwitch';
 import { ReligionIcon } from './ReligionIcons';
 
 interface FaithStudyViewProps {
@@ -97,12 +98,21 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
   const accuracy =
     answeredCount > 0 ? Math.round((correctCount / answeredCount) * 100) : 100;
 
-  const handleSelectReligion = (nextReligion: ReligionId) => {
-    if (nextReligion === activeReligion) return;
-    onChangeReligion(nextReligion);
-    setAnsweredCount(0);
-    setCorrectCount(0);
-  };
+  const handleSelectReligion = useCallback(
+    (nextReligion: ReligionId) => {
+      if (nextReligion === activeReligion) return;
+      onChangeReligion(nextReligion);
+      setAnsweredCount(0);
+      setCorrectCount(0);
+    },
+    [activeReligion, onChangeReligion]
+  );
+
+  const religionSwitch = useHorizontalSwitch({
+    items: RELIGION_IDS,
+    activeItem: activeReligion,
+    onChange: handleSelectReligion,
+  });
 
   const handleAnswer = (optIdx: number) => {
     if (!currentQ || selectedIdx !== null) return;
@@ -156,6 +166,7 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
         </div>
 
         <div
+          {...religionSwitch.containerProps}
           data-testid="religion-switcher"
           role="tablist"
           aria-label="Choose faith tradition"
@@ -165,8 +176,8 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
             aria-hidden="true"
             className="pointer-events-none absolute top-1 bottom-1 left-1 rounded-xl border wv-border wv-card shadow-xs transition-transform duration-300 ease-out"
             style={{
-              width: 'calc((100% - 8px) / 6)',
-              transform: `translateX(${Math.max(0, activeIdx) * 100}%)`,
+              width: 'calc((100% - 28px) / 6)',
+              transform: `translateX(calc(${Math.max(0, activeIdx)} * (100% + 4px)))`,
             }}
           />
 
@@ -182,7 +193,7 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
                 aria-label={`${item.name} (${item.shortLabel})`}
                 data-religion={id}
                 onClick={() => handleSelectReligion(id)}
-                className={`relative z-10 flex min-h-14 sm:min-h-16 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-xs sm:text-sm font-bold transition-colors cursor-pointer active:scale-95 ${
+                className={`relative z-10 flex min-h-14 sm:min-h-16 flex-col items-center justify-center gap-1 rounded-xl px-0.5 sm:px-1 py-2 text-[11px] sm:text-sm font-bold transition-colors cursor-pointer active:scale-95 ${
                   isSelected ? 'wv-text' : 'wv-text-muted hover:opacity-90'
                 }`}
               >
@@ -199,9 +210,10 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
         </div>
       </div>
 
-      {/* Daily Reflection & Quick Crossword Link */}
+      {/* Daily Reflection & Quick Crossword Link (Swipe horizontally to switch tradition) */}
       <div
         key={`passage-${activeReligion}`}
+        {...religionSwitch.containerProps}
         className="rounded-3xl border wv-border wv-card p-5 sm:p-7 shadow-xs animate-stage-enter"
       >
         <div className="flex items-center gap-3">

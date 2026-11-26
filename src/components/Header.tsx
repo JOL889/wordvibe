@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   BarChart3,
-  HelpCircle,
   Settings,
   Trophy,
   Vibrate,
@@ -19,15 +18,13 @@ interface HeaderProps {
   weeklyGradeId: WeeklyGradeId;
   weeklyXp: number;
   leaderboardRank?: number;
-  bonusCoins: number;
   userAccount?: LocalUserAccount | null;
   onToggleSound: () => void;
   onOpenStats: () => void;
   onOpenWeeklyRank: () => void;
-  onOpenHelp: () => void;
   onOpenSettings: () => void;
   onOpenProfile?: () => void;
-  onNavigateSection?: (section: 'streak' | 'rules' | 'faq') => void;
+  onNavigateHome?: () => void;
   showXp?: boolean;
 }
 
@@ -48,15 +45,13 @@ export const Header: React.FC<HeaderProps> = ({
   weeklyGradeId,
   weeklyXp,
   leaderboardRank,
-  bonusCoins,
   userAccount,
   onToggleSound,
   onOpenStats,
   onOpenWeeklyRank,
-  onOpenHelp,
   onOpenSettings,
   onOpenProfile,
-  onNavigateSection,
+  onNavigateHome,
   showXp = true,
 }) => {
   return (
@@ -65,9 +60,9 @@ export const Header: React.FC<HeaderProps> = ({
         <a
           href="#top"
           onClick={(e) => {
-            if (onNavigateSection) {
+            if (onNavigateHome) {
               e.preventDefault();
-              onNavigateSection('streak');
+              onNavigateHome();
             }
           }}
           className="font-display text-lg sm:text-2xl font-black tracking-tight wv-text whitespace-nowrap shrink-0 flex items-center gap-1.5 sm:gap-2"
@@ -80,48 +75,6 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
           <span className="font-black">WordVibe</span>
         </a>
-
-        <nav
-          aria-label="Puzzle guides"
-          className="hidden md:flex items-center gap-6 text-sm font-semibold wv-text-muted"
-        >
-          <a
-            href="#how-to-play"
-            onClick={(e) => {
-              if (onNavigateSection) {
-                e.preventDefault();
-                onNavigateSection('rules');
-              }
-            }}
-            className="hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
-          >
-            Rules
-          </a>
-          <a
-            href="#streak-guide"
-            onClick={(e) => {
-              if (onNavigateSection) {
-                e.preventDefault();
-                onNavigateSection('streak');
-              }
-            }}
-            className="hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
-          >
-            Streaks
-          </a>
-          <a
-            href="#faq"
-            onClick={(e) => {
-              if (onNavigateSection) {
-                e.preventDefault();
-                onNavigateSection('faq');
-              }
-            }}
-            className="hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
-          >
-            FAQ
-          </a>
-        </nav>
 
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           <PWAInstallButton compact />
@@ -154,19 +107,6 @@ export const Header: React.FC<HeaderProps> = ({
                 `Rank ${weeklyGradeId}`
               )}
             </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.currentTarget.blur();
-              onOpenHelp();
-            }}
-            aria-label="How to play WordVibe"
-            title="How to play"
-            className="hidden sm:inline-flex h-10 w-10 items-center justify-center rounded-xl wv-text-muted transition-colors hover:opacity-80 cursor-pointer"
-          >
-            <HelpCircle className="h-[18px] w-[18px]" aria-hidden="true" />
           </button>
 
           <button

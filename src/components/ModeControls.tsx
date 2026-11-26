@@ -23,6 +23,7 @@ import {
   normalizeLevelNumber,
   type SessionPlayMode,
 } from '../game/settingsLogic';
+import { useHorizontalSwitch } from '../hooks/useHorizontalSwitch';
 
 interface ModeControlsProps {
   sessionMode: SessionPlayMode;
@@ -35,6 +36,7 @@ interface ModeControlsProps {
   autoLengthMode?: boolean;
   activeCategory: PuzzleCategory;
   categoryPlaysRemaining: number;
+  categoryUnlockAdsWatched?: number;
   currentStreak: number;
   sprintSolved: number;
   isPersonalizedRound?: boolean;
@@ -49,6 +51,7 @@ interface ModeControlsProps {
 }
 
 const LENGTHS: WordLength[] = [4, 5, 6];
+const SESSION_MODES: readonly SessionPlayMode[] = ['level_climb', 'sprint'];
 
 function formatTimerSec(sec: number): string {
   const s = Math.max(0, Math.floor(sec));
@@ -68,6 +71,7 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
   autoLengthMode = false,
   activeCategory,
   categoryPlaysRemaining,
+  categoryUnlockAdsWatched = 0,
   currentStreak,
   sprintSolved,
   isPersonalizedRound = false,
@@ -85,6 +89,18 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
   const canIncrementLevel = safeLevel < safeMaxUnlocked;
   const isLowTime = roundTimeLeftSec !== null && roundTimeLeftSec <= 15;
 
+  const sessionSwitch = useHorizontalSwitch({
+    items: SESSION_MODES,
+    activeItem: sessionMode,
+    onChange: onChangeSessionMode,
+  });
+
+  const lengthSwitch = useHorizontalSwitch({
+    items: LENGTHS,
+    activeItem: length,
+    onChange: onChangeLength,
+  });
+
   return (
     <section
       aria-label="Crossword mode, level, topic, and board size"
@@ -93,9 +109,10 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
       <div className="flex w-full flex-wrap items-center justify-center gap-2 sm:justify-between">
         {/* Session Mode: Level Climb (5 Timed) vs Endless Sprint */}
         <div
+          {...sessionSwitch.containerProps}
           role="group"
           aria-label="Puzzle session mode"
-          className="inline-flex items-center rounded-2xl border wv-border wv-card-muted p-1"
+          className="inline-flex max-w-full items-center overflow-x-auto no-scrollbar rounded-2xl border wv-border wv-card-muted p-1"
         >
           <button
             type="button"
@@ -135,9 +152,10 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
 
         {/* Board Dimensions Selector (4x4, 5x5, 6x6 + Auto) */}
         <div
+          {...lengthSwitch.containerProps}
           role="group"
           aria-label="Grid dimensions"
-          className="inline-flex items-center rounded-2xl border wv-border wv-card-muted p-1"
+          className="inline-flex max-w-full items-center overflow-x-auto no-scrollbar rounded-2xl border wv-border wv-card-muted p-1"
         >
           {onToggleAutoLength && (
             <button
@@ -283,7 +301,9 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
               <span className="rounded-lg wv-gold-pill px-2.5 py-1 font-mono-tabular">
                 {categoryPlaysRemaining > 0
                   ? `${categoryPlaysRemaining} left`
-                  : 'Ad / 300 XP'}
+                  : categoryUnlockAdsWatched > 0
+                  ? `${categoryUnlockAdsWatched}/1 Ad`
+                  : '1 Ad · 5 Plays'}
               </span>
             ) : (
               <span className="rounded-lg border wv-accent-pill px-2.5 py-1">

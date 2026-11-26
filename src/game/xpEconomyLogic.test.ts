@@ -10,9 +10,12 @@ import {
 } from './xpEconomyLogic';
 import { createFreshWeeklyState, getUtcWeekKey } from './weeklyLogic';
 import {
+  CATEGORY_UNLOCK_REQUIRED_ADS,
+  PREMIUM_UNLOCK_PLAYS,
   consumeCategoryPlay,
   getCategoryRemainingPlays,
   isCategoryAccessible,
+  recordCategoryUnlockAdWatch,
 } from './puzzleLogic';
 import { isTriviaCategoryUnlocked } from './triviaLogic';
 import type { PuzzleCategory } from '../data/categories';
@@ -44,9 +47,9 @@ const SAMPLE_FREE_CATEGORY: PuzzleCategory = {
 test('XP_COSTS match exact requested currency prices', () => {
   assert.equal(XP_COSTS.PUZZLE_CLUE, 300);
   assert.equal(XP_COSTS.PUZZLE_HINT, 300);
-  assert.equal(XP_COSTS.PUZZLE_CATEGORY_UNLOCK, 300);
   assert.equal(XP_COSTS.TRIVIA_SOLVE, 500);
   assert.equal(XP_COSTS.TRIVIA_MASTERMIND_UNLOCK, 200);
+  assert.equal('PUZZLE_CATEGORY_UNLOCK' in XP_COSTS, false);
 });
 
 test('canAffordXp and formatNotEnoughXpMessage enforce exact thresholds', () => {
@@ -114,18 +117,26 @@ test('spendPlayerXp prevents negative XP balances and returns error message', ()
   assert.equal(failSolve.errorMessage, 'Not enough XP — need 500 XP');
 });
 
-test('Puzzle permanent category unlock grants unlimited access while preserving legacy play counts', () => {
+test('Puzzle locked categories unlock only via watching 1 ad for 5 plays (no XP forever bypass)', () => {
   const playsRemaining: Record<string, number> = { 'bible-wisdom': 0 };
+  const unlockAdProgress: Record<string, number> = {};
+  assert.equal(CATEGORY_UNLOCK_REQUIRED_ADS, 1);
   assert.equal(isCategoryAccessible(SAMPLE_FREE_CATEGORY, playsRemaining), true);
   assert.equal(isCategoryAccessible(SAMPLE_PREMIUM_CATEGORY, playsRemaining), false);
   assert.equal(getCategoryRemainingPlays(SAMPLE_PREMIUM_CATEGORY, playsRemaining), 0);
 
-  const permanent = ['bible-wisdom'];
-  assert.equal(isCategoryAccessible(SAMPLE_PREMIUM_CATEGORY, playsRemaining, permanent), true);
-  assert.equal(getCategoryRemainingPlays(SAMPLE_PREMIUM_CATEGORY, playsRemaining, permanent), Infinity);
+  const finalAd = recordCategoryUnlockAdWatch({
+    unlockAdProgress,
+    playsRemaining,
+    categoryId: 'bible-wisdom',
+  });
+  assert.equal(finalAd.unlocked, true);
+  assert.equal(finalAd.playsRemaining['bible-wisdom'], PREMIUM_UNLOCK_PLAYS);
+  assert.equal(isCategoryAccessible(SAMPLE_PREMIUM_CATEGORY, finalAd.playsRemaining), true);
+  assert.equal(getCategoryRemainingPlays(SAMPLE_PREMIUM_CATEGORY, finalAd.playsRemaining), 5);
 
-  const afterConsume = consumeCategoryPlay(SAMPLE_PREMIUM_CATEGORY, { 'bible-wisdom': 3 }, permanent);
-  assert.equal(afterConsume['bible-wisdom'], 3);
+  const afterConsume = consumeCategoryPlay(SAMPLE_PREMIUM_CATEGORY, finalAd.playsRemaining);
+  assert.equal(afterConsume['bible-wisdom'], 4);
 });
 
 test('Trivia Mastermind permanent unlock bypasses 24h ad expiry lock', () => {

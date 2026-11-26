@@ -3,13 +3,13 @@ import {
   Bell,
   ChevronDown,
   ChevronUp,
-  HelpCircle,
   Info,
   MapPin,
   Music,
   Palette,
   RotateCcw,
   Share2,
+  ShieldCheck,
   Sliders,
   Smartphone,
   Sparkles,
@@ -36,28 +36,40 @@ import type {
   ThemeMode,
 } from '../game/settingsLogic';
 import type { LocalUserAccount } from '../game/userAccountLogic';
+import { useHorizontalSwitch } from '../hooks/useHorizontalSwitch';
+import { PWAInstallButton } from './PWAInstallButton';
 import { ReligionIcon } from './ReligionIcons';
 import { UserAvatar } from './UserAvatar';
+
+export type AboutSubTab = 'about' | 'rules' | 'faq';
+
+export type SettingsSectionId =
+  | 'account'
+  | 'gameplay'
+  | 'audio_appearance'
+  | 'notifications'
+  | 'about';
+
+export interface SettingsOpenRequest {
+  section?: SettingsSectionId;
+  aboutTab?: AboutSubTab;
+  nonce: number;
+}
 
 interface SettingsModalProps {
   open: boolean;
   settings: AppSettings;
   playerProfile: PlayerProfileState;
   userAccount?: LocalUserAccount | null;
+  openRequest?: SettingsOpenRequest | null;
   onClose: () => void;
   onUpdateSettings: (patch: Partial<AppSettings>) => void;
   onOpenPersonalize: () => void;
   onOpenEditProfile?: () => void;
   onShareApp: () => void;
   onResetTutorial: () => void;
+  onOpenPrivacyPolicy?: () => void;
 }
-
-type SettingsSectionId =
-  | 'account'
-  | 'gameplay'
-  | 'audio_appearance'
-  | 'notifications'
-  | 'about';
 
 const INITIAL_COLLAPSED_STATE: Record<SettingsSectionId, boolean> = {
   account: false,
@@ -67,12 +79,20 @@ const INITIAL_COLLAPSED_STATE: Record<SettingsSectionId, boolean> = {
   about: false,
 };
 
+const ABOUT_TABS: Array<{ id: AboutSubTab; label: string }> = [
+  { id: 'about', label: 'About' },
+  { id: 'rules', label: 'How to Play' },
+  { id: 'faq', label: 'FAQ' },
+];
+const ABOUT_TAB_IDS = ABOUT_TABS.map((t) => t.id);
+
 const THEME_OPTIONS: Array<{ id: ThemeMode; label: string; sub: string }> = [
   { id: 'dark', label: 'Dark Mode', sub: 'Deep integrated tint' },
   { id: 'light', label: 'Light Mode', sub: 'Clean tinted paper' },
   { id: 'amoled', label: 'AMOLED Black', sub: 'True #000 OLED' },
   { id: 'colorblind', label: 'Colorblind Safe', sub: 'High-contrast' },
 ];
+const THEME_IDS = THEME_OPTIONS.map((t) => t.id);
 
 const ACCENT_OPTIONS: Array<{ id: AccentColor; label: string; hex: string }> = [
   { id: 'emerald', label: 'Emerald', hex: '#10B981' },
@@ -80,18 +100,21 @@ const ACCENT_OPTIONS: Array<{ id: AccentColor; label: string; hex: string }> = [
   { id: 'blue', label: 'Ocean Blue', hex: '#2563EB' },
   { id: 'violet', label: 'Violet', hex: '#7C3AED' },
 ];
+const ACCENT_IDS = ACCENT_OPTIONS.map((a) => a.id);
 
 const ANIMATION_OPTIONS: Array<{ id: AnimationIntensity; label: string }> = [
   { id: 'full', label: 'Motion Tilt' },
   { id: 'subtle', label: 'Gentle Tilt' },
   { id: 'reduced', label: 'Still Mode' },
 ];
+const ANIMATION_IDS = ANIMATION_OPTIONS.map((a) => a.id);
 
 const DIFFICULTY_OPTIONS: Array<{ id: DifficultyTier; label: string }> = [
   { id: 'casual', label: 'Balanced' },
   { id: 'balanced', label: 'Brisk' },
   { id: 'mastermind', label: 'Mastermind' },
 ];
+const DIFFICULTY_IDS = DIFFICULTY_OPTIONS.map((d) => d.id);
 
 const STARTING_TABS: Array<{ id: StartingTab; label: string }> = [
   { id: 'home', label: 'Streak' },
@@ -99,6 +122,7 @@ const STARTING_TABS: Array<{ id: StartingTab; label: string }> = [
   { id: 'faith', label: 'Faith' },
   { id: 'trivia', label: 'AI Trivia' },
 ];
+const STARTING_TAB_IDS = STARTING_TABS.map((t) => t.id);
 
 const SOUND_MODES: Array<{
   id: SoundMode;
@@ -110,6 +134,7 @@ const SOUND_MODES: Array<{
   { id: 'mute', label: 'Mute', sub: 'Vibrate Only', Icon: Vibrate },
   { id: 'off', label: 'Off', sub: 'Silent SFX', Icon: VolumeX },
 ];
+const SOUND_MODE_IDS = SOUND_MODES.map((m) => m.id);
 
 interface ToggleRowProps {
   testId?: string;
@@ -219,24 +244,86 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
   playerProfile,
   userAccount = null,
+  openRequest = null,
   onClose,
   onUpdateSettings,
   onOpenPersonalize,
   onOpenEditProfile,
   onShareApp,
   onResetTutorial,
+  onOpenPrivacyPolicy,
 }) => {
   const [expandedSections, setExpandedSections] = useState<Record<SettingsSectionId, boolean>>(
     INITIAL_COLLAPSED_STATE
   );
+  const [aboutTab, setAboutTab] = useState<AboutSubTab>('about');
   const [sensorPermFeedback, setSensorPermFeedback] = useState<string | null>(null);
 
-  // Ensure every parent dropdown starts collapsed whenever Settings opens
+  const activeSoundMode: SoundMode = settings.soundMode ?? (settings.soundEnabled ? 'on' : 'off');
+
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    if (openRequest?.section) {
+      setExpandedSections({
+        ...INITIAL_COLLAPSED_STATE,
+        [openRequest.section]: true,
+      });
+      if (openRequest.section === 'about') {
+        setAboutTab(openRequest.aboutTab || 'rules');
+      }
+    } else {
       setExpandedSections({ ...INITIAL_COLLAPSED_STATE });
+      setAboutTab('about');
     }
-  }, [open]);
+  }, [open, openRequest]);
+
+  const startTabSwitch = useHorizontalSwitch({
+    items: STARTING_TAB_IDS,
+    activeItem: settings.defaultTab,
+    onChange: (defaultTab) => onUpdateSettings({ defaultTab }),
+  });
+
+  const difficultySwitch = useHorizontalSwitch({
+    items: DIFFICULTY_IDS,
+    activeItem: settings.difficultyTier,
+    onChange: (difficultyTier) => onUpdateSettings({ difficultyTier }),
+  });
+
+  const religionSwitch = useHorizontalSwitch({
+    items: RELIGION_IDS,
+    activeItem: settings.defaultReligion,
+    onChange: (defaultReligion) => onUpdateSettings({ defaultReligion }),
+  });
+
+  const soundModeSwitch = useHorizontalSwitch({
+    items: SOUND_MODE_IDS,
+    activeItem: activeSoundMode,
+    onChange: (mode) => onUpdateSettings({ soundMode: mode, soundEnabled: mode === 'on' }),
+  });
+
+  const themeSwitch = useHorizontalSwitch({
+    items: THEME_IDS,
+    activeItem: settings.themeMode,
+    onChange: (themeMode) => onUpdateSettings({ themeMode }),
+  });
+
+  const accentSwitch = useHorizontalSwitch({
+    items: ACCENT_IDS,
+    activeItem: settings.accentColor,
+    onChange: (accentColor) => onUpdateSettings({ accentColor }),
+  });
+
+  const animSwitch = useHorizontalSwitch({
+    items: ANIMATION_IDS,
+    activeItem: settings.animationIntensity,
+    onChange: (animationIntensity) => onUpdateSettings({ animationIntensity }),
+  });
+
+  const aboutTabSwitch = useHorizontalSwitch({
+    items: ABOUT_TAB_IDS,
+    activeItem: aboutTab,
+    onChange: (nextTab) => setAboutTab(nextTab),
+  });
 
   if (!open) return null;
 
@@ -248,7 +335,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const sensorStatus = getSensorSupportStatus();
-  const activeSoundMode: SoundMode = settings.soundMode ?? (settings.soundEnabled ? 'on' : 'off');
 
   const locationSummary =
     playerProfile.locationEnabled && !playerProfile.locationOptOut
@@ -299,7 +385,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
 
-        {/* 5 Collapsible Parent Dropdowns (All Collapsed by Default) */}
+        {/* 5 Collapsible Parent Dropdowns (All Collapsed by Default Unless Directed) */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-2.5">
           {/* 1. Account & Sync */}
           <AccordionSection
@@ -388,7 +474,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <span className="text-xs sm:text-sm font-semibold wv-text-muted">
                 Default Starting Tab
               </span>
-              <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+              <div
+                {...startTabSwitch.containerProps}
+                className="mt-1.5 grid grid-cols-4 gap-1.5"
+              >
                 {STARTING_TABS.map((tab) => {
                   const active = settings.defaultTab === tab.id;
                   return (
@@ -414,7 +503,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <span className="text-xs sm:text-sm font-semibold wv-text-muted">
                 Challenge Pace
               </span>
-              <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+              <div
+                {...difficultySwitch.containerProps}
+                className="mt-1.5 grid grid-cols-3 gap-1.5"
+              >
                 {DIFFICULTY_OPTIONS.map((opt) => {
                   const active = settings.difficultyTier === opt.id;
                   return (
@@ -440,7 +532,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <span className="text-sm font-semibold wv-text-muted">
                 Default Faith Tradition
               </span>
-              <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+              <div
+                {...religionSwitch.containerProps}
+                className="mt-1.5 grid grid-cols-3 gap-1.5"
+              >
                 {RELIGION_IDS.map((id) => {
                   const item = FAITH_TRADITIONS[id];
                   const active = settings.defaultReligion === id;
@@ -555,6 +650,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Tap &amp; Vibration Profile
                 </span>
                 <div
+                  {...soundModeSwitch.containerProps}
                   role="group"
                   aria-label="Sound feedback mode"
                   className="mt-1.5 grid grid-cols-3 gap-1.5"
@@ -615,7 +711,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <div className="border-t wv-border pt-3 space-y-2.5">
-              <div className="grid grid-cols-2 gap-2">
+              <div
+                {...themeSwitch.containerProps}
+                className="grid grid-cols-2 gap-2"
+              >
                 {THEME_OPTIONS.map((opt) => {
                   const active = settings.themeMode === opt.id;
                   return (
@@ -641,7 +740,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <span className="text-xs sm:text-sm font-semibold wv-text-muted">
                   App Color (Integrates Every Surface)
                 </span>
-                <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                <div
+                  {...accentSwitch.containerProps}
+                  className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-1.5"
+                >
                   {ACCENT_OPTIONS.map((acc) => {
                     const active = settings.accentColor === acc.id;
                     return (
@@ -673,7 +775,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <Sparkles className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
                   <span>Phone Motion Tilt</span>
                 </span>
-                <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                <div
+                  {...animSwitch.containerProps}
+                  className="mt-1.5 grid grid-cols-3 gap-1.5"
+                >
                   {ANIMATION_OPTIONS.map((anim) => {
                     const active = settings.animationIntensity === anim.id;
                     return (
@@ -746,34 +851,233 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </AccordionSection>
 
-          {/* 5. About & Help */}
+          {/* 5. About (Houses App Info, How to Play & FAQ exclusively) */}
           <AccordionSection
             id="about"
-            title="About & Help"
-            subtitle="Offline play, rules & privacy guide"
+            title="About"
+            subtitle="App info, How to Play & FAQ"
             Icon={Info}
             isOpen={expandedSections.about}
             onToggle={toggleSection}
           >
-            <p className="rounded-xl border wv-border wv-card p-3.5 text-sm leading-relaxed wv-text-muted">
-              WordVibe works offline using on-device puzzles, trivia, streaks, Faith Study
-              progress, and theme preferences. Your optional city choice stays strictly on your
-              device.
-            </p>
-            <button
-              type="button"
-              data-testid="setting-open-help-btn"
-              onClick={onResetTutorial}
-              className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border wv-border wv-card px-3 text-xs sm:text-sm font-semibold wv-text hover:opacity-90 cursor-pointer"
+            <div
+              {...aboutTabSwitch.containerProps}
+              role="tablist"
+              aria-label="About sections"
+              className="grid grid-cols-3 gap-1 rounded-xl border wv-border wv-card p-1 text-xs font-bold"
             >
-              <HelpCircle className="h-4 w-4 wv-accent-text" aria-hidden="true" />
-              <span>How to Play &amp; Scoring Guide</span>
-            </button>
+              {ABOUT_TABS.map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  data-testid={`settings-about-tab-${id}`}
+                  aria-selected={aboutTab === id}
+                  onClick={() => setAboutTab(id)}
+                  className={`min-h-10 rounded-lg px-2 py-1.5 transition-colors cursor-pointer ${
+                    aboutTab === id ? 'wv-accent-btn' : 'wv-text-muted hover:opacity-90'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div
+              {...aboutTabSwitch.containerProps}
+              data-testid={`settings-about-panel-${aboutTab}`}
+              className="space-y-3"
+            >
+              {aboutTab === 'about' && (
+                <div className="space-y-3 text-sm leading-relaxed wv-text-muted">
+                  <p className="rounded-xl border wv-border wv-card p-3.5">
+                    WordVibe works offline using on-device puzzles, trivia, streaks, Faith Study
+                    progress, and theme preferences. Your optional city choice stays strictly on
+                    your device.
+                  </p>
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border wv-border wv-card p-3.5 text-xs sm:text-sm">
+                    <span className="font-semibold wv-text">
+                      112 Curated Topics &amp; Phone Motion
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {onOpenPrivacyPolicy && (
+                        <a
+                          href="/privacy"
+                          data-testid="settings-about-privacy-link"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            onClose();
+                            onOpenPrivacyPolicy();
+                          }}
+                          className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border wv-border wv-card-muted px-3 py-1.5 text-xs font-semibold wv-text hover:opacity-85 cursor-pointer"
+                        >
+                          <ShieldCheck className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
+                          <span>Privacy Policy</span>
+                        </a>
+                      )}
+                      <PWAInstallButton />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {aboutTab === 'rules' && (
+                <div className="space-y-3.5 text-xs sm:text-sm leading-relaxed wv-text-muted">
+                  <div className="rounded-xl border wv-border wv-card p-3.5 space-y-2.5">
+                    <h3 className="text-sm sm:text-base font-bold wv-text">
+                      Crossword Grid Rules
+                    </h3>
+                    <p>
+                      Tap any square on the <strong className="wv-text">4×4, 5×5, or 6×6</strong>{' '}
+                      linked crossword grid and type Across or Down, then tap{' '}
+                      <strong className="wv-text">Enter</strong> to lock in or score the active word.
+                    </p>
+                    <div className="space-y-2 pt-1">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex gap-1" aria-hidden="true">
+                          <span className="flex h-7 w-7 items-center justify-center rounded border text-xs font-bold wv-tile-correct">
+                            W
+                          </span>
+                          <span className="flex h-7 w-7 items-center justify-center rounded border text-xs font-bold wv-tile-wooden">
+                            I
+                          </span>
+                          <span className="flex h-7 w-7 items-center justify-center rounded border text-xs font-bold wv-tile-wooden">
+                            S
+                          </span>
+                          <span className="flex h-7 w-7 items-center justify-center rounded border text-xs font-bold wv-tile-wooden">
+                            E
+                          </span>
+                        </div>
+                        <span>
+                          <strong className="wv-text">Green:</strong> Correct letter in the exact
+                          spot.
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex gap-1" aria-hidden="true">
+                          <span className="flex h-7 w-7 items-center justify-center rounded border text-xs font-bold wv-tile-wooden">
+                            S
+                          </span>
+                          <span className="flex h-7 w-7 items-center justify-center rounded border text-xs font-bold wv-tile-present">
+                            T
+                          </span>
+                          <span className="flex h-7 w-7 items-center justify-center rounded border text-xs font-bold wv-tile-wooden">
+                            A
+                          </span>
+                          <span className="flex h-7 w-7 items-center justify-center rounded border text-xs font-bold wv-tile-wooden">
+                            R
+                          </span>
+                        </div>
+                        <span>
+                          <strong className="wv-text">Gold:</strong> Letter belongs in the line in a
+                          different spot.
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex gap-1" aria-hidden="true">
+                          <span className="flex h-7 w-7 items-center justify-center rounded border text-xs font-bold wv-tile-wooden">
+                            C
+                          </span>
+                          <span className="flex h-7 w-7 items-center justify-center rounded border text-xs font-bold wv-tile-wooden">
+                            L
+                          </span>
+                          <span className="flex h-7 w-7 items-center justify-center rounded border text-xs font-bold wv-tile-wooden">
+                            U
+                          </span>
+                          <span className="flex h-7 w-7 items-center justify-center rounded border text-xs font-bold wv-tile-absent">
+                            E
+                          </span>
+                        </div>
+                        <span>
+                          <strong className="wv-text">Muted:</strong> Not in that line&apos;s word.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border wv-border wv-card p-3.5 space-y-2">
+                    <h3 className="text-sm sm:text-base font-bold wv-text">
+                      Levels, Modes &amp; Unlock Rules
+                    </h3>
+                    <p>
+                      <strong className="wv-text">Level Climb vs. Endless Sprint:</strong> Win 5
+                      timed Crossword or Brain Trivia boards in a row to climb levels, or switch to
+                      Endless Sprint for relaxed zero-repeat play.
+                    </p>
+                    <p>
+                      <strong className="wv-text">Faith Study:</strong> Switch between 6 traditions
+                      for daily scripture passages, themed puzzles, and endless sprints.
+                    </p>
+                    <p>
+                      <strong className="wv-text">Locked Puzzle Topics:</strong> Watch 1 rewarded
+                      ad anytime to unlock 5 full plays in any locked topic.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {aboutTab === 'faq' && (
+                <div className="space-y-2.5 text-xs sm:text-sm leading-relaxed wv-text-muted">
+                  <div className="rounded-xl border wv-border wv-card p-3.5">
+                    <p className="font-bold wv-text">Do puzzle words or trivia questions repeat?</p>
+                    <p className="mt-1">
+                      Questions and words cycle through a large zero-repeat vault per topic so you
+                      keep getting fresh challenges across sessions.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border wv-border wv-card p-3.5">
+                    <p className="font-bold wv-text">How do I unlock locked Puzzle topics?</p>
+                    <p className="mt-1">
+                      Tap any locked topic and watch 1 short rewarded ad to unlock 5 full plays in
+                      that topic.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border wv-border wv-card p-3.5">
+                    <p className="font-bold wv-text">Are hints unlimited?</p>
+                    <p className="mt-1">
+                      Yes! You can reveal hints with rewarded ads anytime or spend earned XP on
+                      crossword hints, clues, and Trivia helps.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border wv-border wv-card p-3.5 flex flex-col gap-2.5">
+                    <div>
+                      <p className="font-bold wv-text">Can I play offline &amp; keep streaks?</p>
+                      <p className="mt-1">
+                        Yes! WordVibe caches puzzles, Faith Study, and streaks locally offline and
+                        syncs verified online scores when connected.
+                      </p>
+                    </div>
+                    <div>
+                      <PWAInstallButton />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </AccordionSection>
         </div>
 
         {/* Footer */}
-        <div className="border-t wv-border px-5 py-3 flex justify-end">
+        <div className="border-t wv-border px-5 py-3 flex flex-wrap items-center justify-between gap-3">
+          {onOpenPrivacyPolicy ? (
+            <a
+              href="/privacy"
+              data-testid="settings-footer-privacy-link"
+              onClick={(e) => {
+                e.preventDefault();
+                onClose();
+                onOpenPrivacyPolicy();
+              }}
+              className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold wv-text-muted underline-offset-4 hover:underline cursor-pointer"
+            >
+              <ShieldCheck className="h-4 w-4 wv-accent-text" aria-hidden="true" />
+              <span>Privacy Policy</span>
+            </a>
+          ) : (
+            <span />
+          )}
           <button
             type="button"
             onClick={onClose}

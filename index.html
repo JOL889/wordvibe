@@ -3,16 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>WordVibe: Daily Puzzle, AI Trivia & Faith Study</title>
+    <title>WordVibe: Daily Word Puzzle, Brain Trivia &amp; Faith Study</title>
     <meta
       name="description"
-      content="Play WordVibe: Daily Word Game, Word Puzzle, Brain Trivia, Vocabulary Builder, and Bible/Quran Faith Study with daily streaks and smart hints."
+      content="Play WordVibe free online or offline: 4x4, 5x5 &amp; 6x6 linked word puzzles, Brain Trivia, and Bible, Quran, Torah, Gita &amp; Dharma Faith Study."
     />
     <meta
       name="keywords"
-      content="Word Puzzle, Daily Word Game, Brain Trivia, Vocabulary Builder, Bible Study, Quran Faith Study, WordVibe"
+      content="WordVibe, Word Puzzle, Crossword Puzzle, Daily Word Game, Brain Trivia, Vocabulary Builder, Bible Study, Quran Faith Study, Offline PWA Game"
     />
-    <meta name="theme-color" content="#111315" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#062118" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -21,21 +22,27 @@
     <!-- OpenGraph Social Cards -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="WordVibe" />
-    <meta property="og:title" content="WordVibe: Daily Puzzle, AI Trivia & Faith Study" />
+    <meta property="og:title" content="WordVibe: Daily Word Puzzle, Brain Trivia &amp; Faith Study" />
     <meta
       property="og:description"
-      content="Play WordVibe daily: 4, 5 & 6-letter Word Puzzles, Brain Trivia, Vocabulary Builder, and multi-tradition Bible/Quran Faith Study."
+      content="Play WordVibe free online or offline: 4x4, 5x5 &amp; 6x6 linked word puzzles, Brain Trivia, and Bible, Quran, Torah, Gita &amp; Dharma Faith Study."
     />
+    <meta property="og:image" content="/pwa-512x512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:image:alt" content="WordVibe app icon" />
 
     <!-- Twitter / X Cards -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="WordVibe: Daily Puzzle, AI Trivia & Faith Study" />
+    <meta name="twitter:title" content="WordVibe: Daily Word Puzzle, Brain Trivia &amp; Faith Study" />
     <meta
       name="twitter:description"
-      content="Play WordVibe daily: Word Puzzles, AI Brain Trivia, Vocabulary Builder & Faith Study."
+      content="Play WordVibe free online or offline: 4x4, 5x5 &amp; 6x6 linked word puzzles, Brain Trivia, and multi-tradition Faith Study."
     />
+    <meta name="twitter:image" content="/pwa-512x512.png" />
 
-    <!-- Icons & PWA -->
+    <!-- PWA Manifest & Icons -->
+    <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
@@ -52,12 +59,12 @@
       {
         "@context": "https://schema.org",
         "@type": "WebApplication",
-        "name": "WordVibe: Daily Puzzle, AI Trivia & Faith Study",
+        "name": "WordVibe: Daily Word Puzzle, Brain Trivia & Faith Study",
         "alternateName": "WordVibe",
         "applicationCategory": "GameApplication",
-        "genre": "Word Puzzle, Brain Trivia, Faith Study",
+        "genre": "Word Puzzle, Crossword, Brain Trivia, Faith Study",
         "operatingSystem": "All",
-        "description": "Play WordVibe free online: Daily Word Game, Word Puzzle, Brain Trivia, Vocabulary Builder, and Bible/Quran Faith Study.",
+        "description": "Play WordVibe free online or offline: 4x4, 5x5 & 6x6 linked word puzzles, Brain Trivia, and Bible, Quran, Torah, Gita & Dharma Faith Study.",
         "offers": {
           "@type": "Offer",
           "price": "0",
@@ -75,23 +82,23 @@
             "name": "How do you play WordVibe?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Guess the hidden 4, 5, or 6-letter word in 6 tries, test your wits in AI Brain Trivia, or explore Bible, Quran, Torah, Gita, and Dharma sessions in Faith Study."
+              "text": "Tap any square on the 4x4, 5x5, or 6x6 linked crossword grid and type Across or Down, test your wits in Brain Trivia, or explore Bible, Quran, Torah, Gita, and Dharma sessions in Faith Study."
             }
           },
           {
             "@type": "Question",
-            "name": "When does the next Daily Word Puzzle unlock?",
+            "name": "How do you unlock locked Puzzle topics?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "A fresh Daily Challenge unlocks every day at midnight in your local timezone. Switch seamlessly between 4, 5, and 6-letter boards or play Practice Sprint."
+              "text": "Tap any locked Puzzle topic and watch 1 short rewarded ad to unlock 5 full plays in that topic."
             }
           },
           {
             "@type": "Question",
-            "name": "What is included in WordVibe Faith Study?",
+            "name": "Can WordVibe be installed and played offline?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Switch seamlessly between Christianity, Islam, Judaism, Hinduism, Buddhism, and World Faiths for daily passages, scripture-themed word puzzles, and interactive trivia."
+              "text": "Yes. WordVibe is an installable Progressive Web App that caches puzzles, trivia, Faith Study content, and local progress for offline play."
             }
           }
         ]

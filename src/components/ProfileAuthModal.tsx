@@ -23,9 +23,12 @@ import {
   type LocalUserAccount,
 } from '../game/userAccountLogic';
 import { resizeImageFileToThumbnail } from '../services/accountStorageService';
+import { useHorizontalSwitch } from '../hooks/useHorizontalSwitch';
 import { UserAvatar } from './UserAvatar';
 
 export type ProfileAuthMode = 'signin' | 'signup' | 'edit';
+const AUTH_TAB_MODES: readonly ('signin' | 'signup')[] = ['signin', 'signup'];
+const AVATAR_IDS: readonly BuiltInAvatarId[] = BUILTIN_AVATARS.map((a) => a.id);
 
 interface ProfileAuthModalProps {
   open: boolean;
@@ -67,6 +70,27 @@ export const ProfileAuthModal: React.FC<ProfileAuthModalProps> = ({
     Partial<Record<'realName' | 'username' | 'email' | 'password', string>>
   >({});
   const [submitting, setSubmitting] = useState(false);
+
+  const authModeSwitch = useHorizontalSwitch<'signin' | 'signup'>({
+    items: AUTH_TAB_MODES,
+    activeItem: activeFlow === 'signup' ? 'signup' : 'signin',
+    onChange: (nextMode) => {
+      setActiveFlow(nextMode);
+      setErrors({});
+      setFormError(null);
+    },
+    disabled: !open || activeFlow === 'edit',
+  });
+
+  const avatarSwitch = useHorizontalSwitch<BuiltInAvatarId>({
+    items: AVATAR_IDS,
+    activeItem: builtinAvatarId,
+    onChange: (nextId) => {
+      setBuiltinAvatarId(nextId);
+      setAvatarType('builtin');
+    },
+    disabled: !open || activeFlow === 'signin',
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -250,6 +274,7 @@ export const ProfileAuthModal: React.FC<ProfileAuthModalProps> = ({
             <>
               {/* Segmented Sign In / Create Account Switcher */}
               <div
+                {...authModeSwitch.containerProps}
                 role="tablist"
                 aria-label="Account mode"
                 className="grid grid-cols-2 rounded-xl border wv-border wv-card-muted p-1"
@@ -368,7 +393,12 @@ export const ProfileAuthModal: React.FC<ProfileAuthModalProps> = ({
                   </p>
                 )}
 
-                <div className="grid grid-cols-4 gap-2" role="group" aria-label="Built-in avatars">
+                <div
+                  {...avatarSwitch.containerProps}
+                  className="grid grid-cols-4 gap-2"
+                  role="group"
+                  aria-label="Built-in avatars"
+                >
                   {BUILTIN_AVATARS.map((opt) => {
                     const selected = avatarType === 'builtin' && builtinAvatarId === opt.id;
                     return (

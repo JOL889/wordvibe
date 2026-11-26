@@ -37,6 +37,7 @@ interface SummaryModalProps {
   categoryName: string;
   isPremiumCategory: boolean;
   categoryPlaysRemaining: number;
+  categoryUnlockAdsWatched?: number;
   countdown: string;
   stats: StatsData;
   canSaveStreak: boolean;
@@ -65,6 +66,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
   categoryName,
   isPremiumCategory,
   categoryPlaysRemaining,
+  categoryUnlockAdsWatched = 0,
   countdown,
   stats,
   canSaveStreak,
@@ -370,7 +372,9 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
             <span className="font-mono-tabular font-bold wv-accent-text">
               {categoryPlaysRemaining > 0
                 ? `${categoryPlaysRemaining} plays left`
-                : '0 plays left · Ad or 300 XP'}
+                : categoryUnlockAdsWatched > 0
+                ? `0 plays left · ${categoryUnlockAdsWatched}/1 ad`
+                : '0 plays left · Watch 1 Ad'}
             </span>
           </div>
         )}
@@ -392,7 +396,11 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
                 className="inline-flex min-h-11 items-center gap-1.5 rounded-xl wv-accent-btn px-4 py-2 text-sm font-bold transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
               >
                 <Lock className="h-4 w-4" aria-hidden="true" />
-                <span>Unlock Topic</span>
+                <span>
+                  {categoryUnlockAdsWatched > 0
+                    ? `Unlock Topic (${categoryUnlockAdsWatched}/1)`
+                    : 'Unlock Topic (1 Ad)'}
+                </span>
               </button>
             ) : (
               <button

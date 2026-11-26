@@ -154,8 +154,8 @@ export const REWARD_PLACEMENTS: Record<RewardPlacement, RewardMeta> = {
     title: 'Unlock Topic of Choice (5 Plays)',
     rewardLabel: '5 Topic Plays Unlocked',
     description:
-      'Watch a brief 4-second sponsor preview to unlock 5 full puzzles in your chosen topic.',
-    durationSeconds: 4,
+      'Watch 1 short sponsor preview to unlock 5 full puzzles in your chosen topic.',
+    durationSeconds: 3,
     isOptionalPrompt: false,
   },
   trivia_revive: {

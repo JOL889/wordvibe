@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ChevronDown,
+  Clock,
   Compass,
   Lock,
   Minus,
@@ -12,7 +13,11 @@ import {
 } from 'lucide-react';
 import { CATEGORIES, type PuzzleCategory } from '../data/categories';
 import type { WordLength } from '../data/words';
-import type { CrosswordLevelClimbState } from '../game/crosswordLogic';
+import {
+  CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD,
+  CROSSWORD_LEVEL_CLIMB_TOTAL,
+  type CrosswordLevelClimbState,
+} from '../game/crosswordLogic';
 import {
   formatLevelLabel,
   normalizeLevelNumber,
@@ -22,7 +27,10 @@ import {
 interface ModeControlsProps {
   sessionMode: SessionPlayMode;
   levelNumber: number;
+  maxUnlockedLevel: number;
   climbState: CrosswordLevelClimbState;
+  roundTimeLeftSec?: number | null;
+  roundTimeTotalSec?: number | null;
   length: WordLength;
   autoLengthMode?: boolean;
   activeCategory: PuzzleCategory;
@@ -42,10 +50,20 @@ interface ModeControlsProps {
 
 const LENGTHS: WordLength[] = [4, 5, 6];
 
+function formatTimerSec(sec: number): string {
+  const s = Math.max(0, Math.floor(sec));
+  const mins = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${mins}:${String(rem).padStart(2, '0')}`;
+}
+
 export const ModeControls: React.FC<ModeControlsProps> = ({
   sessionMode,
   levelNumber,
+  maxUnlockedLevel,
   climbState,
+  roundTimeLeftSec = null,
+  roundTimeTotalSec = null,
   length,
   autoLengthMode = false,
   activeCategory,
@@ -63,6 +81,9 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
   onOpenCategories,
 }) => {
   const safeLevel = normalizeLevelNumber(levelNumber, 1);
+  const safeMaxUnlocked = Math.max(1, normalizeLevelNumber(maxUnlockedLevel, 1));
+  const canIncrementLevel = safeLevel < safeMaxUnlocked;
+  const isLowTime = roundTimeLeftSec !== null && roundTimeLeftSec <= 15;
 
   return (
     <section
@@ -70,7 +91,7 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
       className="mx-auto flex w-full max-w-xl flex-col items-center gap-1.5 px-3 sm:px-4 pt-1 pb-0.5"
     >
       <div className="flex w-full flex-wrap items-center justify-center gap-1.5 sm:justify-between">
-        {/* Session Mode: Level Climb (8/10) vs Endless Sprint */}
+        {/* Session Mode: Level Climb (5 Timed) vs Endless Sprint */}
         <div
           role="group"
           aria-label="Puzzle session mode"
@@ -158,57 +179,77 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
         </div>
       </div>
 
-      {/* Unbounded Numbered Level Progression Bar (Starts at Level 1 and keeps climbing) */}
-      <div className="flex w-full items-center justify-between gap-2 rounded-xl border wv-border wv-card px-3 py-1.5 shadow-xs">
-        <div className="flex flex-col">
-          <span className="text-xs font-bold uppercase tracking-wider wv-text-muted">
-            Current Level
-          </span>
-          <span className="text-xs wv-text-muted">
-            {sessionMode === 'level_climb'
-              ? `Pass 8/10 cleanly to reach Level ${safeLevel + 1}`
-              : `Open number climb · ${formatLevelLabel(safeLevel)}`}
-          </span>
+      {/* Level Climb Progression Bar (Hidden in Endless Sprint; + locked until reached via 5/5 timed wins) */}
+      {sessionMode === 'level_climb' && (
+        <div
+          data-testid="puzzle-level-bar"
+          className="flex w-full items-center justify-between gap-2 rounded-xl border wv-border wv-card px-3 py-1.5 shadow-xs"
+        >
+          <div className="flex flex-col min-w-0">
+            <span className="text-xs font-bold uppercase tracking-wider wv-text-muted">
+              Current Level · Speed Climb
+            </span>
+            <span className="text-xs wv-text-muted truncate">
+              Beat {CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD}/{CROSSWORD_LEVEL_CLIMB_TOTAL} shrinking timers to reach Level{' '}
+              {safeLevel + 1}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              data-testid="puzzle-level-dec"
+              disabled={safeLevel <= 1}
+              onClick={(e) => {
+                e.currentTarget.blur();
+                onChangeLevelNumber(Math.max(1, safeLevel - 1));
+              }}
+              aria-label="Previous unlocked level"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border wv-border wv-card-muted wv-text transition-transform active:scale-95 disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed"
+            >
+              <Minus className="h-4 w-4" aria-hidden="true" />
+            </button>
+
+            <span
+              data-testid="puzzle-active-level-badge"
+              className="inline-flex min-h-9 min-w-[88px] items-center justify-center rounded-xl wv-accent-btn px-3 py-1 font-mono-tabular text-sm font-extrabold"
+            >
+              {formatLevelLabel(safeLevel)}
+            </span>
+
+            <button
+              type="button"
+              data-testid="puzzle-level-inc"
+              disabled={!canIncrementLevel}
+              onClick={(e) => {
+                e.currentTarget.blur();
+                if (canIncrementLevel) {
+                  onChangeLevelNumber(safeLevel + 1);
+                }
+              }}
+              title={
+                canIncrementLevel
+                  ? `Switch to ${formatLevelLabel(safeLevel + 1)}`
+                  : `Win ${CROSSWORD_LEVEL_CLIMB_TOTAL} timed puzzles in a row to unlock Level ${safeLevel + 1}`
+              }
+              aria-label={
+                canIncrementLevel
+                  ? 'Next unlocked level'
+                  : `Level ${safeLevel + 1} locked until 5 timed wins`
+              }
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border wv-border wv-card-muted wv-text transition-transform active:scale-95 disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed"
+            >
+              {canIncrementLevel ? (
+                <Plus className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+            </button>
+          </div>
         </div>
+      )}
 
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            data-testid="puzzle-level-dec"
-            disabled={safeLevel <= 1}
-            onClick={(e) => {
-              e.currentTarget.blur();
-              onChangeLevelNumber(Math.max(1, safeLevel - 1));
-            }}
-            aria-label="Previous level"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border wv-border wv-card-muted wv-text transition-transform active:scale-95 disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed"
-          >
-            <Minus className="h-4 w-4" aria-hidden="true" />
-          </button>
-
-          <span
-            data-testid="puzzle-active-level-badge"
-            className="inline-flex min-h-9 min-w-[92px] items-center justify-center rounded-xl wv-accent-btn px-3 py-1 font-mono-tabular text-sm font-extrabold"
-          >
-            {formatLevelLabel(safeLevel)}
-          </span>
-
-          <button
-            type="button"
-            data-testid="puzzle-level-inc"
-            onClick={(e) => {
-              e.currentTarget.blur();
-              onChangeLevelNumber(safeLevel + 1);
-            }}
-            aria-label="Next level"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border wv-border wv-card-muted wv-text transition-transform active:scale-95 cursor-pointer"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-          </button>
-        </div>
-      </div>
-
-      {/* Category Picker + Offline For You Button */}
+      {/* Bold Topic Selector & Watch Ad for Topic of Choice + For You Button */}
       <div className="flex w-full items-center gap-1.5">
         <button
           type="button"
@@ -217,9 +258,9 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
             e.currentTarget.blur();
             onOpenCategories();
           }}
-          className="flex min-h-10 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border wv-border wv-card px-3 py-1 text-xs sm:text-sm transition-opacity hover:opacity-90 cursor-pointer"
+          className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border-2 wv-border wv-card px-3 py-1.5 text-xs sm:text-sm shadow-xs transition-opacity hover:opacity-90 cursor-pointer"
         >
-          <span className="flex min-w-0 items-center gap-1.5">
+          <span className="flex min-w-0 items-center gap-2">
             {isPersonalizedRound ? (
               <Sparkles className="h-4 w-4 shrink-0 wv-accent-text" aria-hidden="true" />
             ) : activeCategory.isPremium ? (
@@ -231,20 +272,24 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
             ) : (
               <Compass className="h-4 w-4 shrink-0 wv-accent-text" aria-hidden="true" />
             )}
-            <span className="truncate font-bold wv-text">
-              {isPersonalizedRound ? 'Topic: For You Pick' : `Topic: ${activeCategory.name}`}
+            <span className="truncate font-extrabold wv-text">
+              <span className="hidden sm:inline">Topic: </span>
+              {isPersonalizedRound ? 'For You Pick' : activeCategory.name}
             </span>
           </span>
 
-          <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium wv-text-muted">
+          <span className="flex shrink-0 items-center gap-1.5 text-xs font-bold">
             {activeCategory.isPremium && !isPersonalizedRound ? (
-              <span className="font-mono-tabular font-bold wv-accent-text">
+              <span className="rounded-lg wv-gold-pill px-2 py-0.5 font-mono-tabular">
                 {categoryPlaysRemaining > 0
                   ? `${categoryPlaysRemaining} left`
-                  : '0 left · Ad (+5)'}
+                  : 'Watch Ad (+5)'}
               </span>
             ) : (
-              <span>{CATEGORIES.length} Topics</span>
+              <span className="rounded-lg border wv-accent-pill px-2 py-0.5">
+                <span className="sm:hidden">Topics · Ad</span>
+                <span className="hidden sm:inline">{CATEGORIES.length} Topics · Ad Unlock</span>
+              </span>
             )}
             <ChevronDown className="h-4 w-4 wv-text-muted" aria-hidden="true" />
           </span>
@@ -259,7 +304,7 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
               onPlayPersonalizedPuzzle();
             }}
             title="Start a crossword tailored to your profile interests"
-            className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-xl border wv-accent-pill px-3 py-1 text-xs sm:text-sm font-bold transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
+            className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-xl border wv-accent-pill px-3 py-1 text-xs sm:text-sm font-bold transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
           >
             <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span>For You</span>
@@ -279,20 +324,42 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
         </div>
       )}
 
-      {/* Session Progress Strip */}
-      <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-0.5 text-xs sm:text-sm wv-text-muted">
+      {/* Session Progress & Shrinking Countdown Strip */}
+      <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-xs sm:text-sm wv-text-muted">
         {sessionMode === 'level_climb' ? (
           <>
             <span data-testid="puzzle-climb-progress" className="font-bold wv-text">
-              Climb · Board {Math.min(10, climbState.roundIndex + 1)}/10
+              Puzzle {Math.min(CROSSWORD_LEVEL_CLIMB_TOTAL, climbState.roundIndex + 1)}/
+              {CROSSWORD_LEVEL_CLIMB_TOTAL}
             </span>
+            {roundTimeLeftSec !== null && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span
+                  data-testid="puzzle-climb-timer"
+                  title={
+                    roundTimeTotalSec
+                      ? `Round ${climbState.roundIndex + 1} time limit: ${formatTimerSec(roundTimeTotalSec)} (gets faster toward 5/5)`
+                      : 'Beat the clock!'
+                  }
+                  className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 font-mono-tabular font-extrabold ${
+                    isLowTime
+                      ? 'wv-gold-pill animate-pulse'
+                      : 'wv-accent-pill'
+                  }`}
+                >
+                  <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>{formatTimerSec(roundTimeLeftSec)}</span>
+                </span>
+              </>
+            )}
             <span aria-hidden="true">·</span>
             <span>
-              Passed{' '}
+              Wins{' '}
               <span className="font-mono-tabular font-bold wv-accent-text">
-                {climbState.roundPassedCount}/8
+                {climbState.roundPassedCount}/{CROSSWORD_LEVEL_CLIMB_TOTAL}
               </span>{' '}
-              to Level {safeLevel + 1}
+              → Lv {safeLevel + 1}
             </span>
             <span aria-hidden="true">·</span>
             <span>

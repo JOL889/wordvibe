@@ -4,18 +4,29 @@ import {
   ArrowRight,
   BookOpen,
   Check,
+  Clock,
+  Compass,
   Lightbulb,
+  Lock,
   Play,
+  RefreshCw,
   Shuffle,
   Sparkles,
+  Unlock,
 } from 'lucide-react';
-import { getCategoryById } from '../data/categories';
+import { getCategoryById, type PuzzleCategory } from '../data/categories';
 import {
   getCrosswordProgressSummary,
   type CrosswordBoardState,
 } from '../game/crosswordLogic';
 import type { CursorDirection, TileState, TypingDirection } from '../game/puzzleLogic';
 import { getWordMeaningClue } from '../game/wordMeanings';
+
+export interface SelectedDictionaryWord {
+  word: string;
+  label: string;
+  meaning: string;
+}
 
 interface PuzzleGridProps {
   board: CrosswordBoardState;
@@ -26,8 +37,16 @@ interface PuzzleGridProps {
   showWinBurst?: boolean;
   boardAnimKey: string;
   solveFunFact?: string;
+  selectedDictWord?: SelectedDictionaryWord | null;
+  puzzleTimedOut?: boolean;
+  featuredTopics?: PuzzleCategory[];
+  categoryPlaysRemainingMap?: Record<string, number>;
   onChangeDirection: (dir: TypingDirection) => void;
   onSelectCell: (rowIdx: number, colIdx: number) => void;
+  onSelectDictWord?: (entry: SelectedDictionaryWord | null) => void;
+  onRetryTimedRound?: () => void;
+  onSelectFeaturedTopic?: (category: PuzzleCategory) => void;
+  onOpenTopicsExplorer?: () => void;
   onKey: (key: string) => void;
   onMoveCursor: (dir: CursorDirection) => void;
   onTriggerHint: () => void;
@@ -92,8 +111,16 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
   showWinBurst = false,
   boardAnimKey,
   solveFunFact,
+  selectedDictWord = null,
+  puzzleTimedOut = false,
+  featuredTopics = [],
+  categoryPlaysRemainingMap = {},
   onChangeDirection,
   onSelectCell,
+  onSelectDictWord,
+  onRetryTimedRound,
+  onSelectFeaturedTopic,
+  onOpenTopicsExplorer,
   onKey,
   onMoveCursor,
   onTriggerHint,
@@ -463,6 +490,22 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
                         char ? `: ${char}` : ': empty'
                       }${isLocked ? ', locked' : ''}`}
                       onClick={() => {
+                        if (board.status === 'won' && onSelectDictWord) {
+                          const rowWord = board.solution.rows[rIdx];
+                          const colWord = board.solution.cols[cIdx];
+                          const pickCol =
+                            selectedDictWord?.word === rowWord && colWord !== rowWord;
+                          const chosenWord = pickCol ? colWord : rowWord;
+                          const chosenLabel = pickCol
+                            ? `Col ${cIdx + 1} Down`
+                            : `Row ${rIdx + 1} Across`;
+                          onSelectDictWord({
+                            word: chosenWord,
+                            label: chosenLabel,
+                            meaning: getWordMeaningClue(chosenWord, category.name),
+                          });
+                          return;
+                        }
                         onSelectCell(rIdx, cIdx);
                         focusDeviceKeyboard();
                       }}
@@ -594,12 +637,12 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
             </span>
           </button>
 
-          {/* 3. Word Structure & Meaning Clue (Ad) */}
+          {/* 3. Word Meaning Clue (Ad) */}
           <button
             type="button"
             data-testid="action-trivia-btn"
             onClick={onTriggerWordClue}
-            title="Watch an ad to reveal consonant/vowel breakdown and word meaning"
+            title="Watch an ad to reveal a short dictionary explanation clue"
             aria-label="Unlock Word Clue via rewarded ad"
             className={`relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border py-1.5 transition-transform active:scale-95 cursor-pointer ${
               unlockedClueCount > 0 ? 'wv-accent-pill' : 'wv-border wv-card wv-text hover:opacity-90'
@@ -629,42 +672,141 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
         </div>
       )}
 
-      {/* Celebratory Linked Word Lists & Fun Fact on Board Solve */}
+      {/* Time's Up Retry Banner for Level Climb */}
+      {puzzleTimedOut && board.status === 'playing' && onRetryTimedRound && (
+        <div
+          data-testid="puzzle-timeout-banner"
+          className="flex w-full max-w-[390px] items-center justify-between gap-3 rounded-xl border-2 wv-border wv-card px-3.5 py-2.5 shadow-sm animate-stage-enter"
+        >
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 text-xs sm:text-sm font-extrabold wv-accent-text">
+              <Clock className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>Time&apos;s Up! Climb reset to 1/5</span>
+            </div>
+            <p className="text-xs wv-text-muted">
+              Beat all 5 shrinking-timer puzzles in a row to level up.
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="puzzle-retry-timed-btn"
+            onClick={onRetryTimedRound}
+            className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl wv-gold-pill px-3 py-1.5 text-xs font-extrabold cursor-pointer whitespace-nowrap"
+          >
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Retry 1/5</span>
+          </button>
+        </div>
+      )}
+
+      {/* Celebratory Linked Word Lists (Interactive Tap-for-Meaning Dictionary) & Fun Fact on Board Solve */}
       {board.status === 'won' && (
         <div
           data-testid="completed-cross-grid"
           className="mt-1 w-full max-w-[390px] space-y-2.5 animate-stage-enter"
         >
-          <div className="grid grid-cols-2 gap-3 rounded-xl border wv-border wv-card px-3.5 py-2.5 text-xs sm:text-sm">
-            <div>
-              <div className="flex items-center gap-1 font-bold wv-accent-text">
-                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Across ({L})</span>
-              </div>
-              <ol className="mt-1 space-y-0.5 font-mono-tabular text-xs wv-text">
-                {board.solution.rows.map((w, idx) => (
-                  <li key={idx} className="flex items-center gap-1.5">
-                    <span className="w-3 wv-text-muted">{idx + 1}.</span>
-                    <span className="font-bold">{w}</span>
-                  </li>
-                ))}
-              </ol>
+          <div className="rounded-xl border wv-border wv-card px-3.5 py-2.5 text-xs sm:text-sm">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold wv-accent-text">
+                <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Tap any word or grid tile for its definition</span>
+              </span>
             </div>
-            <div>
-              <div className="flex items-center gap-1 font-bold wv-accent-text">
-                <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Down ({L})</span>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="flex items-center gap-1 font-bold wv-accent-text">
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Across ({L})</span>
+                </div>
+                <ol className="mt-1 space-y-1 font-mono-tabular text-xs wv-text">
+                  {board.solution.rows.map((w, idx) => {
+                    const isPicked =
+                      selectedDictWord?.word === w &&
+                      selectedDictWord?.label === `Row ${idx + 1} Across`;
+                    return (
+                      <li key={idx}>
+                        <button
+                          type="button"
+                          data-testid={`solved-word-row-${idx}`}
+                          onClick={() =>
+                            onSelectDictWord?.({
+                              word: w,
+                              label: `Row ${idx + 1} Across`,
+                              meaning: getWordMeaningClue(w, category.name),
+                            })
+                          }
+                          className={`flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left transition-colors cursor-pointer ${
+                            isPicked
+                              ? 'wv-accent-btn'
+                              : 'hover:opacity-85 wv-card-muted border wv-border'
+                          }`}
+                        >
+                          <span className="w-3.5 opacity-75">{idx + 1}.</span>
+                          <span className="font-bold">{w}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
               </div>
-              <ol className="mt-1 space-y-0.5 font-mono-tabular text-xs wv-text">
-                {board.solution.cols.map((w, idx) => (
-                  <li key={idx} className="flex items-center gap-1.5">
-                    <span className="w-3 wv-text-muted">{idx + 1}.</span>
-                    <span className="font-bold">{w}</span>
-                  </li>
-                ))}
-              </ol>
+              <div>
+                <div className="flex items-center gap-1 font-bold wv-accent-text">
+                  <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Down ({L})</span>
+                </div>
+                <ol className="mt-1 space-y-1 font-mono-tabular text-xs wv-text">
+                  {board.solution.cols.map((w, idx) => {
+                    const isPicked =
+                      selectedDictWord?.word === w &&
+                      selectedDictWord?.label === `Col ${idx + 1} Down`;
+                    return (
+                      <li key={idx}>
+                        <button
+                          type="button"
+                          data-testid={`solved-word-col-${idx}`}
+                          onClick={() =>
+                            onSelectDictWord?.({
+                              word: w,
+                              label: `Col ${idx + 1} Down`,
+                              meaning: getWordMeaningClue(w, category.name),
+                            })
+                          }
+                          className={`flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left transition-colors cursor-pointer ${
+                            isPicked
+                              ? 'wv-accent-btn'
+                              : 'hover:opacity-85 wv-card-muted border wv-border'
+                          }`}
+                        >
+                          <span className="w-3.5 opacity-75">{idx + 1}.</span>
+                          <span className="font-bold">{w}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
             </div>
           </div>
+
+          {selectedDictWord && (
+            <div
+              data-testid="post-solve-dictionary-card"
+              className="rounded-xl border-2 wv-border wv-card px-3.5 py-2.5 text-sm shadow-xs animate-stage-enter"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-1.5 font-display text-base font-bold wv-accent-text">
+                  <BookOpen className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>{selectedDictWord.word}</span>
+                </span>
+                <span className="rounded-md border wv-border wv-card-muted px-2 py-0.5 text-xs font-bold wv-text-muted">
+                  {selectedDictWord.label}
+                </span>
+              </div>
+              <p className="mt-1 text-sm leading-relaxed wv-text">
+                {selectedDictWord.meaning}
+              </p>
+            </div>
+          )}
 
           {solveFunFact && (
             <div
@@ -678,6 +820,69 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
               <span>{solveFunFact}</span>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Boldly Advertised Featured Topics Card (Watch Ad for Any Topic of Choice) */}
+      {featuredTopics.length > 0 && onSelectFeaturedTopic && onOpenTopicsExplorer && (
+        <div
+          data-testid="puzzle-topics-showcase"
+          className="mt-1 w-full max-w-[390px] rounded-xl border-2 wv-border wv-card p-3 shadow-xs"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider wv-accent-text">
+              <Compass className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>Featured Topics · Watch Ad to Unlock</span>
+            </div>
+            <button
+              type="button"
+              data-testid="topics-showcase-all-btn"
+              onClick={onOpenTopicsExplorer}
+              className="text-xs font-bold wv-accent-text hover:underline cursor-pointer whitespace-nowrap"
+            >
+              All 100 Topics →
+            </button>
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-1.5">
+            {featuredTopics.slice(0, 3).map((topic) => {
+              const plays = topic.isPremium ? categoryPlaysRemainingMap[topic.id] || 0 : -1;
+              const isSelected = topic.id === board.categoryId;
+              return (
+                <button
+                  key={topic.id}
+                  type="button"
+                  data-testid={`featured-topic-${topic.id}`}
+                  onClick={() => onSelectFeaturedTopic(topic)}
+                  className={`flex flex-col items-start justify-between rounded-lg border p-2 text-left transition-transform active:scale-95 cursor-pointer ${
+                    isSelected
+                      ? 'wv-accent-btn border-transparent'
+                      : 'wv-border wv-card-muted wv-text hover:opacity-90'
+                  }`}
+                >
+                  <span className="line-clamp-1 w-full text-xs font-extrabold">
+                    {topic.name}
+                  </span>
+                  <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold opacity-90">
+                    {topic.isPremium ? (
+                      plays > 0 ? (
+                        <>
+                          <Unlock className="h-3 w-3 shrink-0" aria-hidden="true" />
+                          <span>{plays} left</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-3 w-3 shrink-0" aria-hidden="true" />
+                          <span>Ad (+5)</span>
+                        </>
+                      )
+                    ) : (
+                      <span>Free Play</span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

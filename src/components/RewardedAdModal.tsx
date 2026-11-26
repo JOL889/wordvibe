@@ -73,15 +73,15 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       ? {
           ...baseMeta,
           title: `Unlock Clue · ${contextLabel}`,
-          rewardLabel: `Word Structure & Meaning Unlocked!`,
-          description: `Watch a brief ${baseMeta.durationSeconds}-second sponsor preview to reveal consonant/vowel count & explanation for ${contextLabel}.`,
+          rewardLabel: `Dictionary Meaning Unlocked!`,
+          description: `Watch a brief ${baseMeta.durationSeconds}-second sponsor preview to reveal a short dictionary explanation for ${contextLabel}.`,
         }
       : placement === 'puzzle_word_trivia' && contextLabel
       ? {
           ...baseMeta,
           title: `Unlock ${contextLabel} Word Clue`,
           rewardLabel: `${contextLabel} Clue Unlocked`,
-          description: `Watch a brief ${baseMeta.durationSeconds}-second sponsor preview to unlock structure & meaning for ${contextLabel}.`,
+          description: `Watch a brief ${baseMeta.durationSeconds}-second sponsor preview to unlock a short dictionary explanation for ${contextLabel}.`,
         }
       : baseMeta;
 

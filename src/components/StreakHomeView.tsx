@@ -57,6 +57,7 @@ interface StreakHomeViewProps {
   canSaveStreak: boolean;
   weeklyProgress: WeeklyActivityState;
   weeklyCountdown: string;
+  leaderboardRank?: number;
   playerProfile: PlayerProfileState;
   onOpenPersonalize: () => void;
   onPlayPersonalizedPuzzle: () => void;
@@ -85,6 +86,7 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
   canSaveStreak,
   weeklyProgress,
   weeklyCountdown,
+  leaderboardRank,
   playerProfile,
   onOpenPersonalize,
   onPlayPersonalizedPuzzle,
@@ -402,8 +404,9 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
               <div>
                 <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold wv-accent-text">
                   <Crown className="h-4 w-4" aria-hidden="true" />
-                  <span>
-                    Rank {weeklyGrade.current.id} · {weeklyGrade.current.tierName}
+                  <span data-testid="home-leaderboard-rank">
+                    {leaderboardRank ? `Leaderboard #${leaderboardRank} · ` : ''}Rank{' '}
+                    {weeklyGrade.current.id} ({weeklyGrade.current.tierName})
                   </span>
                 </div>
                 <h2 className="mt-0.5 font-display text-lg font-bold wv-text">
@@ -435,7 +438,7 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                 onClick={onOpenWeeklyRank}
                 className="rounded-xl border wv-border wv-card-muted px-3 py-1.5 text-xs sm:text-sm font-bold wv-text hover:opacity-85 cursor-pointer whitespace-nowrap"
               >
-                Rank &amp; Badges
+                Leaderboard &amp; Rank
               </button>
             </div>
           </div>

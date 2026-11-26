@@ -10,19 +10,24 @@ import {
   VolumeX,
 } from 'lucide-react';
 import type { SoundMode } from '../game/settingsLogic';
+import type { LocalUserAccount } from '../game/userAccountLogic';
 import type { WeeklyGradeId } from '../game/weeklyLogic';
 import { PWAInstallButton } from './PWAInstallButton';
+import { UserAvatar } from './UserAvatar';
 
 interface HeaderProps {
   soundMode: SoundMode;
   weeklyGradeId: WeeklyGradeId;
   weeklyXp: number;
+  leaderboardRank?: number;
   bonusCoins: number;
+  userAccount?: LocalUserAccount | null;
   onToggleSound: () => void;
   onOpenStats: () => void;
   onOpenWeeklyRank: () => void;
   onOpenHelp: () => void;
   onOpenSettings: () => void;
+  onOpenProfile?: () => void;
   onNavigateSection?: (section: 'streak' | 'rules' | 'faq') => void;
 }
 
@@ -42,17 +47,20 @@ export const Header: React.FC<HeaderProps> = ({
   soundMode,
   weeklyGradeId,
   weeklyXp,
+  leaderboardRank,
   bonusCoins,
+  userAccount,
   onToggleSound,
   onOpenStats,
   onOpenWeeklyRank,
   onOpenHelp,
   onOpenSettings,
+  onOpenProfile,
   onNavigateSection,
 }) => {
   return (
     <header className="sticky top-0 z-30 w-full border-b wv-border wv-card backdrop-blur-md">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-1.5 px-3 py-2 sm:py-2.5 sm:px-6">
+      <div className="mx-auto flex max-w-5xl items-center justify-between gap-1 sm:gap-1.5 px-2.5 py-2 sm:py-2.5 sm:px-6">
         <a
           href="#top"
           onClick={(e) => {
@@ -61,11 +69,11 @@ export const Header: React.FC<HeaderProps> = ({
               onNavigateSection('streak');
             }
           }}
-          className="font-display text-xl sm:text-2xl font-black tracking-tight wv-text whitespace-nowrap shrink-0 flex items-center gap-2"
+          className="font-display text-lg sm:text-2xl font-black tracking-tight wv-text whitespace-nowrap shrink-0 flex items-center gap-1.5 sm:gap-2"
         >
           <span
             aria-hidden="true"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border-2 wv-tile-wooden font-display text-lg font-black shadow-xs"
+            className="inline-flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border-2 wv-tile-wooden font-display text-base sm:text-lg font-black shadow-xs"
           >
             W
           </span>
@@ -114,7 +122,7 @@ export const Header: React.FC<HeaderProps> = ({
           </a>
         </nav>
 
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
           <PWAInstallButton compact />
 
           <button
@@ -124,16 +132,17 @@ export const Header: React.FC<HeaderProps> = ({
               e.currentTarget.blur();
               onOpenWeeklyRank();
             }}
-            aria-label={`Rank ${weeklyGradeId}, ${weeklyXp} XP, ${bonusCoins} coins. Open weekly grading and achievements.`}
-            title="Weekly Rank, XP & Coins"
+            aria-label={`Leaderboard Rank ${leaderboardRank ? `#${leaderboardRank}, ` : ''}${weeklyGradeId}, ${weeklyXp} XP, ${bonusCoins} coins. Open leaderboard and grading.`}
+            title="Leaderboard Rank, XP & Coins"
             className="inline-flex h-10 items-center gap-1 sm:gap-1.5 rounded-xl border wv-border wv-card-muted px-2 sm:px-2.5 text-xs sm:text-sm font-bold wv-text transition-transform active:scale-95 whitespace-nowrap cursor-pointer"
           >
             <Crown className="h-3.5 w-3.5 wv-accent-text shrink-0" aria-hidden="true" />
-            <span className="font-mono-tabular sm:hidden">
-              {weeklyGradeId}·{weeklyXp}
+            <span data-testid="header-rank-mobile" className="font-mono-tabular sm:hidden">
+              {leaderboardRank ? `#${leaderboardRank}·` : `${weeklyGradeId}·`}
+              {weeklyXp}
             </span>
-            <span className="font-mono-tabular hidden sm:inline">
-              Rank {weeklyGradeId} · {weeklyXp} XP
+            <span data-testid="header-rank-desktop" className="font-mono-tabular hidden sm:inline">
+              {leaderboardRank ? `#${leaderboardRank} · ` : ''}Rank {weeklyGradeId} · {weeklyXp} XP
             </span>
             <span className="inline-flex items-center gap-0.5 border-l wv-border pl-1.5 font-mono-tabular wv-accent-text">
               <Coins className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -162,7 +171,7 @@ export const Header: React.FC<HeaderProps> = ({
             }}
             aria-label="View statistics and streaks"
             title="Statistics"
-            className="inline-flex h-10 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl wv-text-muted transition-colors hover:opacity-80 cursor-pointer"
+            className="inline-flex h-10 w-8 sm:w-10 items-center justify-center rounded-xl wv-text-muted transition-colors hover:opacity-80 cursor-pointer"
           >
             <BarChart3 className="h-[18px] w-[18px]" aria-hidden="true" />
           </button>
@@ -189,6 +198,35 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden sm:inline font-mono-tabular">{SOUND_SHORT_LABEL[soundMode]}</span>
           </button>
 
+          {onOpenProfile && (
+            <button
+              type="button"
+              data-testid="header-profile-btn"
+              onClick={(e) => {
+                e.currentTarget.blur();
+                onOpenProfile();
+              }}
+              aria-label={
+                userAccount ? `Edit profile for @${userAccount.username}` : 'Create player profile'
+              }
+              title={userAccount ? `@${userAccount.username} · Edit Profile` : 'Create Profile'}
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border wv-border wv-card-muted px-1.5 sm:px-2 text-xs font-bold wv-text transition-colors hover:opacity-85 cursor-pointer"
+            >
+              <UserAvatar
+                avatarType={userAccount?.avatarType}
+                builtinAvatarId={userAccount?.builtinAvatarId}
+                avatarDataUrl={userAccount?.avatarDataUrl}
+                alt={userAccount?.username || 'Profile'}
+                size="xs"
+              />
+              {userAccount && (
+                <span className="hidden lg:inline max-w-[90px] truncate font-semibold">
+                  @{userAccount.username}
+                </span>
+              )}
+            </button>
+          )}
+
           <button
             type="button"
             data-testid="open-settings-btn"
@@ -198,7 +236,7 @@ export const Header: React.FC<HeaderProps> = ({
             }}
             aria-label="Open WordVibe settings"
             title="Settings & Themes"
-            className="inline-flex h-10 w-9 sm:w-10 items-center justify-center rounded-xl wv-text transition-transform active:scale-90 hover:opacity-80 cursor-pointer"
+            className="inline-flex h-10 w-8 sm:w-10 items-center justify-center rounded-xl wv-text transition-transform active:scale-90 hover:opacity-80 cursor-pointer"
           >
             <Settings className="h-[19px] w-[19px]" aria-hidden="true" />
           </button>

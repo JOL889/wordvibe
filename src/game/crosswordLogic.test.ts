@@ -9,6 +9,7 @@ import {
   CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD,
   CROSSWORD_LEVEL_CLIMB_TOTAL,
   getCrosswordProgressSummary,
+  getCrosswordRoundTimeLimitSeconds,
   isCleanCrosswordPass,
   unlockCrosswordLineClue,
 } from './crosswordLogic';
@@ -17,6 +18,7 @@ import {
   advanceTriviaLevelClimb,
   createTriviaClimbState,
   drawZeroRepeatTriviaQuestion,
+  getTriviaQuestionTimeLimitSeconds,
   TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD,
   TRIVIA_LEVEL_CLIMB_TOTAL,
 } from './triviaLogic';
@@ -141,7 +143,38 @@ test('board becomes won ONLY after every row and column has been completed indiv
   }
 });
 
-test('accurate dictionary meanings (e.g. CLOUD rain formation) and unlimited ad hints work without revealing answer word', () => {
+test('direction-agnostic Enter completes a vertical word even when cursor is Across and vice versa', () => {
+  let board = createCrosswordBoard({
+    length: 4,
+    level: 'legendary',
+    forcedTarget: 'STAR',
+  });
+  const col1Word = board.solution.cols[1];
+  for (let r = 0; r < 4; r++) {
+    board = applyCrosswordKey(board, r, 1, 'across', col1Word[r]).board;
+  }
+  // Cursor is still on Row 3 Col 1 in 'across' direction while Row 3 is incomplete,
+  // yet pressing ENTER must recognize and solve Col 1 Down cleanly!
+  const res = applyCrosswordKey(board, 3, 1, 'across', 'ENTER');
+  assert.equal(res.outcome, 'line_solved');
+  assert.equal(res.solvedWord, col1Word);
+  assert.equal(res.board.solvedCols[1], true);
+
+  // Now fill Row 0 while cursor is in 'down' direction on Col 0 (incomplete col 0)
+  let board2 = res.board;
+  const row0Word = board2.solution.rows[0];
+  for (let c = 0; c < 4; c++) {
+    if (!board2.lockedCells[0][c]) {
+      board2 = applyCrosswordKey(board2, 0, c, 'down', row0Word[c]).board;
+    }
+  }
+  const res2 = applyCrosswordKey(board2, 0, 0, 'down', 'ENTER');
+  assert.equal(res2.outcome, 'line_solved');
+  assert.equal(res2.solvedWord, row0Word);
+  assert.equal(res2.board.solvedRows[0], true);
+});
+
+test('accurate dictionary meanings (e.g. CLOUD rain formation) never leak letters, vowels, or consonants', () => {
   const cloudClue = getWordMeaningClue('CLOUD');
   assert.match(cloudClue, /rain/i);
   assert.equal(cloudClue.toUpperCase().includes('CLOUD'), false);
@@ -159,7 +192,7 @@ test('accurate dictionary meanings (e.g. CLOUD rain formation) and unlimited ad 
   const idx = rowIdx !== -1 ? rowIdx : colIdx;
   const clueRes = unlockCrosswordLineClue(board, slotType, idx, 'Nature');
   board = clueRes.board;
-  assert.match(clueRes.clueText, /3 consonants, 2 vowels — /i);
+  assert.equal(/consonant|vowel|starting with|ending with|starts with|ends with/i.test(clueRes.clueText), false);
   assert.match(clueRes.clueText, /rain/i);
   assert.equal(clueRes.clueText.toUpperCase().includes('CLOUD'), false, 'Clue must never leak the answer');
 
@@ -172,51 +205,72 @@ test('accurate dictionary meanings (e.g. CLOUD rain formation) and unlimited ad 
   assert.equal(board.hintsUsed, 10);
 });
 
-test('unbounded numbered Level Climb progresses from Level 1 -> Level 2 -> ... -> Level 10+ on 8/10 wins', () => {
+test('5-round shrinking-timer Level Climb promotes Level 1 -> Level 2 -> ... on 5/5 timed wins and resets on miss', () => {
   assert.deepEqual(FIVE_LEVEL_ORDER, ['novice', 'beginner', 'intermediate', 'expert', 'legendary']);
   assert.equal(getNextFiveLevel('novice'), 'beginner');
   assert.equal(getNextFiveLevel('beginner'), 'intermediate');
   assert.equal(getNextFiveLevel('intermediate'), 'expert');
   assert.equal(getNextFiveLevel('expert'), 'legendary');
   assert.equal(getNextFiveLevel('legendary'), null);
-  assert.equal(CROSSWORD_LEVEL_CLIMB_TOTAL, 10);
-  assert.equal(CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD, 8);
-  assert.equal(TRIVIA_LEVEL_CLIMB_TOTAL, 10);
-  assert.equal(TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD, 8);
+  assert.equal(CROSSWORD_LEVEL_CLIMB_TOTAL, 5);
+  assert.equal(CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD, 5);
+  assert.equal(TRIVIA_LEVEL_CLIMB_TOTAL, 5);
+  assert.equal(TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD, 5);
 
-  // Trivia: 8/10 promotes Level 1 -> Level 2, and continues above Level 5 (e.g. Level 7 -> Level 8)
+  // Shrinking timers across 5 concurrent puzzles & trivia questions
+  for (let i = 0; i < 4; i++) {
+    assert.ok(
+      getCrosswordRoundTimeLimitSeconds(5, 1, i) > getCrosswordRoundTimeLimitSeconds(5, 1, i + 1),
+      `Crossword round ${i} timer must exceed round ${i + 1}`
+    );
+    assert.ok(
+      getTriviaQuestionTimeLimitSeconds(1, i) > getTriviaQuestionTimeLimitSeconds(1, i + 1),
+      `Trivia question ${i} timer must exceed question ${i + 1}`
+    );
+  }
+
+  // Trivia: 5/5 timed wins promotes Level 1 -> Level 2, and continues above Level 5 (Level 7 -> Level 8)
   let tClimb = createTriviaClimbState(1);
-  for (let i = 0; i < 10; i++) {
-    tClimb = advanceTriviaLevelClimb(tClimb, i < 8);
+  for (let i = 0; i < 5; i++) {
+    tClimb = advanceTriviaLevelClimb(tClimb, true);
   }
   assert.equal(tClimb.stageComplete, true);
-  assert.equal(tClimb.correctCount, 8);
+  assert.equal(tClimb.correctCount, 5);
   assert.equal(tClimb.promotedToLevelNumber, 2);
 
   let tHigh = createTriviaClimbState(7);
-  for (let i = 0; i < 10; i++) {
-    tHigh = advanceTriviaLevelClimb(tHigh, i < 9);
+  for (let i = 0; i < 5; i++) {
+    tHigh = advanceTriviaLevelClimb(tHigh, true);
   }
   assert.equal(tHigh.stageComplete, true);
   assert.equal(tHigh.promotedToLevelNumber, 8);
 
-  // Trivia: 7/10 stays at Level 1
+  // Trivia: missing Q4 resets climb back to 0/5 at Level 1
   let tFail = createTriviaClimbState(1);
-  for (let i = 0; i < 10; i++) {
-    tFail = advanceTriviaLevelClimb(tFail, i < 7);
-  }
-  assert.equal(tFail.stageComplete, true);
-  assert.equal(tFail.correctCount, 7);
+  tFail = advanceTriviaLevelClimb(tFail, true);
+  tFail = advanceTriviaLevelClimb(tFail, true);
+  tFail = advanceTriviaLevelClimb(tFail, true);
+  tFail = advanceTriviaLevelClimb(tFail, false);
+  assert.equal(tFail.stageComplete, false);
+  assert.equal(tFail.questionIndex, 0);
+  assert.equal(tFail.correctCount, 0);
   assert.equal(tFail.promotedToLevelNumber, null);
 
-  // Crossword: 9/10 promotes Level 6 -> Level 7 without capping
+  // Crossword: 5/5 timed wins promotes Level 6 -> Level 7; timeout resets to 0/5
   let cClimb = createCrosswordClimbState(6);
-  for (let i = 0; i < 10; i++) {
-    cClimb = advanceCrosswordLevelClimb(cClimb, i !== 3);
+  for (let i = 0; i < 5; i++) {
+    cClimb = advanceCrosswordLevelClimb(cClimb, true);
   }
   assert.equal(cClimb.stageComplete, true);
-  assert.equal(cClimb.roundPassedCount, 9);
+  assert.equal(cClimb.roundPassedCount, 5);
   assert.equal(cClimb.promotedToLevelNumber, 7);
+
+  let cReset = createCrosswordClimbState(2);
+  cReset = advanceCrosswordLevelClimb(cReset, true);
+  cReset = advanceCrosswordLevelClimb(cReset, false);
+  assert.equal(cReset.roundIndex, 0);
+  assert.equal(cReset.roundPassedCount, 0);
+  assert.equal(cReset.promotedToLevelNumber, null);
 });
 
 test('zero-repeat trivia & faith draws produce zero repeats across 25+ draws even on high numeric levels', () => {

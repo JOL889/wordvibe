@@ -108,6 +108,7 @@ export interface WeeklyRolloverSummary {
 export interface WeeklyActivityState {
   weekKey: string;
   weeklyXp: number;
+  totalXp: number;
   bonusCoins: number;
   puzzlesSolved: number;
   dailyPuzzlesWon: number;
@@ -306,6 +307,7 @@ export function createFreshWeeklyState(weekKey: string = getUtcWeekKey()): Weekl
   return {
     weekKey,
     weeklyXp: 0,
+    totalXp: 0,
     bonusCoins: 0,
     puzzlesSolved: 0,
     dailyPuzzlesWon: 0,
@@ -409,10 +411,13 @@ export function reconcileWeeklyRollover(
     state.triviaAnswered > 0 ||
     state.unlockedAchievements.length > 0;
 
+  const prevTotalXp = Math.max(state.totalXp ?? 0, state.weeklyXp ?? 0);
+
   if (!hadActivity) {
     return {
       state: {
         ...createFreshWeeklyState(currentWeekKey),
+        totalXp: prevTotalXp,
         bonusCoins: state.bonusCoins,
       },
       rolledOver: true,
@@ -438,6 +443,7 @@ export function reconcileWeeklyRollover(
     state: {
       ...fresh,
       weeklyXp: prevGrade.rolloverBonusXp,
+      totalXp: prevTotalXp + prevGrade.rolloverBonusXp,
       bonusCoins: state.bonusCoins + prevGrade.rolloverBonusCoins,
       pendingWeekSummary: summary,
     },
@@ -542,6 +548,7 @@ export function applyWeeklyActivityEvent(
   }
 
   next.weeklyXp += baseXp;
+  next.totalXp = Math.max(next.totalXp ?? 0, next.weeklyXp - baseXp) + baseXp;
 
   // Evaluate achievement unlocks (two passes in case XP reward crosses platinum summit!)
   const newlyUnlocked: AchievementDefinition[] = [];
@@ -557,6 +564,7 @@ export function applyWeeklyActivityEvent(
         bonusAchXp += ach.xpReward;
         bonusAchCoins += ach.coinReward;
         next.weeklyXp += ach.xpReward;
+        next.totalXp += ach.xpReward;
         next.bonusCoins += ach.coinReward;
       }
     }

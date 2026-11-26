@@ -203,8 +203,8 @@ export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
           </span>
           {cat.isPremium ? (
             isLocked ? (
-              <span className="font-semibold wv-accent-text">
-                Premium · Watch Ad for {PREMIUM_UNLOCK_PLAYS} Plays
+              <span className="rounded-md wv-gold-pill px-2 py-0.5 text-[11px] font-extrabold">
+                Watch Ad · Unlock ({PREMIUM_UNLOCK_PLAYS} Plays)
               </span>
             ) : (
               <span className="font-mono-tabular font-semibold wv-accent-text">
@@ -264,15 +264,13 @@ export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
             </button>
           </div>
 
-          <div className="mt-3 flex items-center gap-3">
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/15 dark:bg-white/15">
-              <div
-                className="h-full wv-accent-btn transition-[width] duration-300"
-                style={{ width: `${Math.max(4, exploredPct)}%` }}
-              />
-            </div>
-            <span className="font-mono-tabular text-xs font-semibold wv-text-muted whitespace-nowrap">
-              {exploredCount} / {CATEGORIES.length} Explored
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border wv-accent-pill px-3.5 py-2 text-xs font-bold">
+            <span>
+              Want a specific topic? Tap any locked topic below &amp; watch 1 short ad for{' '}
+              {PREMIUM_UNLOCK_PLAYS} plays!
+            </span>
+            <span className="font-mono-tabular whitespace-nowrap">
+              {exploredCount}/{CATEGORIES.length} Explored
             </span>
           </div>
 

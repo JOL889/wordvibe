@@ -125,10 +125,10 @@ export const REWARD_PLACEMENTS: Record<RewardPlacement, RewardMeta> = {
   },
   puzzle_clue: {
     placement: 'puzzle_clue',
-    title: 'Unlock Word Structure & Meaning Clue',
-    rewardLabel: 'Vowel/Consonant & Meaning Clue Unlocked',
+    title: 'Unlock Word Meaning Clue',
+    rewardLabel: 'Dictionary Clue Unlocked',
     description:
-      'Watch a brief 4-second sponsor preview to reveal consonant/vowel count and the word explanation.',
+      'Watch a brief 4-second sponsor preview to reveal a short dictionary explanation for the word.',
     durationSeconds: 4,
     isOptionalPrompt: false,
   },
@@ -151,10 +151,10 @@ export const REWARD_PLACEMENTS: Record<RewardPlacement, RewardMeta> = {
   },
   unlock_category: {
     placement: 'unlock_category',
-    title: 'Unlock Premium Category (5 Plays)',
-    rewardLabel: '5 Plays Unlocked',
+    title: 'Unlock Topic of Choice (5 Plays)',
+    rewardLabel: '5 Topic Plays Unlocked',
     description:
-      'Watch a brief 4-second sponsor preview to unlock 5 full puzzles in this premium category.',
+      'Watch a brief 4-second sponsor preview to unlock 5 full puzzles in your chosen topic.',
     durationSeconds: 4,
     isOptionalPrompt: false,
   },
@@ -185,9 +185,9 @@ export const REWARD_PLACEMENTS: Record<RewardPlacement, RewardMeta> = {
   puzzle_word_trivia: {
     placement: 'puzzle_word_trivia',
     title: 'Unlock Word Trivia Clue',
-    rewardLabel: 'Consonant/Vowel & Meaning Clue Unlocked',
+    rewardLabel: 'Dictionary Clue Unlocked',
     description:
-      'Watch a brief 5-second sponsor preview to reveal the consonant/vowel breakdown and meaning clue for your selected horizontal line or vertical column.',
+      'Watch a brief 5-second sponsor preview to reveal a short dictionary explanation clue for your selected horizontal line or vertical column.',
     durationSeconds: 5,
     isOptionalPrompt: false,
   },

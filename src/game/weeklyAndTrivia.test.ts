@@ -56,10 +56,11 @@ test('weekly tier grading enforces D/C/B/A/S thresholds and requires 3 achieveme
   assert.equal(diamond.progressPercent, 100);
 });
 
-test('weekly rollover awards last week bonus coins/XP into the new Monday cycle', () => {
+test('weekly rollover awards last week bonus coins/XP into the new Monday cycle and preserves totalXp', () => {
   const prevState = {
     ...createFreshWeeklyState('2026-11-16'),
     weeklyXp: 1650,
+    totalXp: 3200,
     puzzlesSolved: 6,
     triviaCorrect: 8,
     unlockedAchievements: ['first_spark', 'wordsmith_5'],
@@ -74,6 +75,7 @@ test('weekly rollover awards last week bonus coins/XP into the new Monday cycle'
   assert.equal(rolled.pendingWeekSummary.finalXp, 1650);
   assert.equal(rolled.bonusCoins, rolled.pendingWeekSummary.bonusCoinsAwarded);
   assert.equal(rolled.weeklyXp, rolled.pendingWeekSummary.bonusXpAwarded);
+  assert.equal(rolled.totalXp, 3200 + rolled.pendingWeekSummary.bonusXpAwarded);
 });
 
 test('12+ achievements track across WordVibe puzzles & Trivia and unlock cleanly', () => {

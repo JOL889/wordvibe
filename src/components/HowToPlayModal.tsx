@@ -157,11 +157,10 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
               </div>
 
               <div className="rounded-xl border wv-border wv-card-muted p-3 text-xs sm:text-sm leading-relaxed wv-text-muted">
-                <strong className="wv-text">Live Word Clues &amp; Power-Ups:</strong> See the active
-                word&apos;s real dictionary meaning right above the grid! Tap{' '}
-                <strong className="wv-text">Hint (∞)</strong> to reveal an open letter, or{' '}
-                <strong className="wv-text">Clue</strong> for consonant/vowel breakdowns (e.g.{' '}
-                <em>CLOUD — Fluffy sky mass of mist responsible for the formation of rain</em>).
+                <strong className="wv-text">Live Word Clues &amp; Post-Solve Dictionary:</strong>{' '}
+                See the active word&apos;s dictionary meaning above the grid with zero leaked letters!
+                Once you finish the grid, tap any solved word or tile to read its brief dictionary
+                definition.
               </div>
             </div>
           )}
@@ -169,25 +168,22 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
           {activeTab === 'streaks' && (
             <div className="space-y-3.5 text-xs sm:text-sm leading-relaxed wv-text-muted">
               <div className="rounded-xl border wv-border wv-card-muted p-3.5">
-                <h3 className="font-semibold wv-text">Unbounded Numbered Levels (Level 1 → 2 → 3...)</h3>
+                <h3 className="font-semibold wv-text">5-Stage Timed Level Climb (Level 1 → 2 → 3...)</h3>
                 <p className="mt-1 text-xs sm:text-sm leading-relaxed">
-                  Start at <strong className="wv-text">Level 1</strong> and climb as high as you want
-                  on Crossword, Brain Trivia, and Faith Study. In{' '}
-                  <strong className="wv-text">Level Climb</strong>, pass{' '}
-                  <strong className="wv-text">8 out of 10</strong> challenges cleanly to advance from
-                  Level 1 to Level 2, Level 3, and beyond, or switch to{' '}
-                  <strong className="wv-text">Endless Sprint</strong>.
+                  Start at <strong className="wv-text">Level 1</strong> on Crossword &amp; Brain
+                  Trivia. Beat <strong className="wv-text">5 challenges in a row</strong> before the
+                  countdown expires—the timer speeds up concurrently across puzzles 1 through 5! Or
+                  switch to <strong className="wv-text">Endless Sprint</strong> for relaxed,
+                  level-free play.
                 </p>
               </div>
 
               <div className="rounded-xl border wv-border wv-card-muted p-3.5">
-                <h3 className="font-semibold wv-text">Brain Trivia &amp; Faith Study</h3>
+                <h3 className="font-semibold wv-text">Faith Study &amp; XP Leaderboard</h3>
                 <p className="mt-1 text-xs sm:text-sm leading-relaxed">
-                  Brain Trivia runs completely offline from a huge zero-repeat bank. Stuck on a tough
-                  question? Tap <strong className="wv-text">Watch 2 Ads Concurrently</strong> to reveal
-                  the exact answer. Faith Study runs as a continuous{' '}
-                  <strong className="wv-text">Endless Sprint</strong> across Bible, Quran, Torah, Gita,
-                  and Buddhist scriptures.
+                  Faith Study runs as a level-free Endless Sprint across Bible, Quran, Torah, Gita,
+                  and Buddhist scriptures. Track your live <strong className="wv-text">#Rank</strong>{' '}
+                  on the Weekly &amp; All-Time XP Leaderboard anytime from the header.
                 </p>
               </div>
 
@@ -196,8 +192,8 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
                   {CATEGORIES.length} Curated Topics &amp; Phone Motion
                 </h3>
                 <p className="mt-1 text-xs sm:text-sm leading-relaxed">
-                  Your board subtly responds only to your real phone movement (no idle wobble!), and
-                  each tap follows your 3-state Audio Mode (On, Mute/Vibrate, or Off).
+                  Watch a short ad anytime to unlock 5 plays in any topic of your choice. Audio
+                  follows your 3-state switch (On, Mute/Vibrate, or Off).
                 </p>
               </div>
             </div>
@@ -217,8 +213,8 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
               <div className="py-3">
                 <dt className="font-semibold wv-text">How do unlimited hints and clues work?</dt>
                 <dd className="mt-1 leading-relaxed wv-text-muted">
-                  You can watch a quick sponsor ad anytime for another letter hint or word structure +
-                  meaning clue on any crossword row or column.
+                  You can watch a quick sponsor ad anytime for another letter hint or a brief
+                  dictionary explanation on any crossword row or column.
                 </dd>
               </div>
               <div className="pt-3">

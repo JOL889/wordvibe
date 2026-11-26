@@ -4,8 +4,6 @@ import {
   BookOpen,
   CheckCircle2,
   Grid3X3,
-  Minus,
-  Plus,
   XCircle,
   Zap,
 } from 'lucide-react';
@@ -18,7 +16,6 @@ import {
   RELIGION_IDS,
   type ReligionId,
 } from '../game/faithStudyLogic';
-import { formatLevelLabel, normalizeLevelNumber } from '../game/settingsLogic';
 import type { TriviaQuestion } from '../game/triviaLogic';
 import { soundService } from '../services/soundService';
 import { ReligionIcon } from './ReligionIcons';
@@ -26,12 +23,10 @@ import { ReligionIcon } from './ReligionIcons';
 interface FaithStudyViewProps {
   dateKey: string;
   activeReligion: ReligionId;
-  levelNumber: number;
   showScriptureReferences: boolean;
   completedToday: ReligionId[];
   refreshSignal?: number;
   onChangeReligion: (religion: ReligionId) => void;
-  onChangeLevelNumber: (levelNumber: number) => void;
   onPlayFaithPuzzle: (religion: ReligionId) => void;
   onFaithAnswerRecorded: (correct: boolean, religion: ReligionId) => void;
 }
@@ -45,16 +40,13 @@ let lastHandledFaithRefresh = 0;
 export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
   dateKey,
   activeReligion,
-  levelNumber,
   showScriptureReferences,
   completedToday,
   refreshSignal = 0,
   onChangeReligion,
-  onChangeLevelNumber,
   onPlayFaithPuzzle,
   onFaithAnswerRecorded,
 }) => {
-  const safeLevel = normalizeLevelNumber(levelNumber, 1);
   const [currentQ, setCurrentQ] = useState<TriviaQuestion | null>(null);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [answeredCount, setAnsweredCount] = useState(0);
@@ -72,13 +64,13 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
   );
 
   const drawNextFaith = useCallback(
-    (religion: ReligionId, lvNum: number, extraSeen: string[], forceFresh = false) => {
-      const cacheKey = `${religion}::${lvNum}`;
+    (religion: ReligionId, extraSeen: string[], forceFresh = false) => {
+      const cacheKey = `${religion}::sprint`;
       let q = !forceFresh ? pendingFaithByKey.get(cacheKey) : undefined;
       if (!q) {
         q = drawZeroRepeatFaithQuestion({
           religion,
-          levelNumber: lvNum,
+          levelNumber: 1,
           excludeIdsOrQuestions: extraSeen,
         });
         pendingFaithByKey.set(cacheKey, q);
@@ -93,9 +85,9 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
   useEffect(() => {
     const forceFresh = refreshSignal !== lastHandledFaithRefresh;
     lastHandledFaithRefresh = refreshSignal;
-    drawNextFaith(activeReligion, safeLevel, sessionSeen, forceFresh);
+    drawNextFaith(activeReligion, sessionSeen, forceFresh);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeReligion, safeLevel, refreshSignal]);
+  }, [activeReligion, refreshSignal]);
 
   const activeIdx = RELIGION_IDS.indexOf(activeReligion);
   const isCompletedToday = completedToday.includes(activeReligion);
@@ -112,7 +104,7 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
   const handleAnswer = (optIdx: number) => {
     if (!currentQ || selectedIdx !== null) return;
     setSelectedIdx(optIdx);
-    pendingFaithByKey.delete(`${activeReligion}::${safeLevel}`);
+    pendingFaithByKey.delete(`${activeReligion}::sprint`);
     const isRight = optIdx === currentQ.correctIndex;
     setAnsweredCount((a) => a + 1);
     if (isRight) {
@@ -125,7 +117,7 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
   };
 
   const handleNext = () => {
-    drawNextFaith(activeReligion, safeLevel, sessionSeen, true);
+    drawNextFaith(activeReligion, sessionSeen, true);
   };
 
   return (
@@ -197,48 +189,6 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
             );
           })}
         </div>
-
-        {/* Unbounded Numeric Level Stepper */}
-        <div className="flex items-center justify-between gap-2 border-t wv-border pt-3">
-          <div className="flex flex-col">
-            <span className="text-xs font-bold uppercase tracking-wider wv-text-muted">
-              Study Level
-            </span>
-            <span className="text-xs wv-text-muted">
-              Zero-repeat sprint · {formatLevelLabel(safeLevel)}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              data-testid="faith-level-dec"
-              disabled={safeLevel <= 1}
-              onClick={() => onChangeLevelNumber(Math.max(1, safeLevel - 1))}
-              aria-label="Previous study level"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border wv-border wv-card-muted wv-text transition-transform active:scale-95 disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed"
-            >
-              <Minus className="h-4 w-4" aria-hidden="true" />
-            </button>
-
-            <span
-              data-testid="faith-active-level-badge"
-              className="inline-flex min-h-10 min-w-[96px] items-center justify-center rounded-xl wv-accent-btn px-3.5 py-1.5 font-mono-tabular text-sm font-extrabold"
-            >
-              {formatLevelLabel(safeLevel)}
-            </span>
-
-            <button
-              type="button"
-              data-testid="faith-level-inc"
-              onClick={() => onChangeLevelNumber(safeLevel + 1)}
-              aria-label="Next study level"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border wv-border wv-card-muted wv-text transition-transform active:scale-95 cursor-pointer"
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Daily Reflection & Quick Crossword Link */}
@@ -305,8 +255,6 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
               <span data-testid="faith-sprint-counter" className="font-mono-tabular wv-text">
                 Endless Sprint #{answeredCount + (selectedIdx !== null ? 0 : 1)}
               </span>
-              <span aria-hidden="true">·</span>
-              <span className="wv-accent-text">{formatLevelLabel(safeLevel)}</span>
             </div>
             <span className="font-mono-tabular text-xs sm:text-sm font-bold wv-text-muted">
               {correctCount}/{answeredCount} ({accuracy}%)

@@ -10,12 +10,56 @@ const __dirname = path.dirname(__filename);
 const PORT = Number(process.env.PORT || 3000);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
+interface StoredLeaderboardEntry {
+  id: string;
+  name: string;
+  weeklyXp: number;
+  totalXp: number;
+  puzzlesSolved: number;
+  triviaCorrect: number;
+  streak: number;
+  updatedAt: number;
+}
+
+const serverLeaderboard = new Map<string, StoredLeaderboardEntry>();
+
 async function startServer() {
   const app = express();
   const httpServer = http.createServer(app);
+  app.use(express.json({ limit: '16kb' }));
 
   app.get('/healthz', (_req, res) => {
     res.status(200).json({ status: 'ok', app: 'WordVibe' });
+  });
+
+  app.get('/api/leaderboard', (_req, res) => {
+    const entries = Array.from(serverLeaderboard.values()).sort(
+      (a, b) => b.weeklyXp - a.weeklyXp || b.totalXp - a.totalXp
+    );
+    res.status(200).json({ entries: entries.slice(0, 100) });
+  });
+
+  app.post('/api/leaderboard', (req, res) => {
+    const body = (req.body || {}) as Partial<StoredLeaderboardEntry>;
+    const rawId = typeof body.id === 'string' ? body.id.trim().slice(0, 48) : '';
+    const rawName = typeof body.name === 'string' ? body.name.trim().replace(/\s+/g, ' ').slice(0, 24) : '';
+    if (!rawId || !rawName) {
+      return res.status(400).json({ error: 'id and name are required' });
+    }
+    const weeklyXp = Math.max(0, Math.round(Number(body.weeklyXp) || 0));
+    const totalXp = Math.max(weeklyXp, Math.round(Number(body.totalXp) || 0));
+    const entry: StoredLeaderboardEntry = {
+      id: rawId,
+      name: rawName,
+      weeklyXp,
+      totalXp,
+      puzzlesSolved: Math.max(0, Math.round(Number(body.puzzlesSolved) || 0)),
+      triviaCorrect: Math.max(0, Math.round(Number(body.triviaCorrect) || 0)),
+      streak: Math.max(0, Math.round(Number(body.streak) || 0)),
+      updatedAt: Date.now(),
+    };
+    serverLeaderboard.set(rawId, entry);
+    return res.status(200).json({ ok: true, entry });
   });
 
   if (IS_PRODUCTION) {

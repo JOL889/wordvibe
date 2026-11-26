@@ -43,7 +43,7 @@ export interface CrosswordBoardState {
   solvedCols: boolean[];
   /** Ephemeral letter evaluation feedback per cell from the last Enter check on an un-solved line */
   feedbackGrid: (TileState | null)[][];
-  /** Ad-unlocked clues keyed by `row-<idx>` or `col-<idx>` ("3 consonants, 2 vowels — ...") */
+  /** Ad-unlocked clues keyed by `row-<idx>` or `col-<idx>` */
   unlockedClues: Record<string, string>;
   /** Number of unlimited ad-watched letter hints revealed on this board */
   hintsUsed: number;
@@ -56,15 +56,39 @@ export interface CrosswordBoardState {
 export interface CrosswordLevelClimbState {
   levelNumber: number;
   currentLevel: FiveDifficultyLevel;
-  roundIndex: number; // 0..9 (10 puzzles per climb stage)
-  roundPassedCount: number; // >= 8 out of 10 promotes level
+  roundIndex: number; // 0..4 (5 concurrent timed puzzles per climb stage)
+  roundPassedCount: number; // 5 out of 5 within timer promotes level
   stageComplete: boolean;
   promotedToLevelNumber: number | null;
   promotedToLevel: FiveDifficultyLevel | null;
 }
 
-export const CROSSWORD_LEVEL_CLIMB_TOTAL = 10;
-export const CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD = 8;
+export const CROSSWORD_LEVEL_CLIMB_TOTAL = 5;
+export const CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD = 5;
+
+const CROSSWORD_CLIMB_SPEED_MULTIPLIERS = [1.0, 0.84, 0.70, 0.58, 0.46] as const;
+
+/**
+ * Returns the countdown time limit (seconds) for a Level Climb puzzle round.
+ * As the player advances concurrently from Puzzle 1/5 -> Puzzle 5/5 to level up,
+ * each subsequent puzzle gives a faster/tighter countdown.
+ */
+export function getCrosswordRoundTimeLimitSeconds(
+  length: WordLength,
+  levelNumber: number,
+  roundIndex: number
+): number {
+  const baseSec = length === 4 ? 100 : length === 5 ? 160 : 220;
+  const lv = normalizeLevelNumber(levelNumber, 1);
+  const levelScale = Math.max(0.68, 1 - (lv - 1) * 0.04);
+  const clampedIdx = Math.max(
+    0,
+    Math.min(CROSSWORD_LEVEL_CLIMB_TOTAL - 1, Math.floor(roundIndex))
+  );
+  const roundScale = CROSSWORD_CLIMB_SPEED_MULTIPLIERS[clampedIdx];
+  const minFloor = length === 4 ? 25 : length === 5 ? 40 : 55;
+  return Math.max(minFloor, Math.round(baseSec * levelScale * roundScale));
+}
 
 const FALLBACK_VALID_SQUARES: Record<WordLength, string[]> = {
   4: ['STAR', 'ORCA', 'NARC', 'EPEE'],
@@ -508,38 +532,95 @@ export function applyCrosswordKey(
     return { board, nextRow: r, nextCol: c, nextDir: dir, outcome: 'noop' };
   }
 
-  // ENTER -> verify ONLY the active horizontal row or vertical column individually
+  // ENTER -> verify completed word across OR down (direction-agnostic when completed!)
   if (upper === 'ENTER') {
     const rIdx = Math.min(L - 1, Math.max(0, row));
     const cIdx = Math.min(L - 1, Math.max(0, col));
 
-    const chars =
-      dir === 'across'
-        ? board.userGrid[rIdx]
-        : Array.from({ length: L }, (_, r) => board.userGrid[r][cIdx]);
+    const getRowChars = (r: number) => board.userGrid[r];
+    const getColChars = (c: number) =>
+      Array.from({ length: L }, (_, rr) => board.userGrid[rr][c]);
 
-    if (chars.some((ch) => !ch)) {
-      return {
-        board,
-        nextRow: rIdx,
-        nextCol: cIdx,
-        nextDir: dir,
-        outcome: 'line_incomplete',
-      };
+    const isLineExact = (slotType: CrosswordSlotType, idx: number): boolean => {
+      if (slotType === 'row') {
+        if (board.solvedRows[idx]) return false;
+        const chars = getRowChars(idx);
+        return !chars.some((ch) => !ch) && chars.join('') === board.solution.rows[idx];
+      }
+      if (board.solvedCols[idx]) return false;
+      const chars = getColChars(idx);
+      return !chars.some((ch) => !ch) && chars.join('') === board.solution.cols[idx];
+    };
+
+    const isLineFilledUnsolved = (slotType: CrosswordSlotType, idx: number): boolean => {
+      if (slotType === 'row') {
+        return !board.solvedRows[idx] && !getRowChars(idx).some((ch) => !ch);
+      }
+      return !board.solvedCols[idx] && !getColChars(idx).some((ch) => !ch);
+    };
+
+    // 1. Check active line first, then orthogonal line at cursor, then any completed exact unsolved line
+    let exactMatch: { slotType: CrosswordSlotType; index: number } | null = null;
+    const primarySlot: CrosswordSlotType = dir === 'across' ? 'row' : 'col';
+    const primaryIdx = dir === 'across' ? rIdx : cIdx;
+    const orthoSlot: CrosswordSlotType = dir === 'across' ? 'col' : 'row';
+    const orthoIdx = dir === 'across' ? cIdx : rIdx;
+
+    if (isLineExact(primarySlot, primaryIdx)) {
+      exactMatch = { slotType: primarySlot, index: primaryIdx };
+    } else if (isLineExact(orthoSlot, orthoIdx)) {
+      exactMatch = { slotType: orthoSlot, index: orthoIdx };
+    } else {
+      for (let r = 0; r < L; r++) {
+        if (isLineExact('row', r)) {
+          exactMatch = { slotType: 'row', index: r };
+          break;
+        }
+      }
+      if (!exactMatch) {
+        for (let c = 0; c < L; c++) {
+          if (isLineExact('col', c)) {
+            exactMatch = { slotType: 'col', index: c };
+            break;
+          }
+        }
+      }
     }
 
-    const candidate = chars.join('');
-    const targetWord =
-      dir === 'across' ? board.solution.rows[rIdx] : board.solution.cols[cIdx];
+    if (!exactMatch) {
+      // Check if active or orthogonal line is filled with a wrong guess
+      let wrongSlot: { slotType: CrosswordSlotType; index: number } | null = null;
+      if (isLineFilledUnsolved(primarySlot, primaryIdx)) {
+        wrongSlot = { slotType: primarySlot, index: primaryIdx };
+      } else if (isLineFilledUnsolved(orthoSlot, orthoIdx)) {
+        wrongSlot = { slotType: orthoSlot, index: orthoIdx };
+      }
 
-    if (candidate !== targetWord) {
+      if (!wrongSlot) {
+        return {
+          board,
+          nextRow: rIdx,
+          nextCol: cIdx,
+          nextDir: dir,
+          outcome: 'line_incomplete',
+        };
+      }
+
+      const candidate =
+        wrongSlot.slotType === 'row'
+          ? getRowChars(wrongSlot.index).join('')
+          : getColChars(wrongSlot.index).join('');
+      const targetWord =
+        wrongSlot.slotType === 'row'
+          ? board.solution.rows[wrongSlot.index]
+          : board.solution.cols[wrongSlot.index];
       const isValidDictWord = VALID_WORDS[L].has(candidate);
       const evalStates = evaluateGuess(candidate, targetWord);
       const nextFeedback = board.feedbackGrid.map((r) => [...r]);
-      if (dir === 'across') {
-        for (let c = 0; c < L; c++) nextFeedback[rIdx][c] = evalStates[c];
+      if (wrongSlot.slotType === 'row') {
+        for (let c = 0; c < L; c++) nextFeedback[wrongSlot.index][c] = evalStates[c];
       } else {
-        for (let r = 0; r < L; r++) nextFeedback[r][cIdx] = evalStates[r];
+        for (let r = 0; r < L; r++) nextFeedback[r][wrongSlot.index] = evalStates[r];
       }
 
       return {
@@ -550,28 +631,34 @@ export function applyCrosswordKey(
         },
         nextRow: rIdx,
         nextCol: cIdx,
-        nextDir: dir,
+        nextDir: wrongSlot.slotType === 'row' ? 'across' : 'down',
         outcome: isValidDictWord ? 'wrong_word' : 'not_in_dictionary',
       };
     }
 
-    // Exact match on ONLY this row or this column!
+    // Exact match on the resolved horizontal row OR vertical column!
+    const solveSlot = exactMatch.slotType;
+    const solveIdx = exactMatch.index;
+    const solveDir: TypingDirection = solveSlot === 'row' ? 'across' : 'down';
+    const candidate =
+      solveSlot === 'row' ? board.solution.rows[solveIdx] : board.solution.cols[solveIdx];
+
     const nextLocked = board.lockedCells.map((r) => [...r]);
     const nextFeedback = board.feedbackGrid.map((r) => [...r]);
     const nextSolvedRows = [...board.solvedRows];
     const nextSolvedCols = [...board.solvedCols];
 
-    if (dir === 'across') {
-      nextSolvedRows[rIdx] = true;
+    if (solveSlot === 'row') {
+      nextSolvedRows[solveIdx] = true;
       for (let c = 0; c < L; c++) {
-        nextLocked[rIdx][c] = true;
-        nextFeedback[rIdx][c] = 'correct';
+        nextLocked[solveIdx][c] = true;
+        nextFeedback[solveIdx][c] = 'correct';
       }
     } else {
-      nextSolvedCols[cIdx] = true;
+      nextSolvedCols[solveIdx] = true;
       for (let r = 0; r < L; r++) {
-        nextLocked[r][cIdx] = true;
-        nextFeedback[r][cIdx] = 'correct';
+        nextLocked[r][solveIdx] = true;
+        nextFeedback[r][solveIdx] = 'correct';
       }
     }
 
@@ -604,26 +691,33 @@ export function applyCrosswordKey(
     };
 
     const lineLabel =
-      dir === 'across' ? `Row ${rIdx + 1} Across` : `Col ${cIdx + 1} Down`;
+      solveSlot === 'row' ? `Row ${solveIdx + 1} Across` : `Col ${solveIdx + 1} Down`;
+    const solvedCursorRow = solveSlot === 'row' ? solveIdx : rIdx;
+    const solvedCursorCol = solveSlot === 'col' ? solveIdx : cIdx;
 
     if (allSolved) {
       return {
         board: updatedBoard,
-        nextRow: rIdx,
-        nextCol: cIdx,
-        nextDir: dir,
+        nextRow: solvedCursorRow,
+        nextCol: solvedCursorCol,
+        nextDir: solveDir,
         outcome: 'board_won',
         solvedLineLabel: lineLabel,
         solvedWord: candidate,
       };
     }
 
-    const nextOpen = findNextOpenWordCursor(updatedBoard, rIdx, cIdx, dir);
+    const nextOpen = findNextOpenWordCursor(
+      updatedBoard,
+      solvedCursorRow,
+      solvedCursorCol,
+      solveDir
+    );
     return {
       board: updatedBoard,
-      nextRow: nextOpen ? nextOpen.row : rIdx,
-      nextCol: nextOpen ? nextOpen.col : cIdx,
-      nextDir: nextOpen ? nextOpen.dir : dir,
+      nextRow: nextOpen ? nextOpen.row : solvedCursorRow,
+      nextCol: nextOpen ? nextOpen.col : solvedCursorCol,
+      nextDir: nextOpen ? nextOpen.dir : solveDir,
       outcome: 'line_solved',
       solvedLineLabel: lineLabel,
       solvedWord: candidate,
@@ -708,7 +802,7 @@ export function applyUnlimitedCrosswordHint(
 }
 
 /**
- * Unlocks a consonant/vowel breakdown + explanation clue for a specific Row (Across) or Column (Down) word.
+ * Unlocks a dictionary meaning clue for a specific Row (Across) or Column (Down) word.
  */
 export function unlockCrosswordLineClue(
   board: CrosswordBoardState,
@@ -767,16 +861,28 @@ export function createCrosswordClimbState(
 }
 
 export function isCleanCrosswordPass(board: CrosswordBoardState): boolean {
-  return board.status === 'won' && board.wrongChecks <= 4;
+  return board.status === 'won';
 }
 
 export function advanceCrosswordLevelClimb(
   climb: CrosswordLevelClimbState,
-  passedCleanly: boolean
+  passedInTime: boolean
 ): CrosswordLevelClimbState {
   if (climb.stageComplete) return climb;
   const levelNumber = normalizeLevelNumber(climb.levelNumber ?? climb.currentLevel, 1);
-  const nextPassed = climb.roundPassedCount + (passedCleanly ? 1 : 0);
+  if (!passedInTime) {
+    // Must beat all 5 puzzles concurrently within the timer to promote; reset streak to 0/5
+    return {
+      ...climb,
+      levelNumber,
+      roundIndex: 0,
+      roundPassedCount: 0,
+      stageComplete: false,
+      promotedToLevelNumber: null,
+      promotedToLevel: null,
+    };
+  }
+  const nextPassed = climb.roundPassedCount + 1;
   const nextRound = climb.roundIndex + 1;
   if (nextRound >= CROSSWORD_LEVEL_CLIMB_TOTAL) {
     const promoted = nextPassed >= CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD;

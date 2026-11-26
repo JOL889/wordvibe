@@ -39,15 +39,35 @@ export interface TriviaQuestion {
   groundingSources?: GroundingSourceLink[];
 }
 
-export const TRIVIA_LEVEL_CLIMB_TOTAL = 10;
-export const TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD = 8;
+export const TRIVIA_LEVEL_CLIMB_TOTAL = 5;
+export const TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD = 5;
 export const TRIVIA_BONUS_UNLOCK_HOURS = 24;
+
+const TRIVIA_CLIMB_QUESTION_BASE_SEC = [28, 23, 18, 14, 10] as const;
+
+/**
+ * Returns the countdown time limit (seconds) for a Trivia Level Climb question (1..5).
+ * Shrinks concurrently as the player approaches the 5th question to level up.
+ */
+export function getTriviaQuestionTimeLimitSeconds(
+  levelNumber: number,
+  questionIndex: number
+): number {
+  const lv = normalizeLevelNumber(levelNumber, 1);
+  const levelScale = Math.max(0.65, 1 - (lv - 1) * 0.04);
+  const clampedIdx = Math.max(
+    0,
+    Math.min(TRIVIA_LEVEL_CLIMB_TOTAL - 1, Math.floor(questionIndex))
+  );
+  const base = TRIVIA_CLIMB_QUESTION_BASE_SEC[clampedIdx];
+  return Math.max(6, Math.round(base * levelScale));
+}
 
 export interface TriviaClimbProgress {
   levelNumber: number;
   currentLevel: FiveDifficultyLevel;
-  questionIndex: number; // 0..9 within current 10-question stage
-  correctCount: number; // >= 8 unlocks next level
+  questionIndex: number; // 0..4 within current 5-question timed stage
+  correctCount: number; // 5 out of 5 unlocks next level
   stageComplete: boolean;
   promotedToLevelNumber: number | null;
   promotedToLevel: FiveDifficultyLevel | null;
@@ -70,11 +90,23 @@ export function createTriviaClimbState(
 
 export function advanceTriviaLevelClimb(
   climb: TriviaClimbProgress,
-  isCorrect: boolean
+  isCorrectInTime: boolean
 ): TriviaClimbProgress {
   if (climb.stageComplete) return climb;
   const levelNumber = normalizeLevelNumber(climb.levelNumber ?? climb.currentLevel, 1);
-  const nextCorrect = climb.correctCount + (isCorrect ? 1 : 0);
+  if (!isCorrectInTime) {
+    // Miss or timeout resets concurrent climb streak back to 0/5
+    return {
+      ...climb,
+      levelNumber,
+      questionIndex: 0,
+      correctCount: 0,
+      stageComplete: false,
+      promotedToLevelNumber: null,
+      promotedToLevel: null,
+    };
+  }
+  const nextCorrect = climb.correctCount + 1;
   const nextIndex = climb.questionIndex + 1;
   if (nextIndex >= TRIVIA_LEVEL_CLIMB_TOTAL) {
     const passed = nextCorrect >= TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD;

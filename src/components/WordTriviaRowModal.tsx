@@ -88,8 +88,8 @@ export const WordTriviaRowModal: React.FC<WordTriviaRowModalProps> = ({
                 Unlock Line Clue (Watch Ad)
               </h2>
               <p className="mt-0.5 text-xs sm:text-sm leading-relaxed wv-text-muted">
-                Pick any Row (Across) or Column (Down) to reveal its consonant/vowel count and word
-                meaning after a short rewarded ad.
+                Pick any Row (Across) or Column (Down) to reveal a brief dictionary explanation
+                after a short rewarded ad.
               </p>
             </div>
           </div>

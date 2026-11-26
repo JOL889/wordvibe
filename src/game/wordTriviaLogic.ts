@@ -52,7 +52,6 @@ export function maskTargetWordIfLeaked(text: string, targetWord: string): string
 
 export function buildCuratedWordFunFact(targetWord: string, categoryName = 'English'): string {
   const clean = targetWord.trim().toUpperCase();
-  const vowelCount = clean.split('').filter((c) => 'AEIOU'.includes(c)).length;
   const uniqueLetters = new Set(clean.split('')).size;
   const scrabbleMap: Record<string, number> = {
     A: 1, B: 3, C: 3, D: 2, E: 1, F: 4, G: 2, H: 4, I: 1, J: 8, K: 5, L: 1, M: 3,
@@ -60,7 +59,7 @@ export function buildCuratedWordFunFact(targetWord: string, categoryName = 'Engl
   };
   const tileScore = clean.split('').reduce((sum, ch) => sum + (scrabbleMap[ch] || 1), 0);
   const isIsogram = uniqueLetters === clean.length;
-  return `${clean} (${categoryName}) scores ${tileScore} classic board-game points, packs ${vowelCount} vowel${vowelCount === 1 ? '' : 's'}, and ${isIsogram ? 'uses zero repeated letters!' : 'repeats a clever letter pattern!'}`;
+  return `${clean} (${categoryName}) scores ${tileScore} classic board-game points and features ${isIsogram ? 'all distinct characters!' : 'a clever repeated motif!'}`;
 }
 
 export function isValidWordTriviaPayload(raw: unknown): raw is WordTriviaValidationResult {

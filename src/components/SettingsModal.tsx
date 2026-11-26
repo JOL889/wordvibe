@@ -35,15 +35,19 @@ import type {
   StartingTab,
   ThemeMode,
 } from '../game/settingsLogic';
+import type { LocalUserAccount } from '../game/userAccountLogic';
 import { ReligionIcon } from './ReligionIcons';
+import { UserAvatar } from './UserAvatar';
 
 interface SettingsModalProps {
   open: boolean;
   settings: AppSettings;
   playerProfile: PlayerProfileState;
+  userAccount?: LocalUserAccount | null;
   onClose: () => void;
   onUpdateSettings: (patch: Partial<AppSettings>) => void;
   onOpenPersonalize: () => void;
+  onOpenEditProfile?: () => void;
   onShareApp: () => void;
   onResetTutorial: () => void;
 }
@@ -138,9 +142,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   open,
   settings,
   playerProfile,
+  userAccount = null,
   onClose,
   onUpdateSettings,
   onOpenPersonalize,
+  onOpenEditProfile,
   onShareApp,
   onResetTutorial,
 }) => {
@@ -564,16 +570,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <span>Account &amp; Data</span>
             </h3>
 
-            <div className="flex items-center justify-between gap-2 rounded-xl border wv-border wv-card px-3 py-2.5 text-xs sm:text-sm">
-              <div>
-                <p className="font-bold wv-text">
-                  {playerProfile.displayName?.trim() || 'Guest WordVibe Player'}
-                </p>
-                <p className="wv-text-muted">
-                  Local study &amp; streak progress saved offline on device
-                </p>
+            <div className="flex items-center justify-between gap-2.5 rounded-xl border wv-border wv-card px-3 py-2.5 text-xs sm:text-sm">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <UserAvatar
+                  avatarType={userAccount?.avatarType}
+                  builtinAvatarId={userAccount?.builtinAvatarId}
+                  avatarDataUrl={userAccount?.avatarDataUrl}
+                  alt={userAccount?.username || playerProfile.displayName || 'Player'}
+                  size="md"
+                />
+                <div className="min-w-0">
+                  <p className="truncate font-bold wv-text">
+                    {userAccount
+                      ? `${userAccount.realName} (@${userAccount.username})`
+                      : playerProfile.displayName?.trim() || 'Guest WordVibe Player'}
+                  </p>
+                  <p className="truncate text-xs wv-text-muted">
+                    {userAccount?.email || 'Local study & streak progress saved offline on device'}
+                  </p>
+                </div>
               </div>
-              <Bell className="h-4 w-4 wv-text-muted shrink-0" aria-hidden="true" />
+              {onOpenEditProfile ? (
+                <button
+                  type="button"
+                  data-testid="settings-edit-profile-btn"
+                  onClick={() => {
+                    onClose();
+                    onOpenEditProfile();
+                  }}
+                  className="min-h-10 shrink-0 rounded-xl wv-accent-btn px-3 py-1.5 text-xs font-bold cursor-pointer"
+                >
+                  {userAccount ? 'Edit Profile' : 'Sign Up'}
+                </button>
+              ) : (
+                <Bell className="h-4 w-4 wv-text-muted shrink-0" aria-hidden="true" />
+              )}
             </div>
 
             <ToggleRow

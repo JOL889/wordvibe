@@ -573,9 +573,15 @@ export function loadWeeklyProgress(nowMs: number = Date.now()): WeeklyActivitySt
     window.localStorage.getItem(WEEKLY_PROGRESS_KEY),
     {}
   );
+  const mergedWeeklyXp = typeof parsed.weeklyXp === 'number' ? parsed.weeklyXp : 0;
   const merged: WeeklyActivityState = {
     ...fresh,
     ...parsed,
+    weeklyXp: mergedWeeklyXp,
+    totalXp:
+      typeof parsed.totalXp === 'number'
+        ? Math.max(parsed.totalXp, mergedWeeklyXp)
+        : mergedWeeklyXp,
     activeUtcDates: Array.isArray(parsed.activeUtcDates) ? parsed.activeUtcDates : [],
     categoriesPlayedThisWeek: Array.isArray(parsed.categoriesPlayedThisWeek)
       ? parsed.categoriesPlayedThisWeek
@@ -677,6 +683,8 @@ export interface ModeConfigState {
   puzzleLevelNumber: number;
   triviaLevelNumber: number;
   faithLevelNumber: number;
+  highestUnlockedPuzzleLevel: number;
+  highestUnlockedTriviaLevel: number;
   puzzleLevel: FiveDifficultyLevel;
   triviaLevel: FiveDifficultyLevel;
   faithLevel: FiveDifficultyLevel;
@@ -687,8 +695,8 @@ export interface ModeConfigState {
 export interface TriviaLevelClimbState {
   levelNumber: number;
   currentLevel: FiveDifficultyLevel;
-  questionIndex: number; // 0..9
-  correctCount: number; // >= 8 promotes
+  questionIndex: number; // 0..4
+  correctCount: number; // 5 out of 5 promotes
   stageComplete: boolean;
   promotedToLevelNumber: number | null;
   promotedToLevel: FiveDifficultyLevel | null;
@@ -704,6 +712,8 @@ export function loadModeConfig(): ModeConfigState {
     puzzleLevelNumber: 1,
     triviaLevelNumber: 1,
     faithLevelNumber: 1,
+    highestUnlockedPuzzleLevel: 1,
+    highestUnlockedTriviaLevel: 1,
     puzzleLevel: 'novice',
     triviaLevel: 'novice',
     faithLevel: 'novice',
@@ -712,13 +722,25 @@ export function loadModeConfig(): ModeConfigState {
   };
   if (typeof window === 'undefined') return defaults;
   const parsed = safeParse<Partial<ModeConfigState>>(window.localStorage.getItem(MODE_CONFIG_KEY), {});
-  const puzzleLevelNumber = normalizeLevelNumber(parsed.puzzleLevelNumber ?? parsed.puzzleLevel, 1);
-  const triviaLevelNumber = normalizeLevelNumber(parsed.triviaLevelNumber ?? parsed.triviaLevel, 1);
+  const rawPuzzleLv = normalizeLevelNumber(parsed.puzzleLevelNumber ?? parsed.puzzleLevel, 1);
+  const rawTriviaLv = normalizeLevelNumber(parsed.triviaLevelNumber ?? parsed.triviaLevel, 1);
+  const highestUnlockedPuzzleLevel = Math.max(
+    1,
+    normalizeLevelNumber(parsed.highestUnlockedPuzzleLevel, 1)
+  );
+  const highestUnlockedTriviaLevel = Math.max(
+    1,
+    normalizeLevelNumber(parsed.highestUnlockedTriviaLevel, 1)
+  );
+  const puzzleLevelNumber = Math.min(rawPuzzleLv, highestUnlockedPuzzleLevel);
+  const triviaLevelNumber = Math.min(rawTriviaLv, highestUnlockedTriviaLevel);
   const faithLevelNumber = normalizeLevelNumber(parsed.faithLevelNumber ?? parsed.faithLevel, 1);
   return {
     puzzleLevelNumber,
     triviaLevelNumber,
     faithLevelNumber,
+    highestUnlockedPuzzleLevel,
+    highestUnlockedTriviaLevel,
     puzzleLevel: levelNumberToDifficultyBand(puzzleLevelNumber),
     triviaLevel: levelNumberToDifficultyBand(triviaLevelNumber),
     faithLevel: levelNumberToDifficultyBand(faithLevelNumber),
@@ -787,8 +809,11 @@ export function loadCrosswordLevelClimb(defaultLevel: FiveDifficultyLevel | numb
   return {
     levelNumber,
     currentLevel: levelNumberToDifficultyBand(levelNumber),
-    roundIndex: typeof parsed.roundIndex === 'number' ? Math.max(0, Math.min(9, parsed.roundIndex)) : 0,
-    roundPassedCount: typeof parsed.roundPassedCount === 'number' ? Math.max(0, parsed.roundPassedCount) : 0,
+    roundIndex: typeof parsed.roundIndex === 'number' ? Math.max(0, Math.min(4, parsed.roundIndex)) : 0,
+    roundPassedCount:
+      typeof parsed.roundPassedCount === 'number'
+        ? Math.max(0, Math.min(5, parsed.roundPassedCount))
+        : 0,
     stageComplete: Boolean(parsed.stageComplete),
     promotedToLevelNumber,
     promotedToLevel: promotedToLevelNumber ? levelNumberToDifficultyBand(promotedToLevelNumber) : null,
@@ -826,8 +851,9 @@ export function loadTriviaLevelClimb(defaultLevel: FiveDifficultyLevel | number 
   return {
     levelNumber,
     currentLevel: levelNumberToDifficultyBand(levelNumber),
-    questionIndex: typeof parsed.questionIndex === 'number' ? Math.max(0, Math.min(9, parsed.questionIndex)) : 0,
-    correctCount: typeof parsed.correctCount === 'number' ? Math.max(0, parsed.correctCount) : 0,
+    questionIndex: typeof parsed.questionIndex === 'number' ? Math.max(0, Math.min(4, parsed.questionIndex)) : 0,
+    correctCount:
+      typeof parsed.correctCount === 'number' ? Math.max(0, Math.min(5, parsed.correctCount)) : 0,
     stageComplete: Boolean(parsed.stageComplete),
     promotedToLevelNumber,
     promotedToLevel: promotedToLevelNumber ? levelNumberToDifficultyBand(promotedToLevelNumber) : null,

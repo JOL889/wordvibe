@@ -5,6 +5,7 @@ import {
   Lock,
   Share2,
   ShieldCheck,
+  UserPlus,
 } from 'lucide-react';
 import type { CrosswordBoardState } from '../game/crosswordLogic';
 import type { SessionPlayMode } from '../game/settingsLogic';
@@ -21,6 +22,7 @@ interface RewardedDockProps {
   onWatchAdUnlockCategory: () => void;
   onNewBoard: () => void;
   onShareResult: () => void;
+  onInviteFriends?: () => void;
   onOpenSummary: () => void;
 }
 
@@ -36,6 +38,7 @@ export const RewardedDock: React.FC<RewardedDockProps> = ({
   onWatchAdUnlockCategory,
   onNewBoard,
   onShareResult,
+  onInviteFriends,
   onOpenSummary,
 }) => {
   const unlockedCount = Object.keys(board.unlockedClues).length;
@@ -83,15 +86,31 @@ export const RewardedDock: React.FC<RewardedDockProps> = ({
         <>
           <button
             type="button"
+            data-testid="dock-share-progress-btn"
             onClick={(e) => {
               e.currentTarget.blur();
               onShareResult();
             }}
-            className="inline-flex min-h-12 items-center gap-1.5 rounded-xl wv-accent-btn px-4 py-2 text-xs sm:text-sm font-bold transition-transform active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex min-h-12 items-center gap-1.5 rounded-xl wv-accent-btn px-3.5 py-2 text-xs sm:text-sm font-bold transition-transform active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
           >
             <Share2 className="h-4 w-4" aria-hidden="true" />
-            <span>Share</span>
+            <span>Share Progress</span>
           </button>
+
+          {onInviteFriends && (
+            <button
+              type="button"
+              data-testid="dock-invite-friends-btn"
+              onClick={(e) => {
+                e.currentTarget.blur();
+                onInviteFriends();
+              }}
+              className="inline-flex min-h-12 items-center gap-1.5 rounded-xl border wv-border wv-card px-3.5 py-2 text-xs sm:text-sm font-bold wv-text transition-colors hover:opacity-85 whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <UserPlus className="h-4 w-4 wv-accent-text" aria-hidden="true" />
+              <span>Invite Friends</span>
+            </button>
+          )}
 
           <button
             type="button"

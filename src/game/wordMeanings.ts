@@ -1,9 +1,8 @@
 /**
- * Word Structure & Meaning Clue Generator
+ * Word Meaning Clue & Post-Solve Dictionary Generator
  *
- * Produces clear ad-gated crossword clues formatted exactly like:
- *   "3 consonants, 2 vowels — Fluffy sky mass responsible for rain"
- * Never leaks the target word itself inside the clue.
+ * Produces clear short dictionary descriptions without ever leaking letters
+ * contained in the word or giving letter-pattern breakdowns.
  */
 
 export const CURATED_WORD_MEANINGS: Record<string, string> = {
@@ -35,7 +34,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   CAKE: 'Sweet frosted sponge baked for birthdays and celebrations',
   CALM: 'Peaceful stillness without wind, noise, or worry',
   CAMP: 'Outdoor shelter of tents pitched beneath stars and pines',
-  CARD: 'Crisp cardstock rectangle mailed for greetings or dealt in games',
+  CARD: 'Stiff rectangular greeting mailed for birthdays or dealt in table games',
   CARE: 'Thoughtful attention given to protect someone or something',
   CART: 'Rolled wheeled carrier used for groceries or market wares',
   CAST: 'Toss a fishing line out, or the actors starring in a play',
@@ -160,7 +159,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   HARP: 'Graceful arched stringed frame plucked in orchestras',
   HAWK: 'Keen-eyed soaring raptor circling wide sunny thermal drafts',
   HEAD: 'Thinking summit above shoulders, or lead a group',
-  HEAL: 'Mend wounds smoothly back toward healthy strength',
+  HEAL: 'Mend wounds smoothly back toward vibrant wholeness and vigor',
   HEAP: 'High untidy mound stacked carelessly in one spot',
   HEAR: 'Listen closely as melodies and voices arrive',
   HEAT: 'Warm rising energy radiating off stoves and summer asphalt',
@@ -260,7 +259,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   LYNX: 'Tufted-ear forest wildcat stalking silently in winter snow',
   MACE: 'Warm fragrant spice, or ceremonial medieval staff',
   MAID: 'Helpful household keeper tidying inns and grand manors',
-  MAIL: 'Stamped letters and parcels sorted into neighborhood boxes',
+  MAIL: 'Stamped postcards and parcels sorted into neighborhood boxes',
   MAIN: 'Primary central highway, or chief leading theme',
   MAKE: 'Build, craft, or create something new with hands or mind',
   MALL: 'Covered wide pedestrian promenade lined with shops',
@@ -376,7 +375,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   PLUS: 'Addition symbol adding extra value or points',
   POEM: 'Musical arrangement of rhyming or metered verses',
   POET: 'Craftsman weaving images, meter, and feeling into verse',
-  POLE: 'Long slender flagpole, or Earth’s icy northern axis tip',
+  POLE: 'Tall slender wooden staff, or Earth’s icy northern axis tip',
   POLL: 'Quick group vote measuring public preferences cleanly',
   POND: 'Quiet small freshwater basin ringed by reeds and frogs',
   PONY: 'Compact gentle small horse beloved at country stables',
@@ -421,7 +420,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   RIDE: 'Travel smoothly atop bicycles, horses, or carnival wheels',
   RING: 'Circular gold band, boxing arena, or clear bell chime',
   RIPE: 'Fully sweetened orchard fruit ready right now to pick',
-  RISE: 'Ascend smoothly upward like morning dough or sunrise',
+  RISE: 'Ascend smoothly upward like baking dough or early daylight',
   RISK: 'Uncertain bold gamble weighing chance of loss or gain',
   ROAD: 'Paved travel route linking distant villages and towns',
   ROAM: 'Wander leisurely across hills without a fixed schedule',
@@ -451,14 +450,14 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   SASH: 'Decorative fabric waist ribbon worn with ceremonial robes',
   SAVE: 'Rescue safely before loss, or store game progress',
   SCAN: 'Sweep eyes or lasers briskly across bar codes and lines',
-  SEAL: 'Playful barking ocean mammal, or tight wax letter stamp',
+  SEAL: 'Playful barking ocean mammal, or tight wax envelope stamp',
   SEAM: 'Crisp stitched line joining garment panels neatly together',
   SEAT: 'Comfortable padded chair reserved inside trains or halls',
   SEED: 'Tiny dormant plant packet ready to sprout with rain',
   SEEK: 'Search actively high and low until clues turn up',
   SELF: 'Unique individual identity shaped by choices and reflection',
   SELL: 'Exchange crafted goods fairly for coins and value',
-  SEND: 'Dispatch letters, parcels, or keyboard guesses onward',
+  SEND: 'Dispatch postcards, parcels, or keyboard entries onward',
   SHED: 'Small backyard tool hut, or drop old antlers naturally',
   SHIP: 'Tall ocean vessel ferrying containers between ports',
   SHOE: 'Fitted leather or canvas footwear guarding soles',
@@ -544,8 +543,8 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   TICK: 'Crisp clock second beat or checkmark beside finished tasks',
   TIDE: 'Rhythmic daily ocean rise and fall steered by moonlight',
   TIDY: 'Cleanly organized desk cleared neatly of clutter',
-  TIER: 'Ranked shelf level stacked neatly in stadiums or tiers',
-  TILE: 'Square ceramic piece or letter block laid on Scrabble boards',
+  TIER: 'Ranked shelf level stacked neatly inside grand stadiums',
+  TILE: 'Square ceramic piece or wooden block arranged on tabletop boards',
   TILT: 'Lean smoothly at an angle triggered by phone gyroscopes',
   TIME: 'Continuous ticking flow measured by hours and calendars',
   TINT: 'Light subtle wash of color softening clear glass',
@@ -577,7 +576,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   TURN: 'Rotate direction smoothly or wait patiently for your play',
   TWIG: 'Slender crisp tree branchlet snapped gently underfoot',
   TWIN: 'Matched sibling pair born together sharing identical traits',
-  TYPE: 'Tap keyboard letters cleanly or sort by distinct category',
+  TYPE: 'Tap keyboard keys cleanly or group items by shared traits',
   UNDO: 'Reverse the very last move cleanly back one step',
   UNIT: 'Single standard building block used for measurement',
   URGE: 'Strong inner impulse nudging people toward quick action',
@@ -622,7 +621,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   WHIP: 'Lightly beat cream stiff with quick brisk whisking',
   WICK: 'Braided cotton cord drawing melted wax up to candle flames',
   WIDE: 'Broad spacious reach stretching far side to side',
-  WILD: 'Untamed natural wilderness thriving free beyond fences',
+  WILD: 'Untamed natural backcountry thriving free beyond fences',
   WILL: 'Determined inner resolve shaping bold choices',
   WIND: 'Moving air currents rustling leaves, or coil clock springs',
   WINE: 'Fermented vineyard vintage poured in crystal stems',
@@ -636,7 +635,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   WOLF: 'Howling pack canine roaming northern pine forests',
   WOOD: 'Hard grained timber carved from sturdy tree trunks',
   WOOL: 'Warm crimped fleece sheared cleanly to knit winter coats',
-  WORD: 'Meaningful sequence of linked letters forming language',
+  WORD: 'Meaningful spoken or written unit forming human language',
   WORK: 'Focused productive effort crafting value and skill',
   WORM: 'Silently wriggling earth-dweller enriching garden soil',
   WRAP: 'Fold bright patterned paper neatly around gift boxes',
@@ -666,7 +665,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   AGAIN: 'One more repeated round starting cleanly anew',
   AGENT: 'Trusted representative acting on another person’s behalf',
   AGREE: 'Reach warm shared harmony on one decision',
-  AHEAD: 'Positioned further forward along the path ahead',
+  AHEAD: 'Positioned further forward along the trail in front',
   ALARM: 'Ringing morning clock or alert bell warning of risk',
   ALBUM: 'Curated music track collection or photo keepsake book',
   ALERT: 'Watchfully awake, focused, and quick to notice shifts',
@@ -708,7 +707,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   BLACK: 'Deepest midnight ink absorbing every ray of light',
   BLADE: 'Keen steel cutting edge or narrow single tuft of grass',
   BLAME: 'Point responsibility toward faults or slipups',
-  BLANK: 'Empty clean page or unmarked square waiting for letters',
+  BLANK: 'Empty clean page or unmarked square ready for fresh ink',
   BLAST: 'Loud explosive gust or lively thrilling celebration',
   BLAZE: 'Bright roaring campfire flame lighting forest dusk',
   BLEED: 'Let bright liquid trickle from cuts or ink margins',
@@ -735,12 +734,12 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   BRIEF: 'Crisp short summary lasting only a few quick moments',
   BRING: 'Carry thoughtfully along to share at gatherings',
   BRINK: 'Teetering outer cliff edge right before big shifts',
-  BROAD: 'Wide open span embracing broad horizons',
+  BROAD: 'Wide sweeping span embracing open horizons',
   BROOK: 'Clear babbling woodland stream winding smoothly over moss',
   BROOM: 'Long bristled sweeper brushing porch steps clean',
   BROWN: 'Warm roasted chestnut and rich oak wood tone',
   BRUSH: 'Bristled artist or hair tool sweeping strokes smoothly',
-  BUILD: 'Assemble bricks, ideas, or letter grids step by step',
+  BUILD: 'Assemble bricks, ideas, or interlocking grids step by step',
   BUNCH: 'Tightly clustered bouquet of grapes or daisies',
   BURST: 'Pop suddenly open in showers of confetti sparks',
   CABIN: 'Cozy log cottage tucked quietly among mountain pines',
@@ -826,7 +825,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   DECOR: 'Thoughtful curtains, lamps, and accents warming rooms',
   DECOY: 'Clever painted wooden duck drawing eyes away',
   DELAY: 'Brief schedule pause pushing departures back',
-  DELTA: 'Fan-shaped fertile river mouth or fourth Greek letter',
+  DELTA: 'Fan-shaped fertile river mouth or fourth symbol of the Greek alphabet',
   DENSE: 'Tightly packed heavy fog or thick evergreen woods',
   DEPOT: 'Busy brick train station or supply storage hub',
   DEPTH: 'Deep vertical measure plunging far beneath surfaces',
@@ -842,7 +841,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   DOUBT: 'Uncertain lingering hesitation questioning easy claims',
   DOUGH: 'Soft kneaded flour mixture rising before baking',
   DOZEN: 'Standard bakery count totaling twelve items',
-  DRAFT: 'Preliminary unsubmitted row letters or cool breeze',
+  DRAFT: 'Preliminary unsubmitted sketch or cool indoor breeze',
   DRAIN: 'Empty trapped basin water smoothly down pipes',
   DRAMA: 'Gripping theater tension packed with vivid emotion',
   DRAPE: 'Soft flowing window curtain framing sunlight',
@@ -863,10 +862,10 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   EIGHT: 'Single cube of two matching octopus tentacles',
   ELBOW: 'Central hinged arm bend linking shoulders to wrists',
   ELDER: 'Respected wise senior mentor inside communities',
-  ELECT: 'Select chosen leaders cleanly through fair ballots',
+  ELECT: 'Choose trusted leaders cleanly through fair ballots',
   ELITE: 'Top standout tier mastered by high scorers',
   EMBER: 'Glowing cherry-red coal humming warmly after campfires',
-  EMPTY: 'Completely hollow box waiting eagerly for letters',
+  EMPTY: 'Completely hollow box waiting eagerly to be filled',
   ENJOY: 'Savor cheerful moments gladly with relaxed smiles',
   ENTER: 'Keyboard key pressed neatly to verify solved rows',
   ENTRY: 'Submitted puzzle word or open doorway threshold',
@@ -963,7 +962,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   GOOSE: 'Honking long-necked waterfowl flying south in V-lines',
   GORGE: 'Narrow deep rocky canyon carved steadily by rapids',
   GRACE: 'Effortless poised movement or unmerited kind mercy',
-  GRADE: 'Earned weekly rank letter or gentle uphill slope',
+  GRADE: 'Earned weekly rank mark or gentle uphill road slope',
   GRAIN: 'Tiny harvested wheat seed or swirling oak wood lines',
   GRAND: 'Magnificently sweeping palace scale or piano size',
   GRANT: 'Bestow earned rewards or unlock extra clue plays',
@@ -975,7 +974,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   GRAVY: 'Rich savory browned sauce ladled atop mashed potatoes',
   GREAT: 'Remarkably standout excellence above everyday marks',
   GREED: 'Restless endless craving grasping for far too much',
-  GREEN: 'Bright solved tile color matching exact letter spots',
+  GREEN: 'Lush emerald leaf shade signaling solved grid tiles',
   GREET: 'Wave warmly hello when neighbors step past doors',
   GRIEF: 'Deep heavy heartache mourning a cherished loss',
   GRILL: 'Hot slatted iron grate searing smoky summer corn',
@@ -1035,7 +1034,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   INERT: 'Calmly motionless noble gas refusing easy reactions',
   INFER: 'Piece subtle crossword intersections cleanly together',
   INNER: 'Nested calmly deep inside layers or thoughts',
-  INPUT: 'Typed keyboard letters flowing straight into boards',
+  INPUT: 'Data or keyboard entries flowing straight into software',
   INTRO: 'Brief welcoming musical prelude opening albums',
   IONIC: 'Slender scrolled Greek column style or charged salt bond',
   IRATE: 'Fuming loudly after frustrating sudden delays',
@@ -1137,7 +1136,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   METAL: 'Shiny forged conductor bent neatly into coins and rails',
   METER: 'Metric standard unit pacing poetry and distance',
   METRO: 'Swift underground city rail whisking commuters cleanly',
-  MICRO: 'Tiny microscopic world invisible without crisp lenses',
+  MICRO: 'Extremely tiny scale invisible without magnifying lenses',
   MIDST: 'Right squarely in the bustling middle of action',
   MIGHT: 'Steady impressive strength or polite future possibility',
   MIMIC: 'Playful mockingbird echoing neighbor calls accurately',
@@ -1164,7 +1163,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   MOTOR: 'Spinning electric coil powering fans, mixers, and trams',
   MOTTO: 'Crisp short guiding phrase stamped on team crests',
   MOUND: 'Raised grassy pitcher spot centering baseball diamonds',
-  MOUNT: 'Ascend proud mountain heights or frame prized prints',
+  MOUNT: 'Climb steep alpine heights or frame prized prints',
   MOUSE: 'Small clicking pointer or quiet whiskered pantry guest',
   MOUTH: 'Articulate gateway smiling, singing, and tasting spices',
   MOVIE: 'Featured cinema feature rolling popcorn-worthy adventures',
@@ -1205,7 +1204,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   ORGAN: 'Lofty pipe keyboard instrument filling stone cathedrals',
   OTHER: 'Distinct alternate option sitting beyond this one',
   OTTER: 'Playful whiskered river swimmer floating atop backs',
-  OUGHT: 'Thoughtful moral sense pointing toward proper action',
+  OUGHT: 'Sense of moral duty pointing toward proper action',
   OUNCE: 'Small kitchen weight dividing pounds into sixteen parts',
   OUTER: 'Facing outward along sunny garden perimeters',
   OVARY: 'Botanical blossom seed chamber ripening into apples',
@@ -1293,7 +1292,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   QUACK: 'Cheerful resounding pond call echoing from ducks',
   QUAIL: 'Plump top-knotted ground bird scurrying beneath sagebrush',
   QUAKE: 'Sudden trembling earth jolt shaking plates and bells',
-  QUART: 'Quarter-gallon liquid pitcher filling four full cups',
+  QUART: 'Liquid pitcher measure filling four standard cups',
   QUASH: 'Calmly put down rumors before confusion spreads',
   QUEEN: 'Most versatile crowned piece sweeping chessboards freely',
   QUERY: 'Curious pointed question seeking clear solid answers',
@@ -1322,7 +1321,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   REALM: 'Expansive fantasy kingdom or specialized knowledge sphere',
   REBEL: 'Bold nonconformist challenging stale old customs',
   RECAP: 'Crisp brief summary reviewing round highlights cleanly',
-  REIGN: 'Sovereign rule spanning peaceful decades on thrones',
+  REIGN: 'Royal rule spanning peaceful decades on a throne',
   RELAX: 'Unwind calm shoulders deeply with quiet puzzle play',
   RELAY: 'Four-runner baton handoff racing smoothly around tracks',
   RELIC: 'Preserved ancient artifact whispered down through ages',
@@ -1330,7 +1329,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   RENEW: 'Refresh worn plans cleanly for brand-new starts',
   REPAY: 'Return borrowed kindness or coins faithfully in full',
   REPLY: 'Send crisp helpful answer back across messages',
-  RESET: 'Clear current board letters cleanly back to fresh start',
+  RESET: 'Clear current board entries cleanly back to fresh start',
   RESIN: 'Sticky fragrant pine sap hardening slowly into amber',
   RETRO: 'Nostalgic classic arcade charm glowing brightly again',
   RHYME: 'Matched playful ending chimes echoing in poems',
@@ -1428,7 +1427,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   SILLY: 'Playfully lighthearted goofiness raising cheerful smiles',
   SINCE: 'Continuous stretch running onward from earlier dates',
   SIREN: 'Wailing amber rooftop alert or mythical singing sea nymph',
-  SIXTH: 'Ordinal final edge matching wide six-letter crosswords',
+  SIXTH: 'Ordinal rank immediately following the fifth position',
   SIXTY: 'Full clock minute count ticking through each hour',
   SKATE: 'Steel-bladed winter shoe gliding crisply over frozen ponds',
   SKILL: 'Trained effortless mastery sharpened through steady practice',
@@ -1480,7 +1479,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   SPEAK: 'Share thoughtful insights warmly aloud with others',
   SPEAR: 'Long pointed throwing shaft carried in ancient hunts',
   SPEED: 'Rapid swift pace driving endless puzzle sprints',
-  SPELL: 'Arrange exact tile letters cleanly into valid words',
+  SPELL: 'Form a valid word cleanly or cast a storybook enchantment',
   SPEND: 'Invest earned study minutes thoughtfully every day',
   SPICE: 'Fragrant cinnamon, nutmeg, or clove warming baked pies',
   SPIKE: 'Sharp rising graph surge or sturdy iron rail pin',
@@ -1499,7 +1498,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   SQUAD: 'Tightly bonded teammate group pulling toward goals',
   SQUAT: 'Crouch low firmly close to springy mats',
   SQUID: 'Ten-armed agile jet-propelled ocean swimmer',
-  STACK: 'Neatly piled tower of wooden Scrabble letter tiles',
+  STACK: 'Neatly piled vertical tower of wooden game tiles',
   STAFF: 'Sturdy walking shepherd rod or five-line music grid',
   STAGE: 'Spotlighted theater deck or ranked challenge tier',
   STAIN: 'Deep lasting berry color mark on white aprons',
@@ -1614,7 +1613,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   THIRD: 'Bronze medal step sitting directly past silver',
   THORN: 'Sharp protective green stem spine guarding roses',
   THOSE: 'Specific distant group resting just out of reach',
-  THREE: 'Odd triangle vertex count or consonant trio',
+  THREE: 'Prime triangle vertex count or trio of matched companions',
   THREW: 'Tossed spiraling footballs cleanly down sunny fields',
   THROB: 'Steady pulsing ache pounding inside tired temples',
   THROW: 'Launch rounded baseballs crisply toward gloves',
@@ -1626,7 +1625,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   TIDAL: 'Periodic rising ocean surge pulled daily by moonlight',
   TIGER: 'Bold amber-and-black striped jungle cat prowling quietly',
   TIGHT: 'Snugly fastened lid sealing crisp pickles safe',
-  TILDE: 'Curved wavy accent floating gracefully over letters',
+  TILDE: 'Curved wavy accent mark floating above written characters',
   TIMER: 'Counting seconds gauge pacing brief ad previews',
   TIMID: 'Shy quiet woodland fawn peeking softly through ferns',
   TIPSY: 'Lightly wobbling balance tilting precariously on ledges',
@@ -1644,7 +1643,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   TORSO: 'Central upper trunk linking shoulders to waist',
   TOTAL: 'Combined complete sum gathering every score cleanly',
   TOTEM: 'Tall carved cedar emblem uniting family heritage',
-  TOUCH: 'Gentle fingertip tap selecting letters anywhere on boards',
+  TOUCH: 'Gentle fingertip tap selecting tiles anywhere on boards',
   TOUGH: 'Resilient knotty oak timber enduring hard tests',
   TOWEL: 'Fluffy absorbent cotton wrap drying ocean swimmers',
   TOWER: 'Tall stone lookout spire rising proudly past walls',
@@ -1749,7 +1748,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   VOICE: 'Distinct warm spoken tone expressing heartfelt views',
   VOTER: 'Active citizen dropping thoughtful choices inside boxes',
   VOUCH: 'Step up honestly backing friends’ trusted character',
-  VOWEL: 'Open vocal letter from A, E, I, O, or U',
+  VOWEL: 'Open unobstructed speech sound contrasted with consonants',
   WACKY: 'Zany delightfully oddball sense sparking goofy grins',
   WAFER: 'Paper-thin crispy baked biscuit crunching lightly',
   WAGER: 'Friendly risked stake placed calmly on trivia odds',
@@ -1758,7 +1757,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   WAIVE: 'Set formal fees or strict penalties willingly aside',
   WAKEN: 'Stir gradually awake as songbirds greet sunrise',
   WALTZ: 'Graceful gliding three-beat ballroom whirl in pairs',
-  WARTY: 'Bumpy textured garden toad skin blending with soil',
+  WARTY: 'Bumpy textured garden toad skin blending smoothly with soil',
   WASTE: 'Carelessly squandered leftovers tossed before use',
   WATCH: 'Slim ticked wrist clock or view brief hint previews',
   WATER: 'Clear life-sustaining liquid filling oceans and clouds',
@@ -1818,7 +1817,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   WRIST: 'Slender flexible joint wearing ticked leather watches',
   WRITE: 'Spell inked thoughts smoothly across clean notebooks',
   WRONG: 'Erroneous choice flagged clearly so solvers pivot',
-  WROTE: 'Penned crisp historic letters cleanly from memory',
+  WROTE: 'Penned crisp historic chapters cleanly from memory',
   XEROX: 'Instant dry office copy duplicating paper sheets',
   YACHT: 'Sleek white wind-driven pleasure sailboat gliding bays',
   YEARN: 'Long wistfully over seasons for distant homeland hills',
@@ -1902,7 +1901,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   ARSED: 'Old informal expression meaning bothered enough to try',
   ASDIC: 'Early underwater acoustic echo sonar used to locate hulls',
   ASSAI: 'Musical direction asking players to perform very expressively',
-  ASSOC: 'Standard written abbreviation for a trade group or association',
+  ASSOC: 'Standard shorthand abbreviation for a professional society or club',
   ATRIA: 'High sunlit open inner courtyards or upper heart chambers',
   AURAS: 'Soft glowing halos of light or subtle mood energy around scenes',
   AVOIR: 'Classic French verb meaning to have or hold possession',
@@ -1925,7 +1924,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   ERUGO: 'Greenish patina rust forming slowly on weathered copper bronze',
   FADGE: 'Warm flat griddled potato bread baked in Northern hearths',
   FLAIL: 'Wave arms wildly about or classic jointed grain threshing tool',
-  HACEK: 'Small inverted chevron accent mark placed above Slavic consonants',
+  HACEK: 'Small inverted chevron accent mark placed above Slavic characters',
   HADES: 'Ancient Greek mythological shadowy realm beneath the earth',
   HALER: 'More robustly healthy and vigorous than last season',
   HERDS: 'Large grazing groups of cattle, deer, or elephants moving together',
@@ -1935,7 +1934,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   LAWNS: 'Neatly trimmed green grass carpets framing quiet front yards',
   LEAST: 'Smallest possible minimum amount remaining on the scale',
   LYRES: 'Ancient U-shaped harp-like stringed instruments plucked in poetry',
-  MAILS: 'Dispatches letters and parcels across postal delivery routes',
+  MAILS: 'Dispatches postcards and parcels across postal delivery routes',
   MEANT: 'Intended deliberately or carried clear significance in speech',
   NERAL: 'Fragrant lemon-scented natural plant oil found in citrus peel',
   OATEN: 'Made wholesome from golden rolled oats or rustic pipes',
@@ -1954,7 +1953,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   RIELS: 'Official paper banknote currency circulating across Cambodia',
   ROSES: 'Fragrant thorny garden blooms symbolizing love and warmth',
   RUMAL: 'Traditional square silk or cotton pocket kerchief from India',
-  RUNES: 'Ancient carved angular alphabet letters etched on Nordic stones',
+  RUNES: 'Ancient carved angular symbols etched on historic Nordic stones',
   SATYR: 'Playful woodland forest creature from classic Greek myths',
   SCAPE: 'Leafless flower stalk rising straight from soil, or sweeping view',
   SCARP: 'Steep sheer rock slope cut cleanly below mountain ridges',
@@ -2026,7 +2025,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   ANNUAL: 'Happening once every calendar year like harvest fairs and birthdays',
   ANSWER: 'Correct clear response unlocking riddles and trivia prompts',
   ANTHEM: 'Stirring uplifting song uniting crowds before big matches',
-  ANYONE: 'Every single person welcome without leaving anyone outside',
+  ANYONE: 'Every single person welcomed warmly without leaving somebody out',
   ANYWAY: 'Moving smoothly forward regardless of earlier small detours',
   APPEAL: 'Earnest heartfelt request or charming inviting warmth',
   APPEAR: 'Come cleanly into clear sight from behind shadows or mist',
@@ -2063,7 +2062,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   BEACON: 'Bright guiding lighthouse signal cutting cleanly through sea fog',
   BEAUTY: 'Graceful natural harmony delighting eyes, ears, and spirit',
   BEFORE: 'Happening earlier in sequence ahead of the next turn',
-  BEHIND: 'Positioned quietly right at the back behind the front row',
+  BEHIND: 'Positioned quietly at the rear after the front row passes',
   BELIEF: 'Deep steady inner trust held firmly in truth or values',
   BELONG: 'Fit naturally right inside a welcoming circle or set',
   BETTER: 'Clearly improved, sharper, and stronger than yesterday score',
@@ -2146,7 +2145,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   FATHER: 'Caring guiding dad lifting little hands steadily toward sky',
   FELLOW: 'Friendly companion walking side by side along shared journeys',
   FIGURE: 'Sculpted silhouette, crisp number symbol, or solve thoughtfully',
-  FINGER: 'Nimble articulated hand digit typing letters swiftly across keys',
+  FINGER: 'Nimble articulated hand digit typing swiftly across piano or phone keys',
   FINISH: 'Cross the bright checkered tape cleanly completing final lines',
   FLIGHT: 'Graceful soaring winged arc gliding effortlessly through clouds',
   FLOWER: 'Fragrant colorful garden petal bloom turning faces toward morning sun',
@@ -2200,7 +2199,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   LEGACY: 'Lasting meaningful gift of wisdom remembered across generations',
   LENGTH: 'Measured horizontal distance stretching cleanly from start to tip',
   LESSON: 'Clear helpful teaching unit turning confusion cleanly into mastery',
-  LETTER: 'Single crisp alphabet tile or warm handwritten envelope note',
+  LETTER: 'Single printed alphabet unit or warm handwritten envelope message',
   LIQUID: 'Smooth flowing fluid state pouring cleanly into glass pitchers',
   LISTEN: 'Tune ears gently to birdsong, melodies, and thoughtful friends',
   LITTLE: 'Small charming bite-sized portion fitting comfortably in palms',
@@ -2301,7 +2300,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   RESULT: 'Final clear outcome revealed once every clue locks green',
   RETAIN: 'Keep treasured knowledge securely stored inside crisp recall',
   RETURN: 'Come smoothly back home or press Enter checking active rows',
-  REVEAL: 'Uncover hidden letters gracefully one helpful box at a time',
+  REVEAL: 'Uncover hidden answers gracefully one helpful clue at a time',
   REVIEW: 'Inspect earlier steps carefully before trusting new edits',
   REWARD: 'Earned golden badge, coins, or XP celebrating sharp wins',
   RHYTHM: 'Steady infectious musical beat looping cleanly underneath',
@@ -2320,7 +2319,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   SECOND: 'Quick heartbeat blink of time or runner-up silver spot',
   SECRET: 'Whispered hidden word concealed tightly behind locked boxes',
   SECURE: 'Fastened tightly safe from stray errors or peeking eyes',
-  SELECT: 'Tap cleanly to highlight preferred colors, tabs, or letters',
+  SELECT: 'Tap cleanly to highlight preferred colors, tabs, or choices',
   SELLER: 'Friendly market merchant wrapping fresh fruit in paper',
   SENIOR: 'Experienced elder mentor holding years of steady wisdom',
   SERIES: 'Connected numbered sequence marching steadily upward forever',
@@ -2373,7 +2372,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   THEORY: 'Well-tested scientific framework explaining how nature works',
   THIRTY: 'Three crisp tens marking a round month or brisk milestone',
   THREAD: 'Slender spun cotton strand stitching quilts and buttons fast',
-  THRONE: 'Carved ceremonial royal seat raised inside grand throne rooms',
+  THRONE: 'Carved ceremonial royal seat raised inside grand palace halls',
   TICKET: 'Crisp punched entry pass admitting guests smoothly to shows',
   TIMBER: 'Seasoned fragrant cut pine beams stacked cleanly for cabins',
   TISSUE: 'Feathery soft folded paper or living cellular fabric layer',
@@ -2432,7 +2431,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   DYERS: 'Skilled textile workers tinting woven cloth in rich vats',
   ELEGY: 'Mournful reflective poem written gently to honor someone missed',
   ENDOW: 'Gift permanent funding, talent, or generous blessing upon a cause',
-  ENGIN: 'Archaic poetic spelling of a clever mechanical engine or snare',
+  ENGIN: 'Archaic poetic spelling of a clever mechanical motor or snare',
   ETHOS: 'Guiding moral character and shared spirit of a community',
   EVITE: 'Classic digital party invitation sent neatly to friends online',
   FARE: 'Ticket price paid for bus or train travel, or served daily food',
@@ -2469,7 +2468,7 @@ export const CURATED_WORD_MEANINGS: Record<string, string> = {
   STROP: 'Leather strap drawn across steel blades to hone a keen edge',
   SWISS: 'Alps nation famed for snowy peaks, precision watches, and cheese',
   TERSE: 'Crisply brief and to the point without a single wasted word',
-  THETA: 'Eighth Greek alphabet letter used widely in angle math',
+  THETA: 'Eighth Greek alphabet symbol used widely in angle math',
   TIMES: 'Measured moments on a clock or multiplication factor counts',
   ULEMA: 'Recognized council of Islamic scholars well-versed in sacred law',
   UTILE: 'Practical, serviceable, and genuinely useful in everyday tasks',
@@ -2499,16 +2498,22 @@ export function countWordConsonantsAndVowels(rawWord: string): {
 }
 
 function stripSelfLeak(explanation: string, cleanWord: string): string {
+  if (!cleanWord) return explanation;
   const escaped = cleanWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const rx = new RegExp(`\\b${escaped}[a-z]*\\b`, 'gi');
-  return explanation.replace(rx, 'this word');
+  const wordRx = new RegExp(`\\b${escaped}[a-z]*\\b`, 'gi');
+  let sanitized = explanation.replace(wordRx, 'this term');
+  if (cleanWord.length >= 4) {
+    const substrRx = new RegExp(escaped, 'gi');
+    sanitized = sanitized.replace(substrRx, 'this');
+  }
+  return sanitized;
 }
 
 function buildMorphologyExplanation(word: string, categoryName?: string): string {
   const clean = word.trim().toUpperCase();
   const catLabel = categoryName ? `${categoryName} ` : '';
   if (clean.endsWith('ING')) {
-    return `${catLabel}action word ending with -ING describing ongoing motion or effort`;
+    return `${catLabel}action verb describing an ongoing activity or state of motion`;
   }
   if (clean.endsWith('TION') || clean.endsWith('MENT')) {
     return `${catLabel}noun naming a distinct outcome, process, or state of action`;
@@ -2520,28 +2525,23 @@ function buildMorphologyExplanation(word: string, categoryName?: string): string
     return `${catLabel}descriptive adjective meaning capable of or worthy of being done`;
   }
   if (clean.endsWith('ER') || clean.endsWith('OR')) {
-    return `${catLabel}noun or comparative word linked to skilled action or role`;
+    return `${catLabel}noun or comparative term linked to a skilled action or role`;
   }
   if (clean.endsWith('LY')) {
-    return `${catLabel}descriptive adverb explaining the clear manner an action unfolds`;
+    return `${catLabel}descriptive adverb explaining the manner an action unfolds`;
   }
   if (clean.endsWith('ED')) {
     return `${catLabel}completed past action or seasoned descriptive quality`;
   }
   if (clean.endsWith('ES') || (clean.endsWith('S') && clean.length >= 4 && !clean.endsWith('SS'))) {
-    return `${catLabel}plural or present-tense term starting with "${clean[0]}" and ending with "${clean.slice(-2)}"`;
+    return `${catLabel}plural noun or present-tense action term in standard English`;
   }
 
-  const startsWith = clean[0];
-  const endsWith = clean[clean.length - 1];
-  const vowelLetters = Array.from(new Set(clean.split('').filter((ch) => VOWELS.has(ch)))).join(', ');
-  return vowelLetters
-    ? `${clean.length}-letter English term starting with "${startsWith}", ending in "${endsWith}", containing vowel(s) ${vowelLetters}`
-    : `${clean.length}-letter English term starting with "${startsWith}" and ending with "${endsWith}"`;
+  return `${catLabel}standard English vocabulary word drawn from this topic collection`;
 }
 
 /**
- * Returns ONLY the real dictionary meaning clue for direct display on the active crossword line.
+ * Returns ONLY a short dictionary explanation/description without leaking any letters in the word.
  */
 export function getWordMeaningClue(rawWord: string, categoryName?: string): string {
   const word = rawWord.trim().toUpperCase().replace(/[^A-Z]/g, '');
@@ -2565,8 +2565,7 @@ export function getWordMeaningClue(rawWord: string, categoryName?: string): stri
 }
 
 /**
- * Generates a structured meaning + vowel/consonant clue formatted like:
- *   "3 consonants, 2 vowels — Fluffy sky mass of mist responsible for the formation of rain"
+ * Generates a pure short dictionary meaning clue without leaking letters or consonant/vowel counts.
  */
 export function buildConsonantVowelMeaningClue(
   rawWord: string,
@@ -2581,12 +2580,10 @@ export function buildConsonantVowelMeaningClue(
 } {
   const word = rawWord.trim().toUpperCase().replace(/[^A-Z]/g, '');
   const { consonants, vowels } = countWordConsonantsAndVowels(word);
-  const patternSummary = `${consonants} ${consonants === 1 ? 'consonant' : 'consonants'}, ${vowels} ${
-    vowels === 1 ? 'vowel' : 'vowels'
-  }`;
+  const patternSummary = 'Dictionary explanation';
 
   const explanation = getWordMeaningClue(word, categoryName);
-  const fullClue = `${patternSummary} — ${explanation}`;
+  const fullClue = explanation;
 
   return {
     word,

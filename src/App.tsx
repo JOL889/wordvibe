@@ -14,7 +14,8 @@ import { HowToPlayModal, type HelpSectionTab } from './components/HowToPlayModal
 import { ModeControls } from './components/ModeControls';
 import { OfflineBanner } from './components/OfflineBanner';
 import { PersonalizationModal } from './components/PersonalizationModal';
-import { PuzzleGrid } from './components/PuzzleGrid';
+import { ProfileAuthModal } from './components/ProfileAuthModal';
+import { PuzzleGrid, type SelectedDictionaryWord } from './components/PuzzleGrid';
 import { RewardedAdModal } from './components/RewardedAdModal';
 import { RewardedDock } from './components/RewardedDock';
 import { SettingsModal } from './components/SettingsModal';
@@ -32,7 +33,7 @@ import {
   applyUnlimitedCrosswordHint,
   createCrosswordBoard,
   createCrosswordClimbState,
-  formatCrosswordShareText,
+  getCrosswordRoundTimeLimitSeconds,
   getFirstEditableCell,
   isCleanCrosswordPass,
   unlockCrosswordLineClue,
@@ -105,7 +106,20 @@ import {
   type WeeklyActivityState,
   type WeeklyEventInput,
 } from './game/weeklyLogic';
+import { getPlayerLeaderboardSummary } from './game/leaderboardLogic';
+import {
+  buildInviteFriendsPayload,
+  buildLeaderboardSharePayload,
+  buildPuzzleSharePayload,
+  type LocalUserAccount,
+} from './game/userAccountLogic';
 import { buildCuratedWordFunFact } from './game/wordTriviaLogic';
+import {
+  hydrateLocalUserAccountFromIdb,
+  loadLocalUserAccount,
+  saveLocalUserAccount,
+  shareOrCopyMessage,
+} from './services/accountStorageService';
 import {
   attachDeviceSensorListeners,
   triggerHapticPulse,
@@ -262,6 +276,35 @@ export default function App() {
   const [lastPuzzleXpEarned, setLastPuzzleXpEarned] = useState(0);
   const [puzzleDoubleXpClaimed, setPuzzleDoubleXpClaimed] = useState(false);
   const [refreshSignal, setRefreshSignal] = useState(0);
+  const [selectedDictWord, setSelectedDictWord] = useState<SelectedDictionaryWord | null>(null);
+  const [puzzleTimeLeftSec, setPuzzleTimeLeftSec] = useState<number>(() =>
+    getCrosswordRoundTimeLimitSeconds(
+      initialBoot.board.length,
+      modeConfig.puzzleLevelNumber,
+      initialBoot.climb.roundIndex
+    )
+  );
+  const [puzzleTimedOut, setPuzzleTimedOut] = useState<boolean>(false);
+  const [leaderboardPlayerId] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'user:local';
+    const existing = window.localStorage.getItem('wordvibe_leaderboard_player_id_v1');
+    if (existing) return existing;
+    const generated = `user:${Math.random().toString(36).slice(2, 10)}`;
+    window.localStorage.setItem('wordvibe_leaderboard_player_id_v1', generated);
+    return generated;
+  });
+  const [userAccount, setUserAccount] = useState<LocalUserAccount | null>(() =>
+    loadLocalUserAccount()
+  );
+  const [profileModalMode, setProfileModalMode] = useState<'signup' | 'edit'>(() =>
+    loadLocalUserAccount() ? 'edit' : 'signup'
+  );
+  const [profileModalOpen, setProfileModalOpen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('autostart') === '1') return false;
+    return loadLocalUserAccount() === null;
+  });
 
   const [cluePanelOpen, setCluePanelOpen] = useState<boolean>(
     () => Object.keys(initialBoot.board.unlockedClues).length > 0
@@ -296,6 +339,8 @@ export default function App() {
   const toastTimerRef = useRef<number | null>(null);
   const summaryTimerRef = useRef<number | null>(null);
   const rewardIdRef = useRef<number>(1);
+  const puzzleTimeLeftRef = useRef<number>(puzzleTimeLeftSec);
+  puzzleTimeLeftRef.current = puzzleTimeLeftSec;
   const cursorRef = useRef<{ row: number; col: number }>({
     row: initialCell.row,
     col: initialCell.col,
@@ -546,6 +591,70 @@ export default function App() {
     return () => window.clearInterval(interval);
   }, [dateKey]);
 
+  // Hydrate offline user profile from IndexedDB if localStorage was cleared
+  useEffect(() => {
+    let active = true;
+    void hydrateLocalUserAccountFromIdb().then((hydrated) => {
+      if (!active || !hydrated) return;
+      setUserAccount(hydrated);
+      setProfileModalMode('edit');
+      setProfileModalOpen(false);
+      setPlayerProfile((prev) =>
+        prev.displayName === hydrated.username
+          ? prev
+          : { ...prev, displayName: hydrated.username }
+      );
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const roundTimeTotalSec = useMemo(
+    () =>
+      getCrosswordRoundTimeLimitSeconds(
+        crosswordBoard.length,
+        modeConfig.puzzleLevelNumber,
+        crosswordClimb.roundIndex
+      ),
+    [crosswordBoard.length, crosswordClimb.roundIndex, modeConfig.puzzleLevelNumber]
+  );
+
+  const isPuzzleTimerPaused =
+    activeTab !== 'puzzle' ||
+    modeConfig.puzzleSessionMode !== 'level_climb' ||
+    crosswordBoard.status !== 'playing' ||
+    puzzleTimedOut ||
+    Boolean(activeAdPlacement) ||
+    clueSlotModalOpen ||
+    summaryOpen ||
+    helpOpen ||
+    categoryExplorerOpen ||
+    weeklyRankOpen ||
+    personalizationOpen ||
+    settingsOpen ||
+    profileModalOpen;
+
+  useEffect(() => {
+    if (isPuzzleTimerPaused) return;
+    const id = window.setInterval(() => {
+      const current = puzzleTimeLeftRef.current;
+      if (current <= 1) {
+        puzzleTimeLeftRef.current = 0;
+        setPuzzleTimeLeftSec(0);
+        setPuzzleTimedOut(true);
+        soundService.playInvalidShake();
+        setCrosswordClimb((prev) => advanceCrosswordLevelClimb(prev, false));
+        showToast("Time's up! Level Climb reset to Puzzle 1/5.", 3400);
+        return;
+      }
+      const nextVal = current - 1;
+      puzzleTimeLeftRef.current = nextVal;
+      setPuzzleTimeLeftSec(nextVal);
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [isPuzzleTimerPaused, showToast]);
+
   const puzzleNumber = useMemo(() => getDailyPuzzleNumber(dateKey), [dateKey]);
   const isStreakRecoverable = useMemo(
     () => canRecoverStreak(stats, dateKey),
@@ -585,8 +694,16 @@ export default function App() {
       nextCategory: PuzzleCategory;
       forcedTarget?: string;
       meta?: PersonalizedMeta | null;
+      overrideRoundIndex?: number;
     }): boolean => {
-      const { nextLength, nextLevelNumber, nextCategory, forcedTarget, meta = null } = params;
+      const {
+        nextLength,
+        nextLevelNumber,
+        nextCategory,
+        forcedTarget,
+        meta = null,
+        overrideRoundIndex,
+      } = params;
       if (!forcedTarget && !isCategoryAccessible(nextCategory, categoryProgress.playsRemaining)) {
         promptUnlockCategory(nextCategory);
         return false;
@@ -596,9 +713,10 @@ export default function App() {
         window.clearTimeout(summaryTimerRef.current);
       }
 
+      const safeLv = normalizeLevelNumber(nextLevelNumber, 1);
       const freshBoard = createCrosswordBoard({
         length: nextLength,
-        level: normalizeLevelNumber(nextLevelNumber, 1),
+        level: safeLv,
         categoryId: nextCategory.id,
         forcedTarget,
       });
@@ -617,6 +735,15 @@ export default function App() {
       setClueSlotModalOpen(false);
       setPendingClueSlot(null);
       pendingClueSlotRef.current = null;
+      setSelectedDictWord(null);
+      setPuzzleTimedOut(false);
+      const nextLimit = getCrosswordRoundTimeLimitSeconds(
+        freshBoard.length,
+        safeLv,
+        overrideRoundIndex ?? crosswordClimb.roundIndex
+      );
+      puzzleTimeLeftRef.current = nextLimit;
+      setPuzzleTimeLeftSec(nextLimit);
       setPersonalizedMeta(meta);
       setCrosswordBoard(freshBoard);
 
@@ -641,7 +768,7 @@ export default function App() {
 
       return true;
     },
-    [categoryProgress.playsRemaining, dateKey, promptUnlockCategory]
+    [categoryProgress.playsRemaining, crosswordClimb.roundIndex, dateKey, promptUnlockCategory]
   );
 
   const dealNextSessionBoard = useCallback(
@@ -649,14 +776,17 @@ export default function App() {
       const useClimbNext =
         modeConfig.puzzleSessionMode === 'level_climb' && crosswordClimb.stageComplete;
       let targetLevelNumber = overrideLevelNumber ?? modeConfig.puzzleLevelNumber;
+      let nextRoundIndex = crosswordClimb.roundIndex;
 
       if (useClimbNext) {
         const promoted = crosswordClimb.promotedToLevelNumber;
         targetLevelNumber = promoted || crosswordClimb.levelNumber;
+        nextRoundIndex = 0;
         if (promoted) {
           setModeConfig((prev) => ({
             ...prev,
             puzzleLevelNumber: promoted,
+            highestUnlockedPuzzleLevel: Math.max(prev.highestUnlockedPuzzleLevel, promoted),
             puzzleLevel: levelNumberToDifficultyBand(promoted),
           }));
         }
@@ -673,6 +803,7 @@ export default function App() {
         nextLength: nextLen,
         nextLevelNumber: targetLevelNumber,
         nextCategory: activeCategory,
+        overrideRoundIndex: nextRoundIndex,
       });
     },
     [
@@ -682,11 +813,24 @@ export default function App() {
       crosswordBoard.length,
       crosswordClimb.levelNumber,
       crosswordClimb.promotedToLevelNumber,
+      crosswordClimb.roundIndex,
       crosswordClimb.stageComplete,
       modeConfig.puzzleLevelNumber,
       modeConfig.puzzleSessionMode,
     ]
   );
+
+  const handleRetryTimedRound = useCallback(() => {
+    const freshClimb = createCrosswordClimbState(modeConfig.puzzleLevelNumber);
+    setCrosswordClimb(freshClimb);
+    activateNewBoard({
+      nextLength: crosswordBoard.length,
+      nextLevelNumber: modeConfig.puzzleLevelNumber,
+      nextCategory: activeCategory,
+      overrideRoundIndex: 0,
+    });
+    showToast('Timer reset · Puzzle 1/5 ready!', 2200);
+  }, [activateNewBoard, activeCategory, crosswordBoard.length, modeConfig.puzzleLevelNumber, showToast]);
 
   const handleChangePuzzleSessionMode = useCallback(
     (nextMode: SessionPlayMode) => {
@@ -694,19 +838,32 @@ export default function App() {
       setModeConfig((prev) => ({ ...prev, puzzleSessionMode: nextMode }));
       if (nextMode === 'level_climb') {
         setCrosswordClimb(createCrosswordClimbState(modeConfig.puzzleLevelNumber));
+        setPuzzleTimedOut(false);
+        const limit = getCrosswordRoundTimeLimitSeconds(
+          crosswordBoard.length,
+          modeConfig.puzzleLevelNumber,
+          0
+        );
+        puzzleTimeLeftRef.current = limit;
+        setPuzzleTimeLeftSec(limit);
       }
       showToast(
         nextMode === 'level_climb'
-          ? 'Level Climb active · Pass 8/10 clean boards to advance!'
+          ? 'Level Climb active · Beat 5 shrinking-timer boards to advance!'
           : 'Endless Sprint active · Continuous zero-repeat crosswords!'
       );
     },
-    [modeConfig.puzzleLevelNumber, modeConfig.puzzleSessionMode, showToast]
+    [crosswordBoard.length, modeConfig.puzzleLevelNumber, modeConfig.puzzleSessionMode, showToast]
   );
 
   const handleChangePuzzleLevelNumber = useCallback(
     (nextLevelNumber: number) => {
-      const safeLevel = normalizeLevelNumber(nextLevelNumber, 1);
+      const requested = normalizeLevelNumber(nextLevelNumber, 1);
+      const safeLevel = Math.min(modeConfig.highestUnlockedPuzzleLevel, Math.max(1, requested));
+      if (requested > modeConfig.highestUnlockedPuzzleLevel) {
+        showToast('Win 5 timed puzzles in a row to unlock the next level!');
+        return;
+      }
       setModeConfig((prev) => ({
         ...prev,
         puzzleLevelNumber: safeLevel,
@@ -717,12 +874,19 @@ export default function App() {
         nextLength: crosswordBoard.length,
         nextLevelNumber: safeLevel,
         nextCategory: activeCategory,
+        overrideRoundIndex: 0,
       });
       if (ok) {
         showToast(`Difficulty: ${formatLevelLabel(safeLevel)}`);
       }
     },
-    [activateNewBoard, activeCategory, crosswordBoard.length, showToast]
+    [
+      activateNewBoard,
+      activeCategory,
+      crosswordBoard.length,
+      modeConfig.highestUnlockedPuzzleLevel,
+      showToast,
+    ]
   );
 
   const handleChangeBoardLength = useCallback(
@@ -836,7 +1000,7 @@ export default function App() {
       }));
 
       if (modeConfig.puzzleSessionMode === 'level_climb') {
-        const cleanPass = isCleanCrosswordPass(wonBoard);
+        const cleanPass = !puzzleTimedOut && isCleanCrosswordPass(wonBoard);
         setCrosswordClimb((prev) => {
           const next = advanceCrosswordLevelClimb(prev, cleanPass);
           if (next.stageComplete && next.promotedToLevelNumber) {
@@ -844,6 +1008,7 @@ export default function App() {
             setModeConfig((cfg) => ({
               ...cfg,
               puzzleLevelNumber: promotedNum,
+              highestUnlockedPuzzleLevel: Math.max(cfg.highestUnlockedPuzzleLevel, promotedNum),
               puzzleLevel: levelNumberToDifficultyBand(promotedNum),
             }));
             showToast(`Level Up! Promoted to ${formatLevelLabel(promotedNum)}!`, 3600);
@@ -861,6 +1026,7 @@ export default function App() {
       dateKey,
       modeConfig.puzzleSessionMode,
       pushFloatingReward,
+      puzzleTimedOut,
       recordWeeklyEvent,
       showToast,
       triggerConfetti,
@@ -927,6 +1093,7 @@ export default function App() {
   const handleCrosswordKey = useCallback(
     (key: string) => {
       if (crosswordBoard.status !== 'playing') return;
+      if (modeConfig.puzzleSessionMode === 'level_climb' && puzzleTimedOut) return;
       if (
         activeAdPlacement ||
         clueSlotModalOpen ||
@@ -935,7 +1102,8 @@ export default function App() {
         categoryExplorerOpen ||
         weeklyRankOpen ||
         personalizationOpen ||
-        settingsOpen
+        settingsOpen ||
+        profileModalOpen
       ) {
         return;
       }
@@ -1012,7 +1180,9 @@ export default function App() {
       crosswordBoard,
       effectiveHapticsEnabled,
       helpOpen,
+      modeConfig.puzzleSessionMode,
       personalizationOpen,
+      puzzleTimedOut,
       recordBoardVictory,
       settingsOpen,
       showToast,
@@ -1036,6 +1206,9 @@ export default function App() {
         setPersonalizationOpen(false);
         setSettingsOpen(false);
         setClueSlotModalOpen(false);
+        if (profileModalMode === 'edit') {
+          setProfileModalOpen(false);
+        }
         return;
       }
       if (targetEl?.dataset?.deviceKeyboard === 'true') {
@@ -1059,7 +1232,8 @@ export default function App() {
         categoryExplorerOpen ||
         weeklyRankOpen ||
         personalizationOpen ||
-        settingsOpen
+        settingsOpen ||
+        profileModalOpen
       ) {
         return;
       }
@@ -1103,6 +1277,8 @@ export default function App() {
     handleMoveCursor,
     helpOpen,
     personalizationOpen,
+    profileModalMode,
+    profileModalOpen,
     settingsOpen,
     summaryOpen,
     weeklyRankOpen,
@@ -1131,32 +1307,17 @@ export default function App() {
     });
   }, [appSettings.sensorsEnabled]);
 
-  const handleShareResult = useCallback(async () => {
-    const shareText = formatCrosswordShareText(crosswordBoard);
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(shareText);
-      } else {
-        throw new Error('Clipboard unavailable');
-      }
-      showToast('Result copied to clipboard!');
-    } catch {
-      const textarea = document.createElement('textarea');
-      textarea.value = shareText;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      try {
-        document.execCommand('copy');
-        showToast('Result copied to clipboard!');
-      } catch {
-        showToast('Unable to access clipboard');
-      } finally {
-        document.body.removeChild(textarea);
-      }
+  const effectivePlayerName =
+    userAccount?.username || playerProfile.displayName || 'You';
+
+  const getShareAppUrl = useCallback(() => {
+    if (typeof window === 'undefined') return 'https://wordvibe.app';
+    const base = window.location.origin;
+    if (userAccount?.username) {
+      return `${base}/?ref=${encodeURIComponent(userAccount.username)}`;
     }
-  }, [crosswordBoard, showToast]);
+    return base;
+  }, [userAccount?.username]);
 
   const handleRewardEarned = useCallback(
     (placement: RewardPlacement) => {
@@ -1181,6 +1342,15 @@ export default function App() {
         cursorRef.current = firstCell;
         setActiveRow(firstCell.row);
         setActiveCol(firstCell.col);
+        setSelectedDictWord(null);
+        setPuzzleTimedOut(false);
+        const freshLimit = getCrosswordRoundTimeLimitSeconds(
+          freshBoard.length,
+          modeConfig.puzzleLevelNumber,
+          crosswordClimb.roundIndex
+        );
+        puzzleTimeLeftRef.current = freshLimit;
+        setPuzzleTimeLeftSec(freshLimit);
         setCrosswordBoard(freshBoard);
 
         const afterConsume = consumeCategoryPlay(targetCat, granted);
@@ -1247,7 +1417,7 @@ export default function App() {
         window.requestAnimationFrame(() => {
           cluePanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
-        showToast('Consonant/vowel & meaning clue unlocked!', 3000);
+        showToast('Dictionary meaning clue unlocked!', 3000);
         return;
       }
 
@@ -1291,6 +1461,7 @@ export default function App() {
       boardCategory.name,
       categoryProgress.playsRemaining,
       crosswordBoard,
+      crosswordClimb.roundIndex,
       dateKey,
       lastPuzzleXpEarned,
       modeConfig.puzzleLevelNumber,
@@ -1398,6 +1569,125 @@ export default function App() {
     [weeklyProgress.unlockedAchievements.length, weeklyProgress.weeklyXp]
   );
 
+  const leaderboardSummary = useMemo(
+    () =>
+      getPlayerLeaderboardSummary({
+        playerId: userAccount?.id || leaderboardPlayerId,
+        playerName: effectivePlayerName,
+        playerWeeklyXp: weeklyProgress.weeklyXp,
+        playerTotalXp: Math.max(weeklyProgress.totalXp ?? 0, weeklyProgress.weeklyXp),
+        playerPuzzlesSolved: stats.gamesWon,
+        playerTriviaCorrect: weeklyProgress.triviaCorrect,
+        playerStreak: stats.currentStreak,
+        scope: 'weekly',
+        weekKey: weeklyProgress.weekKey,
+      }),
+    [
+      effectivePlayerName,
+      leaderboardPlayerId,
+      stats.currentStreak,
+      stats.gamesWon,
+      userAccount?.id,
+      weeklyProgress.totalXp,
+      weeklyProgress.triviaCorrect,
+      weeklyProgress.weekKey,
+      weeklyProgress.weeklyXp,
+    ]
+  );
+
+  const handleSharePuzzleProgress = useCallback(async () => {
+    const payload = buildPuzzleSharePayload({
+      username: userAccount?.username || playerProfile.displayName,
+      board: crosswordBoard,
+      weeklyXp: weeklyProgress.weeklyXp,
+      rank: leaderboardSummary.rank,
+      totalActivePlayers: leaderboardSummary.activeThisWeekCount,
+      streak: stats.currentStreak,
+      appUrl: getShareAppUrl(),
+    });
+    const status = await shareOrCopyMessage(payload);
+    if (status === 'shared') showToast('Progress shared!');
+    else if (status === 'copied') showToast('Message copied to clipboard!');
+    else if (status === 'failed') showToast('Unable to access clipboard');
+    return status;
+  }, [
+    crosswordBoard,
+    getShareAppUrl,
+    leaderboardSummary.activeThisWeekCount,
+    leaderboardSummary.rank,
+    playerProfile.displayName,
+    showToast,
+    stats.currentStreak,
+    userAccount?.username,
+    weeklyProgress.weeklyXp,
+  ]);
+
+  const handleShareLeaderboardProgress = useCallback(
+    async (rank: number, activeCount: number, gradeLabel: string) => {
+      const payload = buildLeaderboardSharePayload({
+        username: userAccount?.username || playerProfile.displayName,
+        weeklyXp: weeklyProgress.weeklyXp,
+        rank,
+        totalActivePlayers: activeCount,
+        gradeLabel,
+        streak: stats.currentStreak,
+        appUrl: getShareAppUrl(),
+      });
+      const status = await shareOrCopyMessage(payload);
+      if (status === 'shared') showToast('Weekly rank shared!');
+      else if (status === 'copied') showToast('Message copied to clipboard!');
+      else if (status === 'failed') showToast('Unable to access clipboard');
+      return status;
+    },
+    [
+      getShareAppUrl,
+      playerProfile.displayName,
+      showToast,
+      stats.currentStreak,
+      userAccount?.username,
+      weeklyProgress.weeklyXp,
+    ]
+  );
+
+  const handleInviteFriends = useCallback(
+    async (rank?: number, activeCount?: number) => {
+      const payload = buildInviteFriendsPayload({
+        username: userAccount?.username || playerProfile.displayName,
+        weeklyXp: weeklyProgress.weeklyXp,
+        rank: rank ?? leaderboardSummary.rank,
+        totalActivePlayers: activeCount ?? leaderboardSummary.activeThisWeekCount,
+        appUrl: getShareAppUrl(),
+      });
+      const status = await shareOrCopyMessage(payload);
+      if (status === 'shared') showToast('Invite sent!');
+      else if (status === 'copied') showToast('Invite message copied to clipboard!');
+      else if (status === 'failed') showToast('Unable to access clipboard');
+      return status;
+    },
+    [
+      getShareAppUrl,
+      leaderboardSummary.activeThisWeekCount,
+      leaderboardSummary.rank,
+      playerProfile.displayName,
+      showToast,
+      userAccount?.username,
+      weeklyProgress.weeklyXp,
+    ]
+  );
+
+  const featuredTopics = useMemo(() => {
+    const ids = [
+      spotlight.heroCategoryId,
+      ...spotlight.featuredCategoryIds,
+      'daily-news-pop',
+      'music-charts',
+      'history-heritage',
+    ];
+    return Array.from(new Set(ids))
+      .map((id) => getCategoryById(id))
+      .slice(0, 3);
+  }, [spotlight.featuredCategoryIds, spotlight.heroCategoryId]);
+
   const handleRequestAdPlacement = useCallback(
     (placement: RewardPlacement, onGranted: () => void) => {
       adRewardCallbackRef.current = onGranted;
@@ -1448,7 +1738,7 @@ export default function App() {
       roundXpEarned: number;
       categoryId: string;
     }) => {
-      if (params.correctCount >= 8) {
+      if (params.correctCount >= 5) {
         triggerConfetti();
         pushFloatingReward(`+${params.roundXpEarned || 120} XP`, 'xp');
       }
@@ -1525,13 +1815,13 @@ export default function App() {
       recordWeeklyEvent({
         type: 'trivia_answered',
         correct,
-        difficulty: levelNumberToDifficultyBand(modeConfig.faithLevelNumber),
+        difficulty: 'intermediate',
         streakAfter: correct ? 1 : 0,
         xpAwarded: correct ? 35 : 5,
         categoryId: `faith:${religion}`,
       });
     },
-    [modeConfig.faithLevelNumber, recordWeeklyEvent]
+    [recordWeeklyEvent]
   );
 
   const handlePlayPersonalizedPuzzle = useCallback(
@@ -1613,7 +1903,9 @@ export default function App() {
         soundMode={activeSoundMode}
         weeklyGradeId={weeklyGradeInfo.current.id}
         weeklyXp={weeklyProgress.weeklyXp}
+        leaderboardRank={leaderboardSummary.rank}
         bonusCoins={weeklyProgress.bonusCoins}
+        userAccount={userAccount}
         onToggleSound={() => {
           const nextMode: SoundMode =
             activeSoundMode === 'on' ? 'mute' : activeSoundMode === 'mute' ? 'off' : 'on';
@@ -1630,6 +1922,10 @@ export default function App() {
         onOpenWeeklyRank={() => setWeeklyRankOpen(true)}
         onOpenHelp={() => openHelpModal('rules')}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenProfile={() => {
+          setProfileModalMode(userAccount ? 'edit' : 'signup');
+          setProfileModalOpen(true);
+        }}
         onNavigateSection={handleNavigateHeaderSection}
       />
 
@@ -1683,6 +1979,7 @@ export default function App() {
             canSaveStreak={isStreakRecoverable}
             weeklyProgress={weeklyProgress}
             weeklyCountdown={weeklyCountdown}
+            leaderboardRank={leaderboardSummary.rank}
             playerProfile={playerProfile}
             onOpenPersonalize={() => setPersonalizationOpen(true)}
             onPlayPersonalizedPuzzle={() => handlePlayPersonalizedPuzzle()}
@@ -1712,20 +2009,10 @@ export default function App() {
           <FaithStudyView
             dateKey={dateKey}
             activeReligion={faithProgress.activeReligion}
-            levelNumber={modeConfig.faithLevelNumber}
             showScriptureReferences={appSettings.showScriptureReferences}
             completedToday={faithProgress.completedSessionsByDate[dateKey] || []}
             refreshSignal={refreshSignal}
             onChangeReligion={handleChangeFaithReligion}
-            onChangeLevelNumber={(lv) => {
-              const safeLv = normalizeLevelNumber(lv, 1);
-              setModeConfig((prev) => ({
-                ...prev,
-                faithLevelNumber: safeLv,
-                faithLevel: levelNumberToDifficultyBand(safeLv),
-              }));
-              showToast(`Faith Study: ${formatLevelLabel(safeLv)}`);
-            }}
             onPlayFaithPuzzle={handlePlayFaithPuzzle}
             onFaithAnswerRecorded={handleFaithAnswerRecorded}
           />
@@ -1734,6 +2021,7 @@ export default function App() {
             selectedCategoryId={triviaState.selectedCategoryId}
             sessionMode={modeConfig.triviaSessionMode}
             levelNumber={modeConfig.triviaLevelNumber}
+            maxUnlockedLevel={modeConfig.highestUnlockedTriviaLevel}
             climbState={triviaClimb}
             streak={triviaState.streak}
             bestStreak={triviaState.bestStreak}
@@ -1741,6 +2029,15 @@ export default function App() {
             recentQuestions={triviaState.recentQuestions}
             playerProfile={playerProfile}
             refreshSignal={refreshSignal}
+            isPaused={
+              Boolean(activeAdPlacement) ||
+              helpOpen ||
+              categoryExplorerOpen ||
+              weeklyRankOpen ||
+              personalizationOpen ||
+              settingsOpen ||
+              profileModalOpen
+            }
             onOpenPersonalize={() => setPersonalizationOpen(true)}
             onSelectCategory={(catId) =>
               setTriviaState((prev) => ({ ...prev, selectedCategoryId: catId }))
@@ -1752,7 +2049,12 @@ export default function App() {
               }
             }}
             onChangeLevelNumber={(nextLevel) => {
-              const safeLv = normalizeLevelNumber(nextLevel, 1);
+              const requested = normalizeLevelNumber(nextLevel, 1);
+              if (requested > modeConfig.highestUnlockedTriviaLevel) {
+                showToast('Win 5 timed trivia questions in a row to unlock the next level!');
+                return;
+              }
+              const safeLv = Math.min(modeConfig.highestUnlockedTriviaLevel, Math.max(1, requested));
               setModeConfig((prev) => ({
                 ...prev,
                 triviaLevelNumber: safeLv,
@@ -1767,6 +2069,7 @@ export default function App() {
               setModeConfig((prev) => ({
                 ...prev,
                 triviaLevelNumber: safeLv,
+                highestUnlockedTriviaLevel: Math.max(prev.highestUnlockedTriviaLevel, safeLv),
                 triviaLevel: levelNumberToDifficultyBand(safeLv),
               }));
               showToast(`Promoted to ${formatLevelLabel(safeLv)}!`, 3200);
@@ -1782,7 +2085,18 @@ export default function App() {
             <ModeControls
               sessionMode={modeConfig.puzzleSessionMode}
               levelNumber={modeConfig.puzzleLevelNumber}
+              maxUnlockedLevel={modeConfig.highestUnlockedPuzzleLevel}
               climbState={crosswordClimb}
+              roundTimeLeftSec={
+                modeConfig.puzzleSessionMode === 'level_climb' && crosswordBoard.status === 'playing'
+                  ? puzzleTimeLeftSec
+                  : null
+              }
+              roundTimeTotalSec={
+                modeConfig.puzzleSessionMode === 'level_climb' && crosswordBoard.status === 'playing'
+                  ? roundTimeTotalSec
+                  : null
+              }
               length={crosswordBoard.length}
               autoLengthMode={autoLengthMode}
               activeCategory={activeCategory}
@@ -1814,11 +2128,22 @@ export default function App() {
               showWinBurst={showWinBurst}
               boardAnimKey={crosswordBoard.boardId}
               solveFunFact={solveFunFact}
+              selectedDictWord={selectedDictWord}
+              puzzleTimedOut={modeConfig.puzzleSessionMode === 'level_climb' && puzzleTimedOut}
+              featuredTopics={featuredTopics}
+              categoryPlaysRemainingMap={categoryProgress.playsRemaining}
               onChangeDirection={(dir) => {
                 setTypingDirection(dir);
                 triggerHapticPulse(8, effectiveHapticsEnabled);
               }}
               onSelectCell={handleSelectCell}
+              onSelectDictWord={setSelectedDictWord}
+              onRetryTimedRound={handleRetryTimedRound}
+              onSelectFeaturedTopic={handleSelectCategory}
+              onOpenTopicsExplorer={() => {
+                setCategoryExplorerInitialTab('All');
+                setCategoryExplorerOpen(true);
+              }}
               onKey={handleCrosswordKey}
               onMoveCursor={handleMoveCursor}
               onTriggerHint={() => setActiveAdPlacement('hint')}
@@ -1853,7 +2178,8 @@ export default function App() {
               onWatchAdSaveStreak={() => setActiveAdPlacement('save_streak')}
               onWatchAdUnlockCategory={() => promptUnlockCategory(activeCategory)}
               onNewBoard={() => dealNextSessionBoard()}
-              onShareResult={handleShareResult}
+              onShareResult={() => void handleSharePuzzleProgress()}
+              onInviteFriends={() => void handleInviteFriends()}
               onOpenSummary={() => setSummaryOpen(true)}
             />
 
@@ -1917,7 +2243,8 @@ export default function App() {
         personalizedCulturalNote={personalizedMeta?.culturalNote}
         funFact={solveFunFact}
         onClose={() => setSummaryOpen(false)}
-        onShare={handleShareResult}
+        onShare={handleSharePuzzleProgress}
+        onInviteFriends={() => handleInviteFriends()}
         onWatchAdSaveStreak={() => {
           setSummaryOpen(false);
           setActiveAdPlacement('save_streak');
@@ -1974,26 +2301,18 @@ export default function App() {
         open={settingsOpen}
         settings={appSettings}
         playerProfile={playerProfile}
+        userAccount={userAccount}
         onClose={() => setSettingsOpen(false)}
         onUpdateSettings={handleUpdateSettings}
         onOpenPersonalize={() => {
           setSettingsOpen(false);
           setPersonalizationOpen(true);
         }}
-        onShareApp={() => {
-          void (async () => {
-            const shareCopy =
-              'WordVibe: Linked Crosswords, Zero-Repeat Trivia & Faith Study!';
-            try {
-              if (navigator.clipboard?.writeText) {
-                await navigator.clipboard.writeText(shareCopy);
-              }
-              showToast('WordVibe invite copied!');
-            } catch {
-              showToast('Share WordVibe with friends!');
-            }
-          })();
+        onOpenEditProfile={() => {
+          setProfileModalMode(userAccount ? 'edit' : 'signup');
+          setProfileModalOpen(true);
         }}
+        onShareApp={() => void handleInviteFriends()}
         onResetTutorial={() => {
           handleUpdateSettings({ tutorialCompleted: false });
           setSettingsOpen(false);
@@ -2006,7 +2325,49 @@ export default function App() {
         open={weeklyRankOpen}
         weeklyProgress={weeklyProgress}
         weeklyCountdown={weeklyCountdown}
+        playerId={userAccount?.id || leaderboardPlayerId}
+        playerName={effectivePlayerName}
+        userAccount={userAccount}
+        playerPuzzlesSolved={stats.gamesWon}
+        playerTriviaCorrect={weeklyProgress.triviaCorrect}
+        playerStreak={stats.currentStreak}
+        onUpdatePlayerName={(name) =>
+          setPlayerProfile((prev) => ({
+            ...prev,
+            displayName: name,
+          }))
+        }
+        onOpenEditProfile={() => {
+          setWeeklyRankOpen(false);
+          setProfileModalMode(userAccount ? 'edit' : 'signup');
+          setProfileModalOpen(true);
+        }}
+        onShareProgress={handleShareLeaderboardProgress}
+        onInviteFriends={handleInviteFriends}
         onClose={() => setWeeklyRankOpen(false)}
+      />
+
+      <ProfileAuthModal
+        open={profileModalOpen}
+        mode={profileModalMode}
+        existingAccount={userAccount}
+        onSaveAccount={async (acct) => {
+          await saveLocalUserAccount(acct);
+          setUserAccount(acct);
+          setPlayerProfile((prev) => ({
+            ...prev,
+            displayName: acct.username,
+          }));
+          setProfileModalOpen(false);
+          showToast(
+            profileModalMode === 'edit' ? 'Profile updated!' : `Welcome, @${acct.username}!`
+          );
+        }}
+        onClose={() => {
+          if (profileModalMode === 'edit') {
+            setProfileModalOpen(false);
+          }
+        }}
       />
 
       <WeeklyRolloverModal

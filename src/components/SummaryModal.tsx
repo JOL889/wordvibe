@@ -1,14 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ArrowDown,
   ArrowRight,
+  BookOpen,
   CheckCircle2,
+  Copy,
   Crown,
   Lock,
   Share2,
   ShieldCheck,
   Sparkles,
   Trophy,
+  UserPlus,
   X,
   Zap,
 } from 'lucide-react';
@@ -25,6 +28,7 @@ import {
   normalizeLevelNumber,
   type SessionPlayMode,
 } from '../game/settingsLogic';
+import { getWordMeaningClue } from '../game/wordMeanings';
 
 interface SummaryModalProps {
   open: boolean;
@@ -43,7 +47,8 @@ interface SummaryModalProps {
   personalizedCulturalNote?: string;
   funFact?: string;
   onClose: () => void;
-  onShare: () => void;
+  onShare: () => Promise<string | void> | void;
+  onInviteFriends?: () => Promise<string | void> | void;
   onWatchAdSaveStreak: () => void;
   onWatchAdDoubleXp?: () => void;
   onWatchAdUnlockCategory: () => void;
@@ -68,11 +73,19 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
   funFact,
   onClose,
   onShare,
+  onInviteFriends,
   onWatchAdSaveStreak,
   onWatchAdDoubleXp,
   onWatchAdUnlockCategory,
   onNextBoard,
 }) => {
+  const [selectedSummaryWord, setSelectedSummaryWord] = useState<{
+    word: string;
+    label: string;
+    meaning: string;
+  } | null>(null);
+  const [shareNote, setShareNote] = useState<string | null>(null);
+
   if (!open) return null;
 
   const isBoardWon = board.status === 'won';
@@ -96,8 +109,10 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs sm:text-sm font-bold uppercase tracking-wider wv-accent-text">
-              {sessionMode === 'level_climb' ? 'Level Climb' : 'Endless Sprint'} · {levelLabel} ·{' '}
-              {board.length}×{board.length}
+              {sessionMode === 'level_climb'
+                ? `Level Climb · ${levelLabel}`
+                : 'Endless Sprint'}{' '}
+              · {board.length}×{board.length}
             </p>
             <h2 id="summary-modal-title" className="mt-1 font-display text-2xl font-bold wv-text">
               {isBoardWon ? 'Crossword Solved!' : 'Crossword Stats'}
@@ -136,9 +151,9 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
             <p className="mt-1 wv-text-muted">
               {climbState.stageComplete
                 ? promotedLevelNum
-                  ? `You passed ${climbState.roundPassedCount}/10 cleanly (8 required). Next round begins at ${formatLevelLabel(promotedLevelNum)}!`
-                  : `Scored ${climbState.roundPassedCount}/10 clean boards. Pass at least ${CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD}/10 to unlock Level ${climbLevelNum + 1}.`
-                : `${climbState.roundPassedCount} clean passes so far (need ${CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD}/${CROSSWORD_LEVEL_CLIMB_TOTAL} with ≤4 wrong checks to reach Level ${climbLevelNum + 1}).`}
+                  ? `You beat all ${climbState.roundPassedCount}/${CROSSWORD_LEVEL_CLIMB_TOTAL} shrinking timers! Promoted to ${formatLevelLabel(promotedLevelNum)}!`
+                  : `Scored ${climbState.roundPassedCount}/${CROSSWORD_LEVEL_CLIMB_TOTAL}. Beat ${CROSSWORD_LEVEL_CLIMB_PASS_THRESHOLD}/${CROSSWORD_LEVEL_CLIMB_TOTAL} within the timer to unlock Level ${climbLevelNum + 1}.`
+                : `${climbState.roundPassedCount}/${CROSSWORD_LEVEL_CLIMB_TOTAL} timed wins so far — win all 5 concurrently before time runs out to reach Level ${climbLevelNum + 1}.`}
             </p>
           </div>
         )}
@@ -186,8 +201,14 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
               data-testid="summary-cross-words"
               className="rounded-xl border wv-border wv-card-muted px-3.5 py-3 text-xs sm:text-sm"
             >
-              <div className="font-bold wv-text">
-                Completed Linked Grid ({board.length}×{board.length})
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold wv-text">
+                  Completed Linked Grid ({board.length}×{board.length})
+                </span>
+                <span className="inline-flex items-center gap-1 text-xs font-bold wv-accent-text">
+                  <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Tap word</span>
+                </span>
               </div>
               <div className="mt-2 grid grid-cols-2 gap-3 font-mono-tabular text-xs wv-text">
                 <div>
@@ -195,16 +216,71 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
                     <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>Across</span>
                   </div>
-                  <p className="mt-1 leading-relaxed">{board.solution.rows.join(' · ')}</p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {board.solution.rows.map((w, idx) => (
+                      <button
+                        key={`sum-r-${idx}`}
+                        type="button"
+                        onClick={() =>
+                          setSelectedSummaryWord({
+                            word: w,
+                            label: `Row ${idx + 1} Across`,
+                            meaning: getWordMeaningClue(w, categoryName),
+                          })
+                        }
+                        className={`rounded-md px-1.5 py-0.5 font-bold cursor-pointer ${
+                          selectedSummaryWord?.word === w &&
+                          selectedSummaryWord?.label === `Row ${idx + 1} Across`
+                            ? 'wv-accent-btn'
+                            : 'border wv-border wv-card hover:opacity-85'
+                        }`}
+                      >
+                        {w}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <div className="flex items-center gap-1 font-sans font-bold wv-accent-text">
                     <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>Down</span>
                   </div>
-                  <p className="mt-1 leading-relaxed">{board.solution.cols.join(' · ')}</p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {board.solution.cols.map((w, idx) => (
+                      <button
+                        key={`sum-c-${idx}`}
+                        type="button"
+                        onClick={() =>
+                          setSelectedSummaryWord({
+                            word: w,
+                            label: `Col ${idx + 1} Down`,
+                            meaning: getWordMeaningClue(w, categoryName),
+                          })
+                        }
+                        className={`rounded-md px-1.5 py-0.5 font-bold cursor-pointer ${
+                          selectedSummaryWord?.word === w &&
+                          selectedSummaryWord?.label === `Col ${idx + 1} Down`
+                            ? 'wv-accent-btn'
+                            : 'border wv-border wv-card hover:opacity-85'
+                        }`}
+                      >
+                        {w}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
+              {selectedSummaryWord && (
+                <div
+                  data-testid="summary-word-definition"
+                  className="mt-2.5 rounded-lg border wv-border wv-card px-3 py-2 text-xs leading-relaxed wv-text"
+                >
+                  <span className="font-bold wv-accent-text">
+                    {selectedSummaryWord.word} ({selectedSummaryWord.label}):{' '}
+                  </span>
+                  <span>{selectedSummaryWord.meaning}</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -268,32 +344,21 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
           </div>
         )}
 
-        <div className="mt-5 flex flex-col gap-3 border-t wv-border pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <Crown className="h-4 w-4 wv-accent-text" aria-hidden="true" />
-            <div>
-              <div className="text-xs font-medium wv-text-muted">Daily Cycle Reset</div>
-              <div className="font-mono-tabular text-sm font-bold wv-text">{countdown}</div>
+        <div className="mt-5 flex flex-col gap-3 border-t wv-border pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Crown className="h-4 w-4 wv-accent-text" aria-hidden="true" />
+              <div>
+                <div className="text-xs font-medium wv-text-muted">Daily Cycle Reset</div>
+                <div className="font-mono-tabular text-sm font-bold wv-text">{countdown}</div>
+              </div>
             </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {isBoardWon && (
-              <button
-                type="button"
-                onClick={onShare}
-                className="inline-flex min-h-12 items-center gap-1.5 rounded-xl wv-accent-btn px-4 py-2.5 text-sm font-bold cursor-pointer whitespace-nowrap"
-              >
-                <Share2 className="h-4 w-4" aria-hidden="true" />
-                <span>Share</span>
-              </button>
-            )}
 
             {isPremiumCategory && categoryPlaysRemaining <= 0 ? (
               <button
                 type="button"
                 onClick={onWatchAdUnlockCategory}
-                className="inline-flex min-h-12 items-center gap-1.5 rounded-xl wv-accent-btn px-4 py-2.5 text-sm font-bold transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-xl wv-accent-btn px-4 py-2 text-sm font-bold transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
               >
                 <Lock className="h-4 w-4" aria-hidden="true" />
                 <span>+5 Plays (Ad)</span>
@@ -303,7 +368,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
                 type="button"
                 data-testid="summary-next-board-btn"
                 onClick={onNextBoard}
-                className="inline-flex min-h-12 items-center gap-1.5 rounded-xl wv-gold-pill px-4 py-2.5 text-sm font-bold cursor-pointer whitespace-nowrap"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-xl wv-gold-pill px-4 py-2 text-sm font-bold cursor-pointer whitespace-nowrap"
               >
                 <span>
                   {sessionMode === 'level_climb'
@@ -318,6 +383,60 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
               </button>
             )}
           </div>
+
+          {isBoardWon && (
+            <div className="space-y-1.5">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  data-testid="summary-share-progress-btn"
+                  onClick={() => {
+                    void Promise.resolve(onShare()).then((res) => {
+                      if (res === 'copied') {
+                        setShareNote('Score & rank copied to clipboard — ready to paste!');
+                      } else if (res === 'shared') {
+                        setShareNote('Progress shared!');
+                      }
+                    });
+                  }}
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl wv-accent-btn px-3 py-2 text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap"
+                >
+                  <Share2 className="h-4 w-4" aria-hidden="true" />
+                  <span>Share Progress</span>
+                </button>
+
+                {onInviteFriends && (
+                  <button
+                    type="button"
+                    data-testid="summary-invite-friends-btn"
+                    onClick={() => {
+                      void Promise.resolve(onInviteFriends()).then((res) => {
+                        if (res === 'copied') {
+                          setShareNote('Invite message copied to clipboard!');
+                        } else if (res === 'shared') {
+                          setShareNote('Invite sent!');
+                        }
+                      });
+                    }}
+                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border wv-border wv-card-muted px-3 py-2 text-xs sm:text-sm font-bold wv-text hover:opacity-90 cursor-pointer whitespace-nowrap"
+                  >
+                    <UserPlus className="h-4 w-4 wv-accent-text" aria-hidden="true" />
+                    <span>Invite Friends</span>
+                  </button>
+                )}
+              </div>
+              {shareNote && (
+                <p
+                  data-testid="summary-share-feedback"
+                  role="status"
+                  className="flex items-center justify-center gap-1 text-center text-xs font-semibold wv-accent-text"
+                >
+                  <Copy className="h-3 w-3 shrink-0" aria-hidden="true" />
+                  <span>{shareNote}</span>
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

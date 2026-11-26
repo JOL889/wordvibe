@@ -1,0 +1,227 @@
+{
+  "entities": {
+    "UserVerifiedProfile": {
+      "title": "UserVerifiedProfile",
+      "description": "Verified online reward profile and anti-cheat telemetry for a MindSpark/WordVibe player.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 24
+        },
+        "authType": {
+          "type": "string",
+          "enum": ["anonymous", "google", "email"]
+        },
+        "verifiedRewardXp": {
+          "type": "number"
+        },
+        "weeklyRewardXp": {
+          "type": "number"
+        },
+        "weekKey": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "roundsPlayed": {
+          "type": "integer"
+        },
+        "puzzlesSolved": {
+          "type": "integer"
+        },
+        "triviaCorrect": {
+          "type": "integer"
+        },
+        "streak": {
+          "type": "integer"
+        },
+        "dailyVerifiedXp": {
+          "type": "number"
+        },
+        "dailyWindowStartMs": {
+          "type": "number"
+        },
+        "lastSyncAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "roundsCompletedInBatch": {
+          "type": "integer"
+        },
+        "lastBatchXpDelta": {
+          "type": "number"
+        },
+        "integrityHash": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128,
+          "pattern": "^[a-fA-F0-9]+$"
+        },
+        "suspiciousActivity": {
+          "type": "boolean"
+        },
+        "suspiciousReason": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "lastClaimId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "accountCreatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "authType",
+        "verifiedRewardXp",
+        "weeklyRewardXp",
+        "weekKey",
+        "roundsPlayed",
+        "puzzlesSolved",
+        "triviaCorrect",
+        "streak",
+        "dailyVerifiedXp",
+        "dailyWindowStartMs",
+        "lastSyncAt",
+        "roundsCompletedInBatch",
+        "lastBatchXpDelta",
+        "integrityHash",
+        "suspiciousActivity",
+        "accountCreatedAt"
+      ]
+    },
+    "WeeklyLeaderboardSummary": {
+      "title": "WeeklyLeaderboardSummary",
+      "description": "Single-document weekly leaderboard summary cached client-side for 30 minutes to keep Spark reads within free quota.",
+      "type": "object",
+      "properties": {
+        "weekKey": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "prizePoolLabel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "lastUpdatedBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "topEntries": {
+          "type": "array"
+        }
+      },
+      "required": ["weekKey", "updatedAt", "prizePoolLabel", "lastUpdatedBy", "topEntries"]
+    },
+    "RewardClaim": {
+      "title": "RewardClaim",
+      "description": "Write-once cash milestone claim record created atomically when a verified non-suspicious user redeems 600,000 Verified Online XP.",
+      "type": "object",
+      "properties": {
+        "claimId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "fullName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "bankName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 60
+        },
+        "accountNumber": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{10}$"
+        },
+        "verifiedXpAtClaim": {
+          "type": "number"
+        },
+        "roundsPlayed": {
+          "type": "integer"
+        },
+        "accountCreatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "claimCode": {
+          "type": "string",
+          "minLength": 6,
+          "maxLength": 24,
+          "pattern": "^[A-Z0-9\\-]+$"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "verified", "paid", "rejected"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "claimId",
+        "uid",
+        "fullName",
+        "bankName",
+        "accountNumber",
+        "verifiedXpAtClaim",
+        "roundsPlayed",
+        "accountCreatedAt",
+        "claimCode",
+        "status",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserVerifiedProfile" },
+      "description": "Player verified reward XP balance, weekly score, sync rate-limit state, and tamper-detection flags."
+    },
+    "/leaderboards/{boardId}": {
+      "schema": { "$ref": "#/entities/WeeklyLeaderboardSummary" },
+      "description": "Single shared weekly leaderboard document (weekly_current) holding top 25 verified scores."
+    },
+    "/rewardClaims/{claimId}": {
+      "schema": { "$ref": "#/entities/RewardClaim" },
+      "description": "Write-once 600,000 Verified XP milestone payout claims."
+    }
+  }
+}

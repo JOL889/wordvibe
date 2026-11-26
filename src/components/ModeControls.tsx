@@ -283,12 +283,12 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
               <span className="rounded-lg wv-gold-pill px-2 py-0.5 font-mono-tabular">
                 {categoryPlaysRemaining > 0
                   ? `${categoryPlaysRemaining} left`
-                  : 'Watch Ad (+5)'}
+                  : 'Ad / 300 XP'}
               </span>
             ) : (
               <span className="rounded-lg border wv-accent-pill px-2 py-0.5">
-                <span className="sm:hidden">Topics · Ad</span>
-                <span className="hidden sm:inline">{CATEGORIES.length} Topics · Ad Unlock</span>
+                <span className="sm:hidden">Topics</span>
+                <span className="hidden sm:inline">{CATEGORIES.length} Topics · Unlock</span>
               </span>
             )}
             <ChevronDown className="h-4 w-4 wv-text-muted" aria-hidden="true" />

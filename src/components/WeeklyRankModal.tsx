@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   Award,
   Check,
   CheckCircle2,
@@ -8,14 +9,24 @@ import {
   Copy,
   Crown,
   Flame,
+  Gift,
   Lock,
+  LogIn,
+  LogOut,
+  Mail,
   Medal,
+  MessageCircle,
   Pencil,
+  RefreshCw,
   Share2,
+  ShieldAlert,
+  ShieldCheck,
   Sparkles,
   Trophy,
   UserPlus,
   Users,
+  Wifi,
+  WifiOff,
   X,
 } from 'lucide-react';
 import {
@@ -24,6 +35,18 @@ import {
   type LeaderboardScope,
 } from '../game/leaderboardLogic';
 import type { LocalUserAccount } from '../game/userAccountLogic';
+import {
+  type ClaimConfirmationReceipt,
+  getSyncCooldownRemainingMs,
+  LEADERBOARD_CACHE_TTL_MS,
+  MAX_XP_PER_24H,
+  REWARD_MILESTONE_NAIRA,
+  REWARD_MILESTONE_XP,
+  type RewardClaimInput,
+  type VerifiedRewardLocalState,
+  WEEKLY_PRIZE_POOL_LABEL,
+  type WeeklyLeaderboardCache,
+} from '../game/verifiedRewardsLogic';
 import {
   ACHIEVEMENTS,
   computeWeeklyGrade,
@@ -35,6 +58,7 @@ import { UserAvatar } from './UserAvatar';
 
 interface WeeklyRankModalProps {
   open: boolean;
+  initialTab?: 'leaderboard' | 'rewards' | 'tiers';
   weeklyProgress: WeeklyActivityState;
   weeklyCountdown: string;
   playerId?: string;
@@ -44,6 +68,23 @@ interface WeeklyRankModalProps {
   playerTriviaCorrect?: number;
   playerStreak?: number;
   remoteLeaderboardEntries?: LeaderboardEntry[];
+  verifiedState: VerifiedRewardLocalState;
+  leaderboardCache: WeeklyLeaderboardCache | null;
+  isOnline: boolean;
+  firebaseSignedIn: boolean;
+  firebaseUserEmail?: string | null;
+  isSyncingScore?: boolean;
+  syncStatusMessage?: string | null;
+  authBusy?: boolean;
+  authNotice?: string | null;
+  lastClaimReceipt?: ClaimConfirmationReceipt | null;
+  onManualSyncScore?: () => Promise<void> | void;
+  onRefreshLeaderboardCache?: () => Promise<void> | void;
+  onStartGuestSession?: () => Promise<void> | void;
+  onLinkGoogleAccount?: () => Promise<void> | void;
+  onLinkEmailAccount?: (email: string, password: string, isCreate: boolean) => Promise<void> | void;
+  onSignOutFirebase?: () => Promise<void> | void;
+  onSubmitRewardClaim?: (input: RewardClaimInput) => Promise<void>;
   onUpdatePlayerName?: (nextName: string) => void;
   onOpenEditProfile?: () => void;
   onShareProgress?: (rank: number, activeThisWeekCount: number, gradeLabel: string) => Promise<string | void> | void;
@@ -51,8 +92,16 @@ interface WeeklyRankModalProps {
   onClose: () => void;
 }
 
+function formatShortCountdown(ms: number): string {
+  const totalSec = Math.max(0, Math.ceil(ms / 1000));
+  const mins = Math.floor(totalSec / 60);
+  const secs = totalSec % 60;
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
 export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
   open,
+  initialTab = 'leaderboard',
   weeklyProgress,
   weeklyCountdown,
   playerId = 'local-player',
@@ -62,61 +111,127 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
   playerTriviaCorrect,
   playerStreak,
   remoteLeaderboardEntries = [],
+  verifiedState,
+  leaderboardCache,
+  isOnline,
+  firebaseSignedIn,
+  firebaseUserEmail = null,
+  isSyncingScore = false,
+  syncStatusMessage = null,
+  authBusy = false,
+  authNotice = null,
+  lastClaimReceipt = null,
+  onManualSyncScore,
+  onRefreshLeaderboardCache,
+  onStartGuestSession,
+  onLinkGoogleAccount,
+  onLinkEmailAccount,
+  onSignOutFirebase,
+  onSubmitRewardClaim,
   onUpdatePlayerName,
   onOpenEditProfile,
   onShareProgress,
   onInviteFriends,
   onClose,
 }) => {
-  const [activeTab, setActiveTab] = useState<'leaderboard' | 'tiers'>('leaderboard');
+  const [activeTab, setActiveTab] = useState<'leaderboard' | 'rewards' | 'tiers'>(initialTab);
   const [scope, setScope] = useState<LeaderboardScope>('weekly');
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(playerName);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [emailDraft, setEmailDraft] = useState('');
+  const [passwordDraft, setPasswordDraft] = useState('');
+  const [emailIsCreate, setEmailIsCreate] = useState(true);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+
+  const [claimFullName, setClaimFullName] = useState('');
+  const [claimBankName, setClaimBankName] = useState('');
+  const [claimAccountNumber, setClaimAccountNumber] = useState('');
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const [claimSubmitting, setClaimSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      setActiveTab(initialTab);
+      setNowTick(Date.now());
+    } else {
       setShareFeedback(null);
       setEditingName(false);
+      setShowEmailForm(false);
+      setClaimError(null);
     }
+  }, [initialTab, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const id = window.setInterval(() => setNowTick(Date.now()), 1000);
+    return () => window.clearInterval(id);
   }, [open]);
+
+  const effectiveName = userAccount?.username || verifiedState.displayName || playerName;
+
+  // Map cached Firestore weekly_current summary into LeaderboardEntry rows (zero offline XP leaks)
+  const mergedRemoteEntries: LeaderboardEntry[] = useMemo(() => {
+    const cachedList: LeaderboardEntry[] = (leaderboardCache?.topEntries || []).map((entry) => ({
+      id: entry.uid,
+      name: entry.name,
+      weeklyXp: entry.weeklyRewardXp,
+      totalXp: entry.verifiedRewardXp,
+      puzzlesSolved: entry.puzzlesSolved,
+      triviaCorrect: entry.triviaCorrect,
+      streak: entry.streak,
+      weekKey: entry.weekKey,
+      isActiveThisWeek: entry.weeklyRewardXp > 0,
+    }));
+    const seen = new Set(cachedList.map((e) => e.id));
+    for (const r of remoteLeaderboardEntries) {
+      if (!seen.has(r.id)) cachedList.push(r);
+    }
+    return cachedList;
+  }, [leaderboardCache?.topEntries, remoteLeaderboardEntries]);
+
+  // Verified Online XP strictly excludes offline Practice XP
+  const verifiedWeeklyPlayerXp = firebaseSignedIn ? verifiedState.weeklyRewardXp : 0;
+  const verifiedTotalPlayerXp = firebaseSignedIn ? verifiedState.verifiedRewardXp : 0;
 
   const solvedCount =
     scope === 'weekly'
-      ? weeklyProgress.puzzlesSolved
-      : playerPuzzlesSolved ?? weeklyProgress.puzzlesSolved;
+      ? verifiedState.puzzlesSolved
+      : playerPuzzlesSolved ?? verifiedState.puzzlesSolved;
   const triviaCount =
     scope === 'weekly'
-      ? weeklyProgress.triviaCorrect
-      : playerTriviaCorrect ?? weeklyProgress.triviaCorrect;
-  const streakCount = playerStreak ?? weeklyProgress.bestTriviaStreak;
-  const effectiveName = userAccount?.username || playerName;
+      ? verifiedState.triviaCorrect
+      : playerTriviaCorrect ?? verifiedState.triviaCorrect;
+  const streakCount = playerStreak ?? verifiedState.streak ?? weeklyProgress.bestTriviaStreak;
 
   const leaderboard = useMemo(
     () =>
       getPlayerLeaderboardSummary({
-        playerId,
+        playerId: verifiedState.uid || playerId,
         playerName: effectiveName,
-        playerWeeklyXp: weeklyProgress.weeklyXp,
-        playerTotalXp: Math.max(weeklyProgress.totalXp ?? 0, weeklyProgress.weeklyXp),
+        playerWeeklyXp: verifiedWeeklyPlayerXp,
+        playerTotalXp: verifiedTotalPlayerXp,
         playerPuzzlesSolved: solvedCount,
         playerTriviaCorrect: triviaCount,
         playerStreak: streakCount,
         scope,
-        weekKey: weeklyProgress.weekKey,
-        remoteEntries: remoteLeaderboardEntries,
+        weekKey: verifiedState.weekKey || weeklyProgress.weekKey,
+        remoteEntries: mergedRemoteEntries,
       }),
     [
-      playerId,
       effectiveName,
-      weeklyProgress.weeklyXp,
-      weeklyProgress.totalXp,
-      weeklyProgress.weekKey,
-      solvedCount,
-      triviaCount,
-      streakCount,
+      mergedRemoteEntries,
+      playerId,
       scope,
-      remoteLeaderboardEntries,
+      solvedCount,
+      streakCount,
+      triviaCount,
+      verifiedState.uid,
+      verifiedState.weekKey,
+      verifiedTotalPlayerXp,
+      verifiedWeeklyPlayerXp,
+      weeklyProgress.weekKey,
     ]
   );
 
@@ -127,6 +242,25 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
     weeklyProgress.unlockedAchievements.length
   );
   const gradeLabel = `Rank ${gradeInfo.current.id} (${gradeInfo.current.tierName})`;
+
+  const cooldownLeftMs = getSyncCooldownRemainingMs(verifiedState.lastSyncAtMs, nowTick);
+  const pendingXp = verifiedState.pendingBuffer.pendingXp;
+  const pendingRounds = verifiedState.pendingBuffer.rounds.length;
+  const milestonePct = Math.min(
+    100,
+    Math.round((verifiedState.verifiedRewardXp / REWARD_MILESTONE_XP) * 100)
+  );
+  const canSubmitClaim =
+    firebaseSignedIn &&
+    isOnline &&
+    !verifiedState.suspiciousActivity &&
+    verifiedState.verifiedRewardXp >= REWARD_MILESTONE_XP;
+
+  const cacheAgeMin =
+    leaderboardCache && leaderboardCache.fetchedAtMs > 0
+      ? Math.max(0, Math.floor((nowTick - leaderboardCache.fetchedAtMs) / 60_000))
+      : null;
+  const cacheTtlMin = Math.round(LEADERBOARD_CACHE_TTL_MS / 60_000);
 
   const handleSaveName = (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,6 +302,31 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
     }
   };
 
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onLinkEmailAccount) return;
+    await onLinkEmailAccount(emailDraft, passwordDraft, emailIsCreate);
+    setPasswordDraft('');
+  };
+
+  const handleClaimFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onSubmitRewardClaim) return;
+    setClaimError(null);
+    setClaimSubmitting(true);
+    try {
+      await onSubmitRewardClaim({
+        fullName: claimFullName,
+        bankName: claimBankName,
+        accountNumber: claimAccountNumber,
+      });
+    } catch (err) {
+      setClaimError(err instanceof Error ? err.message : 'Unable to submit reward claim.');
+    } finally {
+      setClaimSubmitting(false);
+    }
+  };
+
   return (
     <div
       data-testid="weekly-rank-modal"
@@ -176,19 +335,19 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
       aria-labelledby="weekly-rank-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 overflow-y-auto"
     >
-      <div className="my-auto flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl border-2 wv-border wv-card shadow-2xl overflow-hidden">
+      <div className="my-auto flex max-h-[92vh] w-full max-w-lg flex-col rounded-2xl border-2 wv-border wv-card shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b wv-border px-5 py-4">
           <div>
             <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold uppercase tracking-wider wv-accent-text">
               <Crown className="h-4 w-4" aria-hidden="true" />
-              <span>XP Leaderboard &amp; Weekly Rank</span>
+              <span>Verified Leaderboard &amp; Cash Rewards</span>
             </div>
             <h2
               id="weekly-rank-title"
-              className="mt-1 font-display text-2xl font-bold wv-text"
+              className="mt-1 font-display text-xl sm:text-2xl font-bold wv-text"
             >
-              #{leaderboard.rank} · {gradeLabel}
+              #{leaderboard.rank} · {verifiedState.verifiedRewardXp.toLocaleString()} Verified XP
             </h2>
           </div>
 
@@ -202,12 +361,12 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
           </button>
         </div>
 
-        {/* Sub-Tabs: Leaderboard vs Tiers & Badges */}
-        <div className="border-b wv-border px-5 pt-3 pb-3">
+        {/* Sub-Tabs: Leaderboard | ₦10,000 Rewards | Tiers & Badges */}
+        <div className="border-b wv-border px-4 sm:px-5 pt-3 pb-3">
           <div
             role="tablist"
             aria-label="Leaderboard sections"
-            className="grid grid-cols-2 rounded-xl border wv-border wv-card-muted p-1 text-xs sm:text-sm font-bold"
+            className="grid grid-cols-3 rounded-xl border wv-border wv-card-muted p-1 text-[11px] sm:text-xs font-bold gap-1"
           >
             <button
               type="button"
@@ -215,12 +374,25 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
               aria-selected={activeTab === 'leaderboard'}
               data-testid="tab-leaderboard"
               onClick={() => setActiveTab('leaderboard')}
-              className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg py-1.5 transition-colors cursor-pointer ${
+              className={`inline-flex min-h-9 items-center justify-center gap-1 rounded-lg py-1.5 px-1.5 transition-colors cursor-pointer ${
                 activeTab === 'leaderboard' ? 'wv-accent-btn' : 'wv-text-muted hover:opacity-90'
               }`}
             >
-              <Users className="h-4 w-4" aria-hidden="true" />
-              <span>XP Leaderboard</span>
+              <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>Leaderboard</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'rewards'}
+              data-testid="tab-cash-rewards"
+              onClick={() => setActiveTab('rewards')}
+              className={`inline-flex min-h-9 items-center justify-center gap-1 rounded-lg py-1.5 px-1.5 transition-colors cursor-pointer ${
+                activeTab === 'rewards' ? 'wv-accent-btn' : 'wv-text-muted hover:opacity-90'
+              }`}
+            >
+              <Gift className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>₦10k Rewards</span>
             </button>
             <button
               type="button"
@@ -228,20 +400,249 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
               aria-selected={activeTab === 'tiers'}
               data-testid="tab-tiers-badges"
               onClick={() => setActiveTab('tiers')}
-              className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg py-1.5 transition-colors cursor-pointer ${
+              className={`inline-flex min-h-9 items-center justify-center gap-1 rounded-lg py-1.5 px-1.5 transition-colors cursor-pointer ${
                 activeTab === 'tiers' ? 'wv-accent-btn' : 'wv-text-muted hover:opacity-90'
               }`}
             >
-              <Trophy className="h-4 w-4" aria-hidden="true" />
+              <Trophy className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span>Tiers &amp; Badges</span>
             </button>
           </div>
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-4">
           {activeTab === 'leaderboard' ? (
             <div data-testid="xp-leaderboard-panel" className="space-y-4">
+              {/* Weekly #1 Prize Pool Banner */}
+              <div
+                data-testid="weekly-prize-pool-banner"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border wv-gold-pill px-3.5 py-2.5 text-xs"
+              >
+                <div className="flex items-center gap-2 font-extrabold">
+                  <Crown className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>{leaderboardCache?.prizePoolLabel || WEEKLY_PRIZE_POOL_LABEL}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('rewards')}
+                  className="underline font-bold cursor-pointer"
+                >
+                  ₦10,000 Milestone →
+                </button>
+              </div>
+
+              {/* Dual XP Split + Batched Sync Control */}
+              <div
+                data-testid="dual-xp-sync-card"
+                className="rounded-xl border wv-border wv-card-muted p-3.5 space-y-2.5"
+              >
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg border wv-border wv-card p-2.5">
+                    <div className="flex items-center justify-between text-[11px] font-bold wv-text-muted">
+                      <span>Verified Online XP</span>
+                      {isOnline ? (
+                        <Wifi className="h-3 w-3 wv-accent-text" aria-hidden="true" />
+                      ) : (
+                        <WifiOff className="h-3 w-3" aria-hidden="true" />
+                      )}
+                    </div>
+                    <div
+                      data-testid="verified-xp-balance"
+                      className="mt-0.5 font-mono-tabular text-base font-black wv-accent-text"
+                    >
+                      {verifiedState.verifiedRewardXp.toLocaleString()} XP
+                    </div>
+                    <div className="text-[11px] wv-text-muted font-mono-tabular">
+                      {pendingXp > 0
+                        ? `+${pendingXp} buffered (${pendingRounds}r)`
+                        : '25–40 XP / online round'}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border wv-border wv-card p-2.5">
+                    <div className="text-[11px] font-bold wv-text-muted">
+                      Offline Practice XP
+                    </div>
+                    <div
+                      data-testid="practice-xp-balance"
+                      className="mt-0.5 font-mono-tabular text-base font-black wv-text"
+                    >
+                      {weeklyProgress.weeklyXp.toLocaleString()} XP
+                    </div>
+                    <div className="text-[11px] wv-text-muted">
+                      Spend on hints &amp; unlocks only
+                    </div>
+                  </div>
+                </div>
+
+                {/* Anti-Cheat Status / Tamper Banner */}
+                {verifiedState.suspiciousActivity && (
+                  <div
+                    data-testid="suspicious-activity-banner"
+                    role="alert"
+                    className="flex items-start gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-300 font-semibold"
+                  >
+                    <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
+                    <span>
+                      Integrity warning: {verifiedState.suspiciousReason || 'Suspicious score change'}.
+                      Unverified delta reset; cash claims are locked.
+                    </span>
+                  </div>
+                )}
+
+                {/* Firebase Auth + Manual Sync Row */}
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t wv-border pt-2.5">
+                  <div className="flex items-center gap-1.5 text-xs">
+                    {firebaseSignedIn ? (
+                      <ShieldCheck className="h-4 w-4 wv-accent-text shrink-0" aria-hidden="true" />
+                    ) : (
+                      <Lock className="h-3.5 w-3.5 wv-text-muted shrink-0" aria-hidden="true" />
+                    )}
+                    <span data-testid="firebase-auth-status" className="font-semibold wv-text">
+                      {firebaseSignedIn
+                        ? verifiedState.authType === 'google'
+                          ? `Google (${firebaseUserEmail || 'Linked'})`
+                          : verifiedState.authType === 'email'
+                          ? `Email (${firebaseUserEmail || 'Linked'})`
+                          : 'Guest Online Session'
+                        : 'Not Signed In (Practice Only)'}
+                    </span>
+                  </div>
+
+                  {onManualSyncScore && (
+                    <button
+                      type="button"
+                      data-testid="sync-verified-score-btn"
+                      disabled={!firebaseSignedIn || !isOnline || isSyncingScore || cooldownLeftMs > 0}
+                      onClick={() => void onManualSyncScore()}
+                      className="inline-flex min-h-8 items-center gap-1.5 rounded-lg wv-accent-btn px-2.5 py-1 text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      <RefreshCw
+                        className={`h-3.5 w-3.5 ${isSyncingScore ? 'animate-spin' : ''}`}
+                        aria-hidden="true"
+                      />
+                      <span>
+                        {isSyncingScore
+                          ? 'Syncing...'
+                          : cooldownLeftMs > 0
+                          ? `Cooldown ${formatShortCountdown(cooldownLeftMs)}`
+                          : 'Sync Score'}
+                      </span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Auth Connect / Account Link Buttons */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {!firebaseSignedIn && onStartGuestSession && (
+                    <button
+                      type="button"
+                      data-testid="firebase-guest-signin-btn"
+                      disabled={!isOnline || authBusy}
+                      onClick={() => void onStartGuestSession()}
+                      className="inline-flex min-h-8 items-center gap-1 rounded-lg border wv-border wv-card px-2.5 py-1 text-xs font-bold wv-text hover:opacity-85 disabled:opacity-50 cursor-pointer"
+                    >
+                      <LogIn className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
+                      <span>Guest Online</span>
+                    </button>
+                  )}
+                  {verifiedState.authType !== 'google' && onLinkGoogleAccount && (
+                    <button
+                      type="button"
+                      data-testid="firebase-google-link-btn"
+                      disabled={!isOnline || authBusy}
+                      onClick={() => void onLinkGoogleAccount()}
+                      className="inline-flex min-h-8 items-center gap-1 rounded-lg border wv-border wv-card px-2.5 py-1 text-xs font-bold wv-text hover:opacity-85 disabled:opacity-50 cursor-pointer"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
+                      <span>{firebaseSignedIn ? 'Link Google' : 'Sign In Google'}</span>
+                    </button>
+                  )}
+                  {verifiedState.authType !== 'email' && onLinkEmailAccount && (
+                    <button
+                      type="button"
+                      data-testid="firebase-email-toggle-btn"
+                      disabled={!isOnline || authBusy}
+                      onClick={() => setShowEmailForm((v) => !v)}
+                      className="inline-flex min-h-8 items-center gap-1 rounded-lg border wv-border wv-card px-2.5 py-1 text-xs font-bold wv-text hover:opacity-85 disabled:opacity-50 cursor-pointer"
+                    >
+                      <Mail className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
+                      <span>{firebaseSignedIn ? 'Link Email' : 'Email Sign-In'}</span>
+                    </button>
+                  )}
+                  {firebaseSignedIn && onSignOutFirebase && (
+                    <button
+                      type="button"
+                      data-testid="firebase-signout-btn"
+                      disabled={authBusy}
+                      onClick={() => void onSignOutFirebase()}
+                      className="ml-auto inline-flex min-h-8 items-center gap-1 rounded-lg border wv-border wv-card px-2 py-1 text-[11px] font-semibold wv-text-muted hover:opacity-85 cursor-pointer"
+                    >
+                      <LogOut className="h-3 w-3" aria-hidden="true" />
+                      <span>Sign Out</span>
+                    </button>
+                  )}
+                </div>
+
+                {showEmailForm && (
+                  <form
+                    onSubmit={handleEmailSubmit}
+                    data-testid="firebase-email-form"
+                    className="rounded-lg border wv-border wv-card p-2.5 space-y-2"
+                  >
+                    <div className="flex items-center justify-between text-xs font-bold wv-text">
+                      <span>{emailIsCreate ? 'Link / Create Email Account' : 'Sign In With Email'}</span>
+                      <button
+                        type="button"
+                        onClick={() => setEmailIsCreate((v) => !v)}
+                        className="wv-accent-text underline cursor-pointer"
+                      >
+                        {emailIsCreate ? 'Existing account?' : 'Create new?'}
+                      </button>
+                    </div>
+                    <input
+                      type="email"
+                      required
+                      value={emailDraft}
+                      onChange={(e) => setEmailDraft(e.target.value)}
+                      placeholder="you@example.com"
+                      aria-label="Email address"
+                      className="w-full rounded-lg border wv-border wv-card-muted px-2.5 py-1.5 text-xs wv-text"
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={passwordDraft}
+                        onChange={(e) => setPasswordDraft(e.target.value)}
+                        placeholder="Password (6+ chars)"
+                        aria-label="Password"
+                        className="flex-1 rounded-lg border wv-border wv-card-muted px-2.5 py-1.5 text-xs wv-text"
+                      />
+                      <button
+                        type="submit"
+                        disabled={authBusy}
+                        className="rounded-lg wv-accent-btn px-3 py-1.5 text-xs font-bold cursor-pointer"
+                      >
+                        {emailIsCreate ? 'Link' : 'Sign In'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {(syncStatusMessage || authNotice) && (
+                  <p
+                    data-testid="sync-status-message"
+                    role="status"
+                    className="text-xs font-semibold wv-accent-text"
+                  >
+                    {syncStatusMessage || authNotice}
+                  </p>
+                )}
+              </div>
+
               {/* Player Rank Hero Card */}
               <div className="rounded-xl border wv-border wv-card-muted p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
@@ -257,20 +658,20 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                     )}
                     <div className="min-w-0">
                       <span className="text-xs font-bold uppercase tracking-wider wv-accent-text">
-                        Your Standing ({scope === 'weekly' ? 'Active Weekly' : 'All-Time XP'})
+                        Verified Standing ({scope === 'weekly' ? 'Weekly Prize Race' : 'Verified Total'})
                       </span>
                       <div
                         data-testid="leaderboard-user-rank"
                         className="mt-0.5 font-display text-lg sm:text-xl font-black wv-text"
                       >
                         {scope === 'weekly'
-                          ? `Rank #${leaderboard.rank} of ${leaderboard.activeThisWeekCount} active players this week`
+                          ? `Rank #${leaderboard.rank} of ${leaderboard.activeThisWeekCount} weekly players`
                           : `Rank #${leaderboard.rank} of ${leaderboard.totalPlayers} total players`}
                       </div>
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
-                    <span className="text-xs font-medium wv-text-muted">Your XP</span>
+                    <span className="text-xs font-medium wv-text-muted">Verified</span>
                     <div
                       data-testid="leaderboard-user-xp"
                       className="font-mono-tabular text-lg sm:text-xl font-extrabold wv-accent-text"
@@ -283,8 +684,8 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t wv-border pt-2.5 text-xs">
                   <span className="font-semibold wv-text-muted">
                     {leaderboard.nextRivalName
-                      ? `${leaderboard.xpToOvertake.toLocaleString()} XP to pass ${leaderboard.nextRivalName}`
-                      : 'Top #1 spot on the leaderboard!'}
+                      ? `${leaderboard.xpToOvertake.toLocaleString()} Verified XP to pass ${leaderboard.nextRivalName}`
+                      : 'Top #1 spot on the weekly prize race!'}
                   </span>
 
                   {onOpenEditProfile ? (
@@ -376,8 +777,8 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                 )}
               </div>
 
-              {/* Weekly vs All-Time Scope Toggle */}
-              <div className="flex items-center justify-between gap-2">
+              {/* Weekly vs All-Time Scope Toggle + 30-min Cache Info */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div
                   role="group"
                   aria-label="Leaderboard timeframe"
@@ -391,7 +792,7 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                       scope === 'weekly' ? 'wv-accent-btn' : 'wv-text-muted'
                     }`}
                   >
-                    Weekly Active ({leaderboard.activeThisWeekCount})
+                    Weekly Prize ({leaderboard.activeThisWeekCount})
                   </button>
                   <button
                     type="button"
@@ -401,19 +802,34 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                       scope === 'all_time' ? 'wv-accent-btn' : 'wv-text-muted'
                     }`}
                   >
-                    All-Time XP
+                    Verified All-Time
                   </button>
                 </div>
 
-                <span className="inline-flex items-center gap-1 font-mono-tabular text-xs wv-text-muted">
-                  <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>{weeklyCountdown}</span>
-                </span>
+                <div className="flex items-center gap-2 text-xs wv-text-muted">
+                  <span className="inline-flex items-center gap-1 font-mono-tabular">
+                    <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>{weeklyCountdown}</span>
+                  </span>
+                  {onRefreshLeaderboardCache && (
+                    <button
+                      type="button"
+                      data-testid="leaderboard-cache-indicator"
+                      onClick={() => void onRefreshLeaderboardCache()}
+                      title="Single-doc summary cached 30m (0 extra reads)"
+                      className="rounded-lg border wv-border wv-card-muted px-2 py-0.5 text-[11px] font-semibold hover:opacity-85 cursor-pointer"
+                    >
+                      {cacheAgeMin !== null
+                        ? `Cached ${cacheAgeMin}m/${cacheTtlMin}m`
+                        : '1-Doc Summary'}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Ranked Players List */}
               <div data-testid="leaderboard-entries-list" className="space-y-2">
-                {leaderboard.entries.map((entry) => {
+                {leaderboard.entries.slice(0, 30).map((entry) => {
                   const xpVal = scope === 'all_time' ? entry.totalXp : entry.weeklyXp;
                   const isTopThree = (entry.rank || 99) <= 3;
                   return (
@@ -480,13 +896,223 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                 })}
               </div>
             </div>
+          ) : activeTab === 'rewards' ? (
+            <div data-testid="cash-rewards-panel" className="space-y-4">
+              {/* Dual Prize Structure Summary */}
+              <div className="rounded-xl border-2 wv-border wv-card-muted p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <span className="inline-flex items-center gap-1 rounded-md wv-gold-pill px-2 py-0.5 text-[10px] font-extrabold uppercase">
+                      <Gift className="h-3 w-3" aria-hidden="true" />
+                      <span>600,000 Verified XP Milestone</span>
+                    </span>
+                    <h3 className="mt-1.5 font-display text-xl font-black wv-text">
+                      ₦{REWARD_MILESTONE_NAIRA.toLocaleString()} Promotional Reward
+                    </h3>
+                  </div>
+                  <div className="text-right font-mono-tabular">
+                    <div
+                      data-testid="milestone-xp-progress-text"
+                      className="text-sm font-black wv-accent-text"
+                    >
+                      {verifiedState.verifiedRewardXp.toLocaleString()} /{' '}
+                      {REWARD_MILESTONE_XP.toLocaleString()} XP
+                    </div>
+                    <div className="text-[11px] wv-text-muted">{milestonePct}% complete</div>
+                  </div>
+                </div>
+
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-black/15 dark:bg-white/15">
+                  <div
+                    className="h-full rounded-full wv-accent-btn transition-all duration-300"
+                    style={{ width: `${milestonePct}%` }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg border wv-border wv-card p-2.5">
+                    <div className="font-bold wv-text">1. Weekly #1 Champion</div>
+                    <p className="mt-0.5 wv-text-muted">
+                      ₦5,000 / ₦10,000 Pool awarded to #1 Verified Weekly player every Monday UTC.
+                    </p>
+                  </div>
+                  <div className="rounded-lg border wv-border wv-card p-2.5">
+                    <div className="font-bold wv-text">2. Fair-Play Caps</div>
+                    <p className="mt-0.5 font-mono-tabular wv-text-muted">
+                      Today: {verifiedState.dailyVerifiedXp.toLocaleString()} /{' '}
+                      {MAX_XP_PER_24H.toLocaleString()} XP (max 1,500/batch).
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Claim Receipt Card (shown after valid submission) */}
+              {lastClaimReceipt && (
+                <div
+                  data-testid="claim-confirmation-card"
+                  className="rounded-xl border-2 border-emerald-500/40 bg-emerald-500/10 p-4 space-y-3"
+                >
+                  <div className="flex items-center gap-2 text-sm font-extrabold text-emerald-700 dark:text-emerald-300">
+                    <CheckCircle2 className="h-5 w-5 shrink-0" aria-hidden="true" />
+                    <span>Claim Logged · Code {lastClaimReceipt.claimCode}</span>
+                  </div>
+                  <p className="text-xs wv-text">
+                    600,000 Verified XP deducted. Send your Claim ID below via WhatsApp or Email for
+                    manual verification before payout:
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <a
+                      href={lastClaimReceipt.whatsappUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="claim-whatsapp-link"
+                      className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 text-white px-3 py-2 text-xs font-bold hover:opacity-90"
+                    >
+                      <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                      <span>Verify on WhatsApp</span>
+                    </a>
+                    <a
+                      href={lastClaimReceipt.emailUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="claim-email-link"
+                      className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl wv-accent-btn px-3 py-2 text-xs font-bold hover:opacity-90"
+                    >
+                      <Mail className="h-4 w-4" aria-hidden="true" />
+                      <span>Verify via Email</span>
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* Payout Claim Form */}
+              <form
+                onSubmit={handleClaimFormSubmit}
+                data-testid="reward-claim-form"
+                className="rounded-xl border wv-border wv-card-muted p-4 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <h4 className="font-display text-base font-bold wv-text">
+                    Submit ₦10,000 Payout Claim
+                  </h4>
+                  {!canSubmitClaim && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold wv-text-muted">
+                      <Lock className="h-3 w-3" aria-hidden="true" />
+                      <span>Locked</span>
+                    </span>
+                  )}
+                </div>
+
+                {!firebaseSignedIn ? (
+                  <p className="text-xs font-semibold wv-text-muted">
+                    Sign in online via the Leaderboard tab before submitting a milestone claim.
+                  </p>
+                ) : verifiedState.suspiciousActivity ? (
+                  <p className="text-xs font-semibold text-red-600 dark:text-red-400">
+                    Ineligible: account flagged for suspicious activity.
+                  </p>
+                ) : verifiedState.verifiedRewardXp < REWARD_MILESTONE_XP ? (
+                  <p className="text-xs font-semibold wv-text-muted">
+                    Need{' '}
+                    {(REWARD_MILESTONE_XP - verifiedState.verifiedRewardXp).toLocaleString()} more
+                    Verified Online XP to unlock this form.
+                  </p>
+                ) : null}
+
+                <div className="space-y-2.5">
+                  <div>
+                    <label
+                      htmlFor="claim-full-name"
+                      className="block text-xs font-bold wv-text mb-1"
+                    >
+                      Full Name
+                    </label>
+                    <input
+                      id="claim-full-name"
+                      data-testid="claim-fullname-input"
+                      type="text"
+                      required
+                      maxLength={80}
+                      value={claimFullName}
+                      onChange={(e) => setClaimFullName(e.target.value)}
+                      placeholder="Account Holder Full Name"
+                      className="w-full rounded-xl border wv-border wv-card px-3 py-2 text-sm wv-text"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="claim-bank-name"
+                      className="block text-xs font-bold wv-text mb-1"
+                    >
+                      Bank Name
+                    </label>
+                    <input
+                      id="claim-bank-name"
+                      data-testid="claim-bankname-input"
+                      type="text"
+                      required
+                      maxLength={60}
+                      value={claimBankName}
+                      onChange={(e) => setClaimBankName(e.target.value)}
+                      placeholder="e.g. Access Bank, GTBank, Kuda"
+                      className="w-full rounded-xl border wv-border wv-card px-3 py-2 text-sm wv-text"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="claim-account-number"
+                      className="block text-xs font-bold wv-text mb-1"
+                    >
+                      10-Digit Account Number
+                    </label>
+                    <input
+                      id="claim-account-number"
+                      data-testid="claim-account-input"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]{10}"
+                      maxLength={10}
+                      required
+                      value={claimAccountNumber}
+                      onChange={(e) => setClaimAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      placeholder="0123456789"
+                      className="w-full rounded-xl border wv-border wv-card px-3 py-2 font-mono-tabular text-sm wv-text"
+                    />
+                  </div>
+                </div>
+
+                {claimError && (
+                  <p
+                    role="alert"
+                    className="flex items-center gap-1.5 text-xs font-semibold text-red-600 dark:text-red-400"
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span>{claimError}</span>
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  data-testid="submit-reward-claim-btn"
+                  disabled={!canSubmitClaim || claimSubmitting}
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl wv-accent-btn px-4 py-2.5 text-sm font-bold disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <Gift className="h-4 w-4" aria-hidden="true" />
+                  <span>
+                    {claimSubmitting
+                      ? 'Submitting Claim...'
+                      : 'Claim ₦10,000 (Deduct 600,000 Verified XP)'}
+                  </span>
+                </button>
+              </form>
+            </div>
           ) : (
             <div className="space-y-5">
-              {/* Active Grade Progress Card */}
+              {/* Active Practice Grade Progress Card */}
               <div className="rounded-xl border wv-border wv-card-muted p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-medium wv-text-muted">Current Weekly XP</p>
+                    <p className="text-xs font-medium wv-text-muted">Weekly Practice XP (Spendable)</p>
                     <p
                       data-testid="modal-weekly-xp"
                       className="font-mono-tabular text-2xl font-bold wv-text"

@@ -670,7 +670,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
             }`}
           >
             <BookOpen className="h-[18px] w-[18px] wv-accent-text" aria-hidden="true" />
-            <span className="text-xs font-bold leading-none">Clue (Ad)</span>
+            <span className="text-xs font-bold leading-none">Clue / XP</span>
             {unlockedClueCount > 0 && (
               <span className="absolute -top-1.5 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full wv-accent-btn px-1 font-mono-tabular text-[11px] font-bold">
                 {unlockedClueCount}
@@ -957,7 +957,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider wv-accent-text">
               <Compass className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>Featured Topics · Watch Ad to Unlock</span>
+              <span>Featured Topics · Ad or 300 XP</span>
             </div>
             <button
               type="button"

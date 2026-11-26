@@ -1,0 +1,307 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Default-Deny Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Reusable Security Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (
+          request.auth.token.email == 'omosemoje20@gmail.com' &&
+          request.auth.token.email_verified == true
+        )
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 3. Entity Validation Blueprints (Synchronized with firebase-blueprint.json)
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'authType', 'verifiedRewardXp', 'weeklyRewardXp',
+          'weekKey', 'roundsPlayed', 'puzzlesSolved', 'triviaCorrect', 'streak',
+          'dailyVerifiedXp', 'dailyWindowStartMs', 'lastSyncAt',
+          'roundsCompletedInBatch', 'lastBatchXpDelta', 'integrityHash',
+          'suspiciousActivity', 'accountCreatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'uid', 'displayName', 'authType', 'verifiedRewardXp', 'weeklyRewardXp',
+          'weekKey', 'roundsPlayed', 'puzzlesSolved', 'triviaCorrect', 'streak',
+          'dailyVerifiedXp', 'dailyWindowStartMs', 'lastSyncAt',
+          'roundsCompletedInBatch', 'lastBatchXpDelta', 'integrityHash',
+          'suspiciousActivity', 'suspiciousReason', 'lastClaimId', 'accountCreatedAt'
+        ]) &&
+        data.uid is string && isValidId(data.uid) &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 24 &&
+        data.authType in ['anonymous', 'google', 'email'] &&
+        data.verifiedRewardXp is number && data.verifiedRewardXp >= 0 && data.verifiedRewardXp <= 50000000 &&
+        data.weeklyRewardXp is number && data.weeklyRewardXp >= 0 && data.weeklyRewardXp <= 5000000 &&
+        data.weekKey is string && data.weekKey.size() == 10 && data.weekKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+        data.roundsPlayed is int && data.roundsPlayed >= 0 && data.roundsPlayed <= 1000000 &&
+        data.puzzlesSolved is int && data.puzzlesSolved >= 0 && data.puzzlesSolved <= 1000000 &&
+        data.triviaCorrect is int && data.triviaCorrect >= 0 && data.triviaCorrect <= 1000000 &&
+        data.streak is int && data.streak >= 0 && data.streak <= 10000 &&
+        data.dailyVerifiedXp is number && data.dailyVerifiedXp >= 0 && data.dailyVerifiedXp <= 15000 &&
+        data.dailyWindowStartMs is number && data.dailyWindowStartMs >= 0 &&
+        data.lastSyncAt is timestamp &&
+        data.roundsCompletedInBatch is int && data.roundsCompletedInBatch >= 0 && data.roundsCompletedInBatch <= 500 &&
+        data.lastBatchXpDelta is number && data.lastBatchXpDelta >= 0 && data.lastBatchXpDelta <= 1500 &&
+        data.integrityHash is string && data.integrityHash.size() >= 8 && data.integrityHash.size() <= 128 && data.integrityHash.matches('^[a-fA-F0-9]+$') &&
+        data.suspiciousActivity is bool &&
+        data.accountCreatedAt is timestamp &&
+        (!('suspiciousReason' in data) || (data.suspiciousReason is string && data.suspiciousReason.size() <= 120)) &&
+        (!('lastClaimId' in data) || (data.lastClaimId is string && isValidId(data.lastClaimId)));
+    }
+
+    function isValidLeaderboardDoc(data) {
+      return data.keys().hasAll(['weekKey', 'updatedAt', 'prizePoolLabel', 'lastUpdatedBy', 'topEntries']) &&
+        data.keys().hasOnly(['weekKey', 'updatedAt', 'prizePoolLabel', 'lastUpdatedBy', 'topEntries']) &&
+        data.weekKey is string && data.weekKey.size() == 10 && data.weekKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+        data.updatedAt is timestamp &&
+        data.prizePoolLabel is string && data.prizePoolLabel.size() >= 1 && data.prizePoolLabel.size() <= 100 &&
+        data.lastUpdatedBy is string && isValidId(data.lastUpdatedBy) &&
+        data.topEntries is list && data.topEntries.size() <= 25 &&
+        (
+          data.topEntries.size() == 0 ||
+          (
+            data.topEntries[0] is map &&
+            data.topEntries[0].keys().hasAll(['uid', 'name', 'weeklyRewardXp', 'verifiedRewardXp', 'puzzlesSolved', 'triviaCorrect', 'streak', 'weekKey']) &&
+            data.topEntries[0].keys().hasOnly(['uid', 'name', 'weeklyRewardXp', 'verifiedRewardXp', 'puzzlesSolved', 'triviaCorrect', 'streak', 'weekKey']) &&
+            data.topEntries[0].uid is string && isValidId(data.topEntries[0].uid) &&
+            data.topEntries[0].name is string && data.topEntries[0].name.size() >= 1 && data.topEntries[0].name.size() <= 24 &&
+            data.topEntries[0].weeklyRewardXp is number && data.topEntries[0].weeklyRewardXp >= 0 && data.topEntries[0].weeklyRewardXp <= 5000000 &&
+            data.topEntries[0].verifiedRewardXp is number && data.topEntries[0].verifiedRewardXp >= 0 && data.topEntries[0].verifiedRewardXp <= 50000000 &&
+            data.topEntries[0].puzzlesSolved is int && data.topEntries[0].puzzlesSolved >= 0 &&
+            data.topEntries[0].triviaCorrect is int && data.topEntries[0].triviaCorrect >= 0 &&
+            data.topEntries[0].streak is int && data.topEntries[0].streak >= 0 &&
+            data.topEntries[0].weekKey is string && data.topEntries[0].weekKey.size() == 10
+          )
+        );
+    }
+
+    function isValidRewardClaim(data, claimId) {
+      return data.keys().hasAll([
+          'claimId', 'uid', 'fullName', 'bankName', 'accountNumber',
+          'verifiedXpAtClaim', 'roundsPlayed', 'accountCreatedAt',
+          'claimCode', 'status', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'claimId', 'uid', 'fullName', 'bankName', 'accountNumber',
+          'verifiedXpAtClaim', 'roundsPlayed', 'accountCreatedAt',
+          'claimCode', 'status', 'createdAt'
+        ]) &&
+        data.claimId is string && data.claimId == claimId && isValidId(data.claimId) &&
+        data.uid is string && isValidId(data.uid) &&
+        data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 80 &&
+        data.bankName is string && data.bankName.size() >= 2 && data.bankName.size() <= 60 &&
+        data.accountNumber is string && data.accountNumber.size() == 10 && data.accountNumber.matches('^[0-9]{10}$') &&
+        data.verifiedXpAtClaim is number && data.verifiedXpAtClaim >= 600000 && data.verifiedXpAtClaim <= 50000000 &&
+        data.roundsPlayed is int && data.roundsPlayed >= 1 && data.roundsPlayed <= 1000000 &&
+        data.accountCreatedAt is timestamp &&
+        data.claimCode is string && data.claimCode.size() >= 6 && data.claimCode.size() <= 24 && data.claimCode.matches('^[A-Z0-9\\-]+$') &&
+        data.status in ['pending', 'verified', 'paid', 'rejected'] &&
+        data.createdAt is timestamp;
+    }
+
+    // 4. Connection Health Check Document
+    match /test/{docId} {
+      allow get: if isSignedIn() && docId == 'connection';
+    }
+
+    // 5. Admins Lookup Collection
+    match /admins/{adminUid} {
+      allow get: if isValidId(adminUid) && (isOwner(adminUid) || isAdmin());
+    }
+
+    // 6. User Verified Profile & Batch Sync Rate-Limited Collection
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == request.auth.uid &&
+        incoming().accountCreatedAt == request.time &&
+        incoming().lastSyncAt == request.time &&
+        incoming().verifiedRewardXp <= 1500 &&
+        incoming().weeklyRewardXp == incoming().verifiedRewardXp &&
+        incoming().dailyVerifiedXp == incoming().verifiedRewardXp &&
+        incoming().lastBatchXpDelta == incoming().verifiedRewardXp &&
+        incoming().roundsCompletedInBatch == incoming().roundsPlayed &&
+        incoming().verifiedRewardXp <= (incoming().roundsCompletedInBatch * 40) &&
+        incoming().dailyWindowStartMs >= request.time.toMillis() - 60000 &&
+        incoming().dailyWindowStartMs <= request.time.toMillis() + 60000 &&
+        incoming().dailyVerifiedXp <= 15000 &&
+        incoming().suspiciousActivity == false;
+
+      allow update: if isSignedIn() &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().accountCreatedAt == existing().accountCreatedAt && (
+          isAdmin() ||
+          (
+            isOwner(userId) &&
+            incoming().lastSyncAt == request.time && (
+              // Action A: Normal Batched Sync (strict >= 5 min cooldown, <= 1500 batch XP, <= 15000 daily XP, >= 3s/round pacing, <= 40 XP/round)
+              (
+                existing().suspiciousActivity == false &&
+                incoming().suspiciousActivity == false &&
+                incoming().diff(existing()).affectedKeys().hasOnly([
+                  'displayName', 'authType', 'verifiedRewardXp', 'weeklyRewardXp',
+                  'weekKey', 'roundsPlayed', 'puzzlesSolved', 'triviaCorrect',
+                  'streak', 'dailyVerifiedXp', 'dailyWindowStartMs', 'lastSyncAt',
+                  'roundsCompletedInBatch', 'lastBatchXpDelta', 'integrityHash'
+                ]) &&
+                request.time >= existing().lastSyncAt + duration.value(5, 'm') &&
+                incoming().verifiedRewardXp >= existing().verifiedRewardXp &&
+                incoming().lastBatchXpDelta == (incoming().verifiedRewardXp - existing().verifiedRewardXp) &&
+                incoming().lastBatchXpDelta <= 1500 &&
+                incoming().roundsPlayed == existing().roundsPlayed + incoming().roundsCompletedInBatch &&
+                incoming().lastBatchXpDelta <= (incoming().roundsCompletedInBatch * 40) &&
+                (
+                  (request.time.toMillis() - existing().dailyWindowStartMs) < 86400000
+                    ? (
+                        incoming().dailyWindowStartMs == existing().dailyWindowStartMs &&
+                        incoming().dailyVerifiedXp == existing().dailyVerifiedXp + incoming().lastBatchXpDelta
+                      )
+                    : (
+                        incoming().dailyWindowStartMs >= request.time.toMillis() - 60000 &&
+                        incoming().dailyWindowStartMs <= request.time.toMillis() + 60000 &&
+                        incoming().dailyVerifiedXp == incoming().lastBatchXpDelta
+                      )
+                ) &&
+                (
+                  incoming().weekKey != existing().weekKey
+                    ? incoming().weeklyRewardXp <= 1500
+                    : (
+                        incoming().weeklyRewardXp == existing().weeklyRewardXp + incoming().lastBatchXpDelta
+                      )
+                ) &&
+                (
+                  incoming().roundsCompletedInBatch == 0 ||
+                  (request.time.toMillis() - existing().lastSyncAt.toMillis()) >= (incoming().roundsCompletedInBatch * 3000)
+                )
+              ) ||
+              // Action B: Tamper / Anti-Cheat Self-Flagging (resets unverified delta & marks suspiciousActivity: true)
+              (
+                incoming().suspiciousActivity == true &&
+                incoming().diff(existing()).affectedKeys().hasOnly([
+                  'suspiciousActivity', 'suspiciousReason', 'lastBatchXpDelta',
+                  'roundsCompletedInBatch', 'integrityHash', 'lastSyncAt'
+                ]) &&
+                incoming().verifiedRewardXp == existing().verifiedRewardXp &&
+                incoming().weeklyRewardXp == existing().weeklyRewardXp &&
+                incoming().lastBatchXpDelta == 0 &&
+                incoming().roundsCompletedInBatch == 0
+              ) ||
+              // Action C: Atomic 600,000 Verified XP Milestone Claim Deduction
+              (
+                existing().suspiciousActivity == false &&
+                incoming().suspiciousActivity == false &&
+                existing().verifiedRewardXp >= 600000 &&
+                incoming().verifiedRewardXp == existing().verifiedRewardXp - 600000 &&
+                incoming().diff(existing()).affectedKeys().hasOnly([
+                  'verifiedRewardXp', 'lastClaimId', 'lastSyncAt'
+                ]) &&
+                'lastClaimId' in incoming() &&
+                existsAfter(/databases/$(database)/documents/rewardClaims/$(incoming().lastClaimId))
+              ) ||
+              // Action D: Safe Profile / Auth Link Metadata Update (zero XP mutation)
+              (
+                incoming().diff(existing()).affectedKeys().hasOnly([
+                  'displayName', 'authType', 'lastSyncAt'
+                ])
+              )
+            )
+          )
+        );
+    }
+
+    // 7. Single-Document Weekly Leaderboard Summary
+    match /leaderboards/{boardId} {
+      allow get: if isSignedIn() && boardId == 'weekly_current';
+
+      allow create: if isSignedIn() &&
+        boardId == 'weekly_current' &&
+        isValidLeaderboardDoc(incoming()) &&
+        incoming().lastUpdatedBy == request.auth.uid &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.suspiciousActivity == false;
+
+      allow update: if isSignedIn() &&
+        boardId == 'weekly_current' &&
+        isValidLeaderboardDoc(incoming()) && (
+          isAdmin() ||
+          (
+            incoming().lastUpdatedBy == request.auth.uid &&
+            incoming().updatedAt == request.time &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'weekKey', 'updatedAt', 'prizePoolLabel', 'lastUpdatedBy', 'topEntries'
+            ]) &&
+            exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.suspiciousActivity == false
+          )
+        );
+    }
+
+    // 8. Write-Once 600,000 XP Milestone Reward Claims
+    match /rewardClaims/{claimId} {
+      allow get: if isSignedIn() && isValidId(claimId) && (
+        resource.data.uid == request.auth.uid || isAdmin()
+      );
+
+      allow list: if isSignedIn() && (
+        resource.data.uid == request.auth.uid || isAdmin()
+      );
+
+      allow create: if isSignedIn() &&
+        isValidId(claimId) &&
+        isValidRewardClaim(incoming(), claimId) &&
+        incoming().uid == request.auth.uid &&
+        incoming().status == 'pending' &&
+        incoming().createdAt == request.time &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.suspiciousActivity == false &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.verifiedRewardXp >= 600000 &&
+        incoming().verifiedXpAtClaim == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.verifiedRewardXp &&
+        incoming().roundsPlayed == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roundsPlayed &&
+        incoming().accountCreatedAt == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountCreatedAt &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.verifiedRewardXp ==
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.verifiedRewardXp - 600000 &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.lastClaimId == claimId;
+
+      allow update: if isAdmin() &&
+        isValidId(claimId) &&
+        isValidRewardClaim(incoming(), claimId) &&
+        incoming().uid == existing().uid &&
+        incoming().claimId == existing().claimId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status']);
+    }
+  }
+}

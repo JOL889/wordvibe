@@ -371,7 +371,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
             <span className="font-mono-tabular font-bold wv-accent-text">
               {categoryPlaysRemaining > 0
                 ? `${categoryPlaysRemaining} plays left`
-                : '0 plays left · Watch Ad for +5'}
+                : '0 plays left · Ad or 300 XP'}
             </span>
           </div>
         )}
@@ -393,7 +393,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
                 className="inline-flex min-h-11 items-center gap-1.5 rounded-xl wv-accent-btn px-4 py-2 text-sm font-bold transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
               >
                 <Lock className="h-4 w-4" aria-hidden="true" />
-                <span>+5 Plays (Ad)</span>
+                <span>Unlock Topic</span>
               </button>
             ) : (
               <button

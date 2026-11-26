@@ -122,6 +122,31 @@ import {
   XP_COSTS,
 } from './game/xpEconomyLogic';
 import {
+  recordVerifiedOnlineRound,
+  shouldAutoFlushBatch,
+  type ClaimConfirmationReceipt,
+  type RewardClaimInput,
+  type VerifiedRewardLocalState,
+  type VerifiedRoundMode,
+  type WeeklyLeaderboardCache,
+} from './game/verifiedRewardsLogic';
+import type { User } from 'firebase/auth';
+import {
+  ensureAnonymousSession,
+  fetchWeeklyLeaderboardSingleDoc,
+  flushVerifiedBatchToFirestore,
+  loadOrHydrateRemoteUserProfile,
+  loadVerifiedRewardState,
+  loadWeeklyLeaderboardCache,
+  resolveFirebaseAuthType,
+  saveVerifiedRewardState,
+  signInOrLinkEmail,
+  signInOrLinkGoogle,
+  signOutFirebaseSession,
+  submitVerifiedRewardClaim,
+  subscribeFirebaseAuth,
+} from './services/firebaseSyncService';
+import {
   hydrateLocalUserAccountFromIdb,
   loadLocalUserAccount,
   saveLocalUserAccount,
@@ -308,6 +333,28 @@ export default function App() {
   const [userAccount, setUserAccount] = useState<LocalUserAccount | null>(() =>
     loadLocalUserAccount()
   );
+  const [isOnline, setIsOnline] = useState<boolean>(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [verifiedState, setVerifiedState] = useState<VerifiedRewardLocalState>(() =>
+    loadVerifiedRewardState(null, loadLocalUserAccount()?.username || initialBoot.profile.displayName || 'Player')
+  );
+  const [leaderboardCache, setLeaderboardCache] = useState<WeeklyLeaderboardCache | null>(() =>
+    loadWeeklyLeaderboardCache()
+  );
+  const [isSyncingScore, setIsSyncingScore] = useState(false);
+  const [syncStatusMessage, setSyncStatusMessage] = useState<string | null>(null);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
+  const [lastClaimReceipt, setLastClaimReceipt] = useState<ClaimConfirmationReceipt | null>(null);
+  const verifiedStateRef = useRef(verifiedState);
+  verifiedStateRef.current = verifiedState;
+  const firebaseUserRef = useRef(firebaseUser);
+  firebaseUserRef.current = firebaseUser;
+  const isOnlineRef = useRef(isOnline);
+  isOnlineRef.current = isOnline;
+
   const [profileModalMode, setProfileModalMode] = useState<'signup' | 'edit'>(() =>
     loadLocalUserAccount() ? 'edit' : 'signup'
   );
@@ -645,6 +692,143 @@ export default function App() {
       active = false;
     };
   }, []);
+
+  // Persist verified online reward state cleanly
+  useEffect(() => {
+    saveVerifiedRewardState(verifiedState);
+  }, [verifiedState]);
+
+  // Track navigator.onLine changes so offline play never accumulates Verified Online XP
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const performVerifiedFlush = useCallback(async (silent = false): Promise<void> => {
+    if (!firebaseUserRef.current || !isOnlineRef.current) return;
+    setIsSyncingScore(true);
+    try {
+      const outcome = await flushVerifiedBatchToFirestore(verifiedStateRef.current);
+      verifiedStateRef.current = outcome.state;
+      setVerifiedState(outcome.state);
+      setSyncStatusMessage(outcome.message);
+      if (outcome.synced) {
+        const refreshed = await fetchWeeklyLeaderboardSingleDoc(true);
+        setLeaderboardCache(refreshed.cache);
+        if (!silent) showToast(outcome.message, 2800);
+      } else if (outcome.flaggedTamper) {
+        showToast(outcome.message, 3600);
+      } else if (!silent) {
+        showToast(outcome.message, 2600);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unable to sync Verified XP.';
+      setSyncStatusMessage(msg);
+      if (!silent) showToast('Sync paused — will retry after cooldown.', 2600);
+    } finally {
+      setIsSyncingScore(false);
+    }
+  }, [showToast]);
+
+  // Subscribe to Firebase Auth, hydrate remote user profile + 30-min leaderboard cache when signed in
+  useEffect(() => {
+    let active = true;
+
+    const unsub = subscribeFirebaseAuth((user) => {
+      if (!active) return;
+      firebaseUserRef.current = user;
+      setFirebaseUser(user);
+
+      if (!user) {
+        return;
+      }
+
+      const authType = resolveFirebaseAuthType(user);
+      const displayName =
+        userAccount?.username ||
+        user.displayName ||
+        playerProfile.displayName ||
+        'Player';
+
+      void loadOrHydrateRemoteUserProfile(
+        user.uid,
+        verifiedStateRef.current,
+        displayName,
+        authType
+      )
+        .then(({ state }) => {
+          if (!active) return;
+          verifiedStateRef.current = state;
+          setVerifiedState(state);
+          return fetchWeeklyLeaderboardSingleDoc(false);
+        })
+        .then((res) => {
+          if (!active || !res) return;
+          setLeaderboardCache(res.cache);
+        })
+        .catch(() => {
+          // Non-fatal: player continues with offline Practice XP safely
+        });
+    });
+
+    return () => {
+      active = false;
+      unsub();
+    };
+  }, [playerProfile.displayName, userAccount?.username]);
+
+  // Flush buffered online XP on tab background/session finish if 5-min cooldown allows
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        if (shouldAutoFlushBatch(verifiedStateRef.current, 'session_exit')) {
+          void performVerifiedFlush(true);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [performVerifiedFlush]);
+
+  const queueVerifiedOnlineRound = useCallback(
+    (params: {
+      mode: VerifiedRoundMode;
+      won: boolean;
+      accuracyRatio?: number;
+      difficultyWeight?: number;
+      streak?: number;
+    }) => {
+      const onlineNow =
+        typeof navigator !== 'undefined' ? navigator.onLine : isOnlineRef.current;
+      const signedInNow = Boolean(firebaseUserRef.current);
+      const res = recordVerifiedOnlineRound(verifiedStateRef.current, {
+        isOnline: onlineNow,
+        isSignedIn: signedInNow,
+        mode: params.mode,
+        won: params.won,
+        accuracyRatio: params.accuracyRatio,
+        difficultyWeight: params.difficultyWeight,
+        streak: params.streak,
+      });
+      if (res.eligibleForVerifiedReward) {
+        verifiedStateRef.current = res.state;
+        setVerifiedState(res.state);
+        if (shouldAutoFlushBatch(res.state, 'round_end')) {
+          void performVerifiedFlush(true);
+        }
+      } else if (res.state !== verifiedStateRef.current) {
+        verifiedStateRef.current = res.state;
+        setVerifiedState(res.state);
+      }
+    },
+    [performVerifiedFlush]
+  );
 
   const roundTimeTotalSec = useMemo(
     () =>
@@ -1086,6 +1270,13 @@ export default function App() {
         wordLength: wonBoard.length,
         categoryId: wonBoard.categoryId,
       });
+      queueVerifiedOnlineRound({
+        mode: 'puzzle',
+        won: true,
+        accuracyRatio: Math.max(0.25, 1 - wonBoard.wrongChecks * 0.15),
+        difficultyWeight: Math.min(1, modeConfig.puzzleLevelNumber / 20),
+        streak: stats.currentStreak + 1,
+      });
       const earned = xpDelta || 120;
       setLastPuzzleXpEarned(earned);
       setPuzzleDoubleXpClaimed(false);
@@ -1127,9 +1318,11 @@ export default function App() {
       modeConfig.puzzleSessionMode,
       pushFloatingReward,
       puzzleTimedOut,
+      queueVerifiedOnlineRound,
       recordPuzzleBoardOutcome,
       recordWeeklyEvent,
       showToast,
+      stats.currentStreak,
       triggerConfetti,
     ]
   );
@@ -1831,28 +2024,54 @@ export default function App() {
   const leaderboardSummary = useMemo(
     () =>
       getPlayerLeaderboardSummary({
-        playerId: userAccount?.id || leaderboardPlayerId,
+        playerId: verifiedState.uid || userAccount?.id || leaderboardPlayerId,
         playerName: effectivePlayerName,
-        playerWeeklyXp: weeklyProgress.weeklyXp,
-        playerTotalXp: Math.max(weeklyProgress.totalXp ?? 0, weeklyProgress.weeklyXp),
-        playerPuzzlesSolved: weeklyProgress.puzzlesSolved,
-        playerTriviaCorrect: weeklyProgress.triviaCorrect,
+        playerWeeklyXp: firebaseUser ? verifiedState.weeklyRewardXp : 0,
+        playerTotalXp: firebaseUser ? verifiedState.verifiedRewardXp : 0,
+        playerPuzzlesSolved: verifiedState.puzzlesSolved,
+        playerTriviaCorrect: verifiedState.triviaCorrect,
         playerStreak: stats.currentStreak,
         scope: 'weekly',
-        weekKey: weeklyProgress.weekKey,
+        weekKey: verifiedState.weekKey || weeklyProgress.weekKey,
+        remoteEntries: (leaderboardCache?.topEntries || []).map((entry) => ({
+          id: entry.uid,
+          name: entry.name,
+          weeklyXp: entry.weeklyRewardXp,
+          totalXp: entry.verifiedRewardXp,
+          puzzlesSolved: entry.puzzlesSolved,
+          triviaCorrect: entry.triviaCorrect,
+          streak: entry.streak,
+          weekKey: entry.weekKey,
+          isActiveThisWeek: entry.weeklyRewardXp > 0,
+        })),
       }),
     [
       effectivePlayerName,
+      firebaseUser,
+      leaderboardCache?.topEntries,
       leaderboardPlayerId,
       stats.currentStreak,
       userAccount?.id,
-      weeklyProgress.puzzlesSolved,
-      weeklyProgress.totalXp,
-      weeklyProgress.triviaCorrect,
+      verifiedState.puzzlesSolved,
+      verifiedState.triviaCorrect,
+      verifiedState.uid,
+      verifiedState.verifiedRewardXp,
+      verifiedState.weekKey,
+      verifiedState.weeklyRewardXp,
       weeklyProgress.weekKey,
-      weeklyProgress.weeklyXp,
     ]
   );
+
+  const handleOpenWeeklyRankModal = useCallback(() => {
+    setWeeklyRankOpen(true);
+    if (shouldAutoFlushBatch(verifiedStateRef.current, 'leaderboard_open')) {
+      void performVerifiedFlush(true);
+    } else if (firebaseUserRef.current && isOnlineRef.current) {
+      void fetchWeeklyLeaderboardSingleDoc(false).then((res) => {
+        setLeaderboardCache(res.cache);
+      });
+    }
+  }, [performVerifiedFlush]);
 
   const handleSharePuzzleProgress = useCallback(
     async (suppressToast = false) => {
@@ -1995,8 +2214,16 @@ export default function App() {
         xpAwarded: params.xpAwarded,
         categoryId: `trivia:${params.categoryId}`,
       });
+      queueVerifiedOnlineRound({
+        mode: 'trivia',
+        won: params.correct,
+        accuracyRatio: params.correct ? 0.85 : 0,
+        difficultyWeight:
+          params.difficulty === 'hard' ? 0.9 : params.difficulty === 'intermediate' ? 0.55 : 0.25,
+        streak: params.streakAfter,
+      });
     },
-    [recordWeeklyEvent]
+    [queueVerifiedOnlineRound, recordWeeklyEvent]
   );
 
   const handleTriviaRoundCompleted = useCallback(
@@ -2094,8 +2321,14 @@ export default function App() {
         xpAwarded: correct ? 35 : 5,
         categoryId: `faith:${religion}`,
       });
+      queueVerifiedOnlineRound({
+        mode: 'faith',
+        won: correct,
+        accuracyRatio: correct ? 0.8 : 0,
+        difficultyWeight: 0.45,
+      });
     },
-    [recordWeeklyEvent]
+    [queueVerifiedOnlineRound, recordWeeklyEvent]
   );
 
   const handlePlayPersonalizedPuzzle = useCallback(
@@ -2193,7 +2426,7 @@ export default function App() {
           );
         }}
         onOpenStats={() => setSummaryOpen(true)}
-        onOpenWeeklyRank={() => setWeeklyRankOpen(true)}
+        onOpenWeeklyRank={handleOpenWeeklyRankModal}
         onOpenHelp={() => openHelpModal('rules')}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenProfile={() => {
@@ -2254,6 +2487,8 @@ export default function App() {
             weeklyProgress={weeklyProgress}
             weeklyCountdown={weeklyCountdown}
             leaderboardRank={leaderboardSummary.rank}
+            verifiedXp={verifiedState.verifiedRewardXp}
+            pendingVerifiedXp={verifiedState.pendingBuffer.pendingXp}
             playerProfile={playerProfile}
             onOpenPersonalize={() => setPersonalizationOpen(true)}
             onPlayPersonalizedPuzzle={() => handlePlayPersonalizedPuzzle()}
@@ -2270,7 +2505,7 @@ export default function App() {
               setActiveTab('trivia');
               window.scrollTo({ top: 0, behavior: 'instant' });
             }}
-            onOpenWeeklyRank={() => setWeeklyRankOpen(true)}
+            onOpenWeeklyRank={handleOpenWeeklyRankModal}
             onSelectChallenge={handleSelectChallenge}
             onPlayEntertainmentCategory={handlePlayEntertainmentCategory}
             onBrowseEntertainment={() => {
@@ -2627,18 +2862,95 @@ export default function App() {
         open={weeklyRankOpen}
         weeklyProgress={weeklyProgress}
         weeklyCountdown={weeklyCountdown}
-        playerId={userAccount?.id || leaderboardPlayerId}
+        playerId={verifiedState.uid || userAccount?.id || leaderboardPlayerId}
         playerName={effectivePlayerName}
         userAccount={userAccount}
         playerPuzzlesSolved={stats.gamesWon}
         playerTriviaCorrect={weeklyProgress.triviaCorrect}
         playerStreak={stats.currentStreak}
-        onUpdatePlayerName={(name) =>
+        verifiedState={verifiedState}
+        leaderboardCache={leaderboardCache}
+        isOnline={isOnline}
+        firebaseSignedIn={Boolean(firebaseUser)}
+        firebaseUserEmail={firebaseUser?.email || null}
+        isSyncingScore={isSyncingScore}
+        syncStatusMessage={syncStatusMessage}
+        authBusy={authBusy}
+        authNotice={authNotice}
+        lastClaimReceipt={lastClaimReceipt}
+        onManualSyncScore={() => performVerifiedFlush(false)}
+        onRefreshLeaderboardCache={async () => {
+          const res = await fetchWeeklyLeaderboardSingleDoc(true);
+          setLeaderboardCache(res.cache);
+          showToast(
+            res.fromCache
+              ? 'Using cached leaderboard (30-min quota guard).'
+              : 'Leaderboard refreshed (1 Firestore read)!',
+            2400
+          );
+        }}
+        onStartGuestSession={async () => {
+          setAuthBusy(true);
+          setAuthNotice(null);
+          try {
+            const res = await ensureAnonymousSession();
+            if (res.error) setAuthNotice(res.error);
+            else showToast('Guest online session active!', 2200);
+          } finally {
+            setAuthBusy(false);
+          }
+        }}
+        onLinkGoogleAccount={async () => {
+          setAuthBusy(true);
+          setAuthNotice(null);
+          try {
+            const res = await signInOrLinkGoogle();
+            if (res.error) setAuthNotice(res.error);
+            else showToast('Google account linked for Verified Rewards!', 2600);
+          } finally {
+            setAuthBusy(false);
+          }
+        }}
+        onLinkEmailAccount={async (email, password, isCreate) => {
+          setAuthBusy(true);
+          setAuthNotice(null);
+          try {
+            const res = await signInOrLinkEmail(email, password, isCreate);
+            if (res.error) setAuthNotice(res.error);
+            else showToast('Email account linked for Verified Rewards!', 2600);
+          } finally {
+            setAuthBusy(false);
+          }
+        }}
+        onSignOutFirebase={async () => {
+          setAuthBusy(true);
+          try {
+            await signOutFirebaseSession();
+            setAuthNotice('Signed out. Playing with offline Practice XP.');
+          } finally {
+            setAuthBusy(false);
+          }
+        }}
+        onSubmitRewardClaim={async (input: RewardClaimInput) => {
+          const res = await submitVerifiedRewardClaim({
+            state: verifiedStateRef.current,
+            input,
+          });
+          verifiedStateRef.current = res.state;
+          setVerifiedState(res.state);
+          setLastClaimReceipt(res.receipt);
+          showToast(`Claim ${res.receipt.claimCode} logged! Complete WhatsApp/Email verification.`, 4000);
+        }}
+        onUpdatePlayerName={(name) => {
           setPlayerProfile((prev) => ({
             ...prev,
             displayName: name,
-          }))
-        }
+          }));
+          setVerifiedState((prev) => ({
+            ...prev,
+            displayName: name,
+          }));
+        }}
         onOpenEditProfile={() => {
           setWeeklyRankOpen(false);
           setProfileModalMode(userAccount ? 'edit' : 'signup');

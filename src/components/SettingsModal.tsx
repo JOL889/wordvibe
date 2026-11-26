@@ -475,7 +475,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <ToggleRow
               testId="setting-bg-music"
               label="Music"
-              description="Calm Web Audio instrumental soundtrack (pauses during ads & background)"
+              description="Only Murders-style cozy-mystery parlor piano loop (pauses during ads & background)"
               checked={settings.bgMusicEnabled}
               onToggle={() => onUpdateSettings({ bgMusicEnabled: !settings.bgMusicEnabled })}
             />

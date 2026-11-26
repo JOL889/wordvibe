@@ -133,7 +133,7 @@ export const RewardedDock: React.FC<RewardedDockProps> = ({
               className="inline-flex min-h-12 items-center gap-1.5 rounded-xl wv-accent-btn px-4 py-2 text-xs sm:text-sm font-bold transition-transform active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Lock className="h-4 w-4" aria-hidden="true" />
-              <span>+5 Plays (Ad)</span>
+              <span>Unlock Topic</span>
             </button>
           ) : (
             <button

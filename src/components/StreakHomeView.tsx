@@ -58,6 +58,8 @@ interface StreakHomeViewProps {
   weeklyProgress: WeeklyActivityState;
   weeklyCountdown: string;
   leaderboardRank?: number;
+  verifiedXp?: number;
+  pendingVerifiedXp?: number;
   playerProfile: PlayerProfileState;
   onOpenPersonalize: () => void;
   onPlayPersonalizedPuzzle: () => void;
@@ -87,6 +89,8 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
   weeklyProgress,
   weeklyCountdown,
   leaderboardRank,
+  verifiedXp = 0,
+  pendingVerifiedXp = 0,
   playerProfile,
   onOpenPersonalize,
   onPlayPersonalizedPuzzle,
@@ -410,8 +414,11 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                   </span>
                 </div>
                 <h2 className="mt-0.5 font-display text-lg font-bold wv-text">
-                  {weeklyProgress.weeklyXp} Weekly XP · {weeklyProgress.bonusCoins} Coins
+                  {weeklyProgress.weeklyXp} Practice XP · {weeklyProgress.bonusCoins} Coins
                 </h2>
+                <p data-testid="home-verified-xp" className="mt-0.5 font-mono-tabular text-xs font-bold wv-accent-text">
+                  Verified Online: {(verifiedXp + pendingVerifiedXp).toLocaleString()} / 600,000 XP (₦10k Milestone)
+                </p>
               </div>
 
               <span className="inline-flex items-center gap-1 font-mono-tabular text-xs font-semibold wv-text-muted shrink-0">

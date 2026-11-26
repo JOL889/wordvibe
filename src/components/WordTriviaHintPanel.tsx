@@ -61,7 +61,7 @@ export const WordTriviaHintPanel: React.FC<WordTriviaHintPanelProps> = ({
               className="inline-flex items-center gap-1 rounded-lg border wv-accent-pill px-2.5 py-1 text-xs font-bold cursor-pointer whitespace-nowrap"
             >
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>More Clues (Ad)</span>
+              <span>More Clues</span>
             </button>
 
             <button

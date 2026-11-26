@@ -90,11 +90,11 @@ export const WordTriviaRowModal: React.FC<WordTriviaRowModalProps> = ({
             <BookOpen className="mt-0.5 h-5 w-5 shrink-0 wv-accent-text" aria-hidden="true" />
             <div>
               <h2 id="word-trivia-row-title" className="font-display text-lg font-bold wv-text">
-                Unlock Line Clue (Watch Ad)
+                Unlock Line Clue (Ad or 300 XP)
               </h2>
               <p className="mt-0.5 text-xs sm:text-sm leading-relaxed wv-text-muted">
                 Pick any Row (Across) or Column (Down) to reveal a brief dictionary explanation
-                after a short rewarded ad.
+                using 300 XP offline or a short rewarded ad.
               </p>
             </div>
           </div>

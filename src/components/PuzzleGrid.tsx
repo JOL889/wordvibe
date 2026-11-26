@@ -16,8 +16,10 @@ import {
 } from 'lucide-react';
 import { getCategoryById, type PuzzleCategory } from '../data/categories';
 import {
+  formatActiveWordLetterStats,
   getCrosswordProgressSummary,
   type CrosswordBoardState,
+  type CrosswordSlotType,
 } from '../game/crosswordLogic';
 import type { CursorDirection, TileState, TypingDirection } from '../game/puzzleLogic';
 import { getWordMeaningClue } from '../game/wordMeanings';
@@ -42,7 +44,7 @@ interface PuzzleGridProps {
   featuredTopics?: PuzzleCategory[];
   categoryPlaysRemainingMap?: Record<string, number>;
   onChangeDirection: (dir: TypingDirection) => void;
-  onSelectCell: (rowIdx: number, colIdx: number) => void;
+  onSelectCell: (rowIdx: number, colIdx: number, explicitDirection?: TypingDirection) => void;
   onSelectDictWord?: (entry: SelectedDictionaryWord | null) => void;
   onRetryTimedRound?: () => void;
   onSelectFeaturedTopic?: (category: PuzzleCategory) => void;
@@ -51,6 +53,7 @@ interface PuzzleGridProps {
   onMoveCursor: (dir: CursorDirection) => void;
   onTriggerHint: () => void;
   onTriggerWordClue: () => void;
+  onUnlockActiveClue?: (slotType: CrosswordSlotType, index: number) => void;
   onTriggerSkipBoard: () => void;
 }
 
@@ -125,6 +128,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
   onMoveCursor,
   onTriggerHint,
   onTriggerWordClue,
+  onUnlockActiveClue,
   onTriggerSkipBoard,
 }) => {
   const [isDealing, setIsDealing] = useState(true);
@@ -147,13 +151,17 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
   const safeCol = Math.min(L - 1, Math.max(0, activeCol));
   const activeWord =
     typingDirection === 'across' ? board.solution.rows[safeRow] : board.solution.cols[safeCol];
-  const activeLineTitle =
+  const activeSlotType: CrosswordSlotType = typingDirection === 'down' ? 'col' : 'row';
+  const activeSlotIndex = typingDirection === 'down' ? safeCol : safeRow;
+  const activeClueKey = `${activeSlotType}-${activeSlotIndex}`;
+  const unlockedMainClue = board.unlockedClues[activeClueKey];
+  const activeLineLabel =
     typingDirection === 'across'
-      ? `Row ${safeRow + 1} Across Clue`
-      : `Col ${safeCol + 1} Down Clue`;
+      ? `Row ${safeRow + 1} Across`
+      : `Col ${safeCol + 1} Down`;
   const activeLineSolved =
     typingDirection === 'across' ? board.solvedRows[safeRow] : board.solvedCols[safeCol];
-  const activeWordClue = getWordMeaningClue(activeWord, category.name);
+  const activeWordStats = formatActiveWordLetterStats(activeWord, typingDirection);
 
   const focusDeviceKeyboard = () => {
     const input = deviceInputRef.current;
@@ -265,7 +273,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
 
   return (
     <div className="mx-auto my-0.5 flex w-full max-w-md flex-col items-center gap-1.5 px-2.5 sm:px-3 select-none">
-      {/* Live Active Line Meaning Clue Banner */}
+      {/* Top Active Line Letter Breakdown (Stats Only — Main Clue Locked Below Until Ad) */}
       {board.status === 'playing' && (
         <div
           data-testid="active-line-clue"
@@ -278,13 +286,18 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
               ) : (
                 <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
               )}
-              <span>{activeLineTitle}</span>
+              <span>{activeLineLabel}</span>
             </span>
             <span className="font-mono-tabular text-xs font-bold wv-text-muted">
               {activeLineSolved ? 'Solved ✓' : `${L} letters`}
             </span>
           </div>
-          <p className="mt-0.5 text-sm font-semibold leading-snug wv-text">{activeWordClue}</p>
+          <p
+            data-testid="active-line-letter-stats"
+            className="mt-0.5 text-sm font-bold leading-snug wv-text"
+          >
+            {activeWordStats}
+          </p>
         </div>
       )}
 
@@ -393,9 +406,8 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
                 key={`col-hdr-${cIdx}`}
                 type="button"
                 onClick={() => {
-                  onChangeDirection('down');
                   const openR = board.lockedCells.findIndex((rowArr) => !rowArr[cIdx]);
-                  onSelectCell(openR >= 0 ? openR : 0, cIdx);
+                  onSelectCell(openR >= 0 ? openR : 0, cIdx, 'down');
                   focusDeviceKeyboard();
                 }}
                 aria-label={`Column ${cIdx + 1} Down ${colSolved ? 'solved' : ''}`}
@@ -440,9 +452,8 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    onChangeDirection('across');
                     const openC = board.lockedCells[rIdx].findIndex((locked) => !locked);
-                    onSelectCell(rIdx, openC >= 0 ? openC : 0);
+                    onSelectCell(rIdx, openC >= 0 ? openC : 0, 'across');
                     focusDeviceKeyboard();
                   }}
                   aria-label={`Row ${rIdx + 1} Across ${rowSolved ? 'solved' : ''}`}
@@ -669,6 +680,62 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
             <Shuffle className="h-[18px] w-[18px] wv-accent-text" aria-hidden="true" />
             <span className="text-xs font-bold leading-none">New Grid</span>
           </button>
+        </div>
+      )}
+
+      {/* Lower Word Clue Section (Hidden/Locked Until User Watches Ad for This Word) */}
+      {board.status === 'playing' && (
+        <div
+          data-testid="lower-word-clue-card"
+          data-clue-locked={unlockedMainClue ? 'false' : 'true'}
+          className="w-full max-w-[390px] rounded-xl border wv-border wv-card px-3.5 py-2.5 shadow-xs"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider wv-accent-text">
+              {unlockedMainClue ? (
+                <Unlock className="h-3.5 w-3.5" aria-hidden="true" />
+              ) : (
+                <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+              <span>{activeLineLabel} Clue</span>
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-md border wv-border wv-card-muted px-2 py-0.5 font-mono-tabular text-[11px] font-bold wv-text-muted">
+              {unlockedMainClue ? 'Unlocked' : 'Ad Locked'}
+            </span>
+          </div>
+
+          {unlockedMainClue ? (
+            <p
+              data-testid="lower-clue-text"
+              className="mt-1.5 text-sm font-semibold leading-snug wv-text"
+            >
+              {unlockedMainClue}
+            </p>
+          ) : (
+            <div className="mt-1.5 flex items-center justify-between gap-2.5">
+              <p
+                data-testid="lower-clue-locked-msg"
+                className="text-xs sm:text-sm font-medium leading-snug wv-text-muted"
+              >
+                Watch a quick ad to unlock this {typingDirection === 'down' ? 'Down' : 'Across'} clue.
+              </p>
+              <button
+                type="button"
+                data-testid="unlock-active-clue-btn"
+                onClick={() => {
+                  if (onUnlockActiveClue) {
+                    onUnlockActiveClue(activeSlotType, activeSlotIndex);
+                  } else {
+                    onTriggerWordClue();
+                  }
+                }}
+                className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl wv-accent-btn px-3 py-1.5 text-xs font-bold transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
+              >
+                <Play className="h-3 w-3 fill-current" aria-hidden="true" />
+                <span>Watch Ad to Unlock Clue</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 

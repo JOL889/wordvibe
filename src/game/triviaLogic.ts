@@ -6,6 +6,13 @@ import {
   normalizeLevelNumber,
   type FiveDifficultyLevel,
 } from './settingsLogic';
+import {
+  getQueuedIdSet,
+  getRedemptionMeta,
+  getRetiredIdSet,
+  selectComebackCandidate,
+  shuffleQuestionOptions,
+} from './retirementQueueLogic';
 import { CURATED_TRIVIA_BANK, type CuratedBankTriviaItem } from './triviaBank';
 import { CURATED_WORD_MEANINGS } from './wordMeanings';
 import {
@@ -37,6 +44,10 @@ export interface TriviaQuestion {
   difficulty: TriviaDifficulty;
   personalizationReason?: string;
   groundingSources?: GroundingSourceLink[];
+  /** Trivia-mode ONLY: true when returning from redemptionQueue for 2X XP */
+  isRedemptionRound?: boolean;
+  /** Number of prior failed attempts if returning from redemptionQueue */
+  redemptionWrongCount?: number;
 }
 
 export const TRIVIA_LEVEL_CLIMB_TOTAL = 5;
@@ -381,19 +392,44 @@ function generateProceduralTriviaQuestion(params: {
     };
   }
 
-  // Fallback mathematical sequence riddle stamped with unique seed
-  const step = 3 + Math.floor(Math.random() * 9);
-  const start = 4 + Math.floor(Math.random() * 20);
+  // Fallback mathematical sequence riddle stamped with unique non-retired seed
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const step = 3 + ((attempt * 5 + Math.floor(Math.random() * 19)) % 23);
+    const start = 4 + ((attempt * 7 + Math.floor(Math.random() * 97)) % 120);
+    const seq = [start, start + step, start + step * 2, start + step * 3];
+    const answer = start + step * 4;
+    const uid = `proc:seq:${start}:${step}`;
+    if (excludeSet.has(uid.toLowerCase())) continue;
+    return {
+      id: uid,
+      question: `Number Pattern: What comes next in the sequence ${seq.join(', ')}, ...?`,
+      options: [
+        String(answer - step),
+        String(answer),
+        String(answer + 2),
+        String(answer + step),
+      ],
+      correctIndex: 1,
+      explanation: `Each term increases steadily by +${step}, so ${seq[3]} + ${step} = ${answer}.`,
+      funFact: 'Arithmetic progressions keep patterns predictable across unlimited steps.',
+      category: catMeta.name,
+      difficulty: level,
+      ...(personalizationReason ? { personalizationReason } : {}),
+    };
+  }
+
+  const uid = `proc:seq:${Date.now()}:${Math.floor(Math.random() * 10000)}`;
+  const step = 7;
+  const start = 11 + (Date.now() % 40);
   const seq = [start, start + step, start + step * 2, start + step * 3];
   const answer = start + step * 4;
-  const uid = `proc:seq:${start}:${step}:${Date.now()}`;
   return {
     id: uid,
     question: `Number Pattern: What comes next in the sequence ${seq.join(', ')}, ...?`,
     options: [
       String(answer - step),
       String(answer),
-      String(answer + 2),
+      String(answer + 3),
       String(answer + step),
     ],
     correctIndex: 1,
@@ -423,19 +459,6 @@ export function drawZeroRepeatTriviaQuestion(params: {
   const levelNumber = normalizeLevelNumber(params.levelNumber ?? params.level, 1);
   const level = levelNumberToDifficultyBand(levelNumber);
 
-  const basePool = filterBankForCategory(categoryId);
-  const exactOnly = basePool.filter((q) => q.level === level);
-  const tierPool = getTierPoolWithNeighborFallback(basePool, level);
-
-  const catGlobalBucket = `trivia:${categoryId}:seen_all`;
-  const allVaultBucket = `trivia:global_vault:seen_all`;
-  const alreadySeenCat = getBucketSeenKeys(catGlobalBucket);
-  const alreadySeenAll = getBucketSeenKeys(allVaultBucket);
-  const combinedExcludes = Array.from(
-    new Set([...excludeTexts, ...alreadySeenCat, ...alreadySeenAll])
-  );
-  const excludeSet = new Set(combinedExcludes.map((t) => t.trim().toLowerCase()));
-
   let personalizationReason: string | undefined;
   if (categoryId === 'for-you-local') {
     const interestNote = context?.interests?.length ? context.interests.slice(0, 2).join(' & ') : 'Smart Mix';
@@ -445,6 +468,82 @@ export function drawZeroRepeatTriviaQuestion(params: {
   } else if (categoryId === 'local-trending' && context?.locationLabel) {
     personalizationReason = `Regional Highlight · ${context.locationLabel}`;
   }
+
+  // 1. Check Smart Comeback Queue (returns after 15..25 rounds, or >=30 rounds on 2nd miss, ~every 8-10 rounds)
+  const comebackEntry = selectComebackCandidate('trivia', (entry) => {
+    const bankMatch = CURATED_TRIVIA_BANK.find((item) => item.id === entry.id);
+    if (categoryId === 'for-you-local' || categoryId === 'surprise-me') {
+      return Boolean(bankMatch || entry.snapshot?.question);
+    }
+    if (categoryId === 'faith-study') {
+      return Boolean(
+        bankMatch?.categoryId.startsWith('faith:') ||
+          entry.snapshot?.categoryId === 'faith-study'
+      );
+    }
+    if (bankMatch) return bankMatch.categoryId === categoryId;
+    return entry.snapshot?.categoryId === categoryId && Boolean(entry.snapshot?.question);
+  });
+
+  if (comebackEntry) {
+    const bankMatch = CURATED_TRIVIA_BANK.find((item) => item.id === comebackEntry.id);
+    const snapQ = comebackEntry.snapshot?.question as TriviaQuestion | undefined;
+    const rawReturning: TriviaQuestion | null = bankMatch
+      ? toTriviaQuestion(bankMatch, personalizationReason)
+      : snapQ
+      ? {
+          ...snapQ,
+          id: comebackEntry.id,
+          ...(personalizationReason ? { personalizationReason } : {}),
+        }
+      : null;
+
+    if (rawReturning) {
+      const meta = getRedemptionMeta('trivia');
+      const shuffled = shuffleQuestionOptions(
+        rawReturning,
+        comebackEntry.wrongCount + meta.totalRoundsPlayed
+      );
+      return {
+        ...shuffled,
+        id: comebackEntry.id,
+        isRedemptionRound: true,
+        redemptionWrongCount: comebackEntry.wrongCount,
+      };
+    }
+  }
+
+  // 2. Serve a brand-new unseen question (strictly excluding retiredIds & active redemptionQueue IDs)
+  const retiredIds = getRetiredIdSet('trivia');
+  const queuedIds = getQueuedIdSet('trivia');
+  const basePool = filterBankForCategory(categoryId);
+  const exactOnly = basePool.filter((q) => q.level === level);
+  const tierPool = getTierPoolWithNeighborFallback(basePool, level);
+
+  const catGlobalBucket = `trivia:${categoryId}:seen_all`;
+  const allVaultBucket = `trivia:global_vault:seen_all`;
+  const alreadySeenCat = getBucketSeenKeys(catGlobalBucket);
+  const alreadySeenAll = getBucketSeenKeys(allVaultBucket);
+  const combinedExcludes = Array.from(
+    new Set([
+      ...excludeTexts,
+      ...alreadySeenCat,
+      ...alreadySeenAll,
+      ...retiredIds,
+      ...queuedIds,
+    ])
+  );
+  const excludeSet = new Set(combinedExcludes.map((t) => t.trim().toLowerCase()));
+
+  const isEligibleNew = (q: CuratedBankTriviaItem): boolean => {
+    const cleanId = q.id.toLowerCase();
+    return (
+      !retiredIds.has(q.id) &&
+      !queuedIds.has(q.id) &&
+      !excludeSet.has(cleanId) &&
+      !excludeSet.has(q.question.trim().toLowerCase())
+    );
+  };
 
   const exactRemaining =
     exactOnly.length > 0
@@ -458,9 +557,7 @@ export function drawZeroRepeatTriviaQuestion(params: {
 
   let chosen: CuratedBankTriviaItem | null = null;
   if (exactRemaining > 0) {
-    const filteredExact = exactOnly.filter(
-      (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
-    );
+    const filteredExact = exactOnly.filter(isEligibleNew);
     if (filteredExact.length > 0) {
       chosen = pickZeroRepeatItem(
         `trivia:${categoryId}:${level}`,
@@ -472,15 +569,9 @@ export function drawZeroRepeatTriviaQuestion(params: {
   }
 
   if (!chosen) {
-    const unseenTier = tierPool.filter(
-      (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
-    );
-    const unseenBase = basePool.filter(
-      (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
-    );
-    const unseenWholeBank = CURATED_TRIVIA_BANK.filter(
-      (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
-    );
+    const unseenTier = tierPool.filter(isEligibleNew);
+    const unseenBase = basePool.filter(isEligibleNew);
+    const unseenWholeBank = CURATED_TRIVIA_BANK.filter(isEligibleNew);
 
     const poolToUse =
       unseenTier.length > 0

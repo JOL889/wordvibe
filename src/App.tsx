@@ -95,6 +95,7 @@ import {
   type TriviaClimbProgress,
   type TriviaQuestion,
 } from './game/triviaLogic';
+import { recordModeOutcome } from './game/retirementQueueLogic';
 import { gatherUserEnvironmentDetails } from './game/userResearchLogic';
 import {
   applyWeeklyActivityEvent,
@@ -339,6 +340,7 @@ export default function App() {
   const toastTimerRef = useRef<number | null>(null);
   const summaryTimerRef = useRef<number | null>(null);
   const rewardIdRef = useRef<number>(1);
+  const resolvedBoardIdsRef = useRef<Set<string>>(new Set());
   const puzzleTimeLeftRef = useRef<number>(puzzleTimeLeftSec);
   puzzleTimeLeftRef.current = puzzleTimeLeftSec;
   const cursorRef = useRef<{ row: number; col: number }>({
@@ -635,6 +637,25 @@ export default function App() {
     settingsOpen ||
     profileModalOpen;
 
+  const recordPuzzleBoardOutcome = useCallback(
+    (board: CrosswordBoardState, won: boolean) => {
+      if (!board?.boardId || resolvedBoardIdsRef.current.has(board.boardId)) {
+        return;
+      }
+      resolvedBoardIdsRef.current.add(board.boardId);
+      const mode = board.trackerMode === 'faith' ? 'faith' : 'puzzle';
+      const itemId =
+        board.puzzleItemId || `puzzle:${board.length}:${board.solution.target}`;
+      recordModeOutcome(mode, itemId, won, {
+        length: board.length,
+        target: board.solution.target,
+        rows: board.solution.rows,
+        categoryId: board.categoryId,
+      });
+    },
+    []
+  );
+
   useEffect(() => {
     if (isPuzzleTimerPaused) return;
     const id = window.setInterval(() => {
@@ -644,6 +665,7 @@ export default function App() {
         setPuzzleTimeLeftSec(0);
         setPuzzleTimedOut(true);
         soundService.playInvalidShake();
+        recordPuzzleBoardOutcome(crosswordBoard, false);
         setCrosswordClimb((prev) => advanceCrosswordLevelClimb(prev, false));
         showToast("Time's up! Level Climb reset to Puzzle 1/5.", 3400);
         return;
@@ -653,7 +675,7 @@ export default function App() {
       setPuzzleTimeLeftSec(nextVal);
     }, 1000);
     return () => window.clearInterval(id);
-  }, [isPuzzleTimerPaused, showToast]);
+  }, [crosswordBoard, isPuzzleTimerPaused, recordPuzzleBoardOutcome, showToast]);
 
   const puzzleNumber = useMemo(() => getDailyPuzzleNumber(dateKey), [dateKey]);
   const isStreakRecoverable = useMemo(
@@ -695,6 +717,8 @@ export default function App() {
       forcedTarget?: string;
       meta?: PersonalizedMeta | null;
       overrideRoundIndex?: number;
+      trackerMode?: 'puzzle' | 'faith';
+      faithReligion?: ReligionId;
     }): boolean => {
       const {
         nextLength,
@@ -703,6 +727,8 @@ export default function App() {
         forcedTarget,
         meta = null,
         overrideRoundIndex,
+        trackerMode,
+        faithReligion,
       } = params;
       if (!forcedTarget && !isCategoryAccessible(nextCategory, categoryProgress.playsRemaining)) {
         promptUnlockCategory(nextCategory);
@@ -719,6 +745,8 @@ export default function App() {
         level: safeLv,
         categoryId: nextCategory.id,
         forcedTarget,
+        trackerMode,
+        faithReligion,
       });
 
       const firstCell = getFirstEditableCell(freshBoard);
@@ -955,6 +983,7 @@ export default function App() {
 
   const recordBoardVictory = useCallback(
     (wonBoard: CrosswordBoardState) => {
+      recordPuzzleBoardOutcome(wonBoard, true);
       soundService.playWinFanfare();
       triggerConfetti();
       setShowWinBurst(true);
@@ -1027,6 +1056,7 @@ export default function App() {
       modeConfig.puzzleSessionMode,
       pushFloatingReward,
       puzzleTimedOut,
+      recordPuzzleBoardOutcome,
       recordWeeklyEvent,
       showToast,
       triggerConfetti,
@@ -1046,18 +1076,22 @@ export default function App() {
   );
 
   const handleSelectCell = useCallback(
-    (rowIdx: number, colIdx: number) => {
+    (rowIdx: number, colIdx: number, explicitDirection?: TypingDirection) => {
       if (crosswordBoard.status !== 'playing') return;
       const L = crosswordBoard.length;
       if (rowIdx < 0 || rowIdx >= L || colIdx < 0 || colIdx >= L) return;
 
-      const isSameCell = cursorRef.current.row === rowIdx && cursorRef.current.col === colIdx;
-      if (isSameCell) {
-        setTypingDirection((prev) => (prev === 'across' ? 'down' : 'across'));
-      } else if (crosswordBoard.solvedRows[rowIdx] && !crosswordBoard.solvedCols[colIdx]) {
-        setTypingDirection('down');
-      } else if (crosswordBoard.solvedCols[colIdx] && !crosswordBoard.solvedRows[rowIdx]) {
-        setTypingDirection('across');
+      if (explicitDirection) {
+        setTypingDirection(explicitDirection);
+      } else {
+        const isSameCell = cursorRef.current.row === rowIdx && cursorRef.current.col === colIdx;
+        if (isSameCell) {
+          setTypingDirection((prev) => (prev === 'across' ? 'down' : 'across'));
+        } else if (crosswordBoard.solvedRows[rowIdx] && !crosswordBoard.solvedCols[colIdx]) {
+          setTypingDirection('down');
+        } else if (crosswordBoard.solvedCols[colIdx] && !crosswordBoard.solvedRows[rowIdx]) {
+          setTypingDirection('across');
+        }
       }
 
       cursorRef.current = { row: rowIdx, col: colIdx };
@@ -1290,6 +1324,9 @@ export default function App() {
     triggerHapticPulse([20, 35, 20], effectiveHapticsEnabled);
     soundService.playTapPop();
     if (activeTab === 'puzzle') {
+      if (crosswordBoard.status === 'playing') {
+        recordPuzzleBoardOutcome(crosswordBoard, false);
+      }
       dealNextSessionBoard();
       showToast('Shook! Fresh crossword dealt');
     } else if (activeTab === 'trivia' || activeTab === 'faith') {
@@ -1778,14 +1815,20 @@ export default function App() {
   const handlePlayFaithPuzzle = useCallback(
     (religion: ReligionId) => {
       const tradition = getFaithTradition(religion);
-      const faithWord = pickFaithPuzzleWord(religion, 5, dateKey, [
-        crosswordBoard.solution.target,
-      ]);
+      const faithWord = pickFaithPuzzleWord(
+        religion,
+        5,
+        dateKey,
+        [crosswordBoard.solution.target],
+        true
+      );
       activateNewBoard({
         nextLength: 5,
         nextLevelNumber: modeConfig.puzzleLevelNumber,
         nextCategory: getCategoryById('general-classic'),
         forcedTarget: faithWord.word,
+        trackerMode: 'faith',
+        faithReligion: religion,
         meta: {
           isPersonalized: true,
           clue: faithWord.clue,
@@ -2157,7 +2200,16 @@ export default function App() {
               onMoveCursor={handleMoveCursor}
               onTriggerHint={() => setActiveAdPlacement('hint')}
               onTriggerWordClue={() => setClueSlotModalOpen(true)}
+              onUnlockActiveClue={(slotType, index) => {
+                const slot = { slotType, index };
+                pendingClueSlotRef.current = slot;
+                setPendingClueSlot(slot);
+                setActiveAdPlacement('puzzle_clue');
+              }}
               onTriggerSkipBoard={() => {
+                if (crosswordBoard.status === 'playing') {
+                  recordPuzzleBoardOutcome(crosswordBoard, false);
+                }
                 dealNextSessionBoard();
                 showToast('Fresh crossword board dealt!');
               }}
@@ -2186,7 +2238,12 @@ export default function App() {
               onToggleCluePanel={() => setCluePanelOpen((prev) => !prev)}
               onWatchAdSaveStreak={() => setActiveAdPlacement('save_streak')}
               onWatchAdUnlockCategory={() => promptUnlockCategory(activeCategory)}
-              onNewBoard={() => dealNextSessionBoard()}
+              onNewBoard={() => {
+                if (crosswordBoard.status === 'playing') {
+                  recordPuzzleBoardOutcome(crosswordBoard, false);
+                }
+                dealNextSessionBoard();
+              }}
               onShareResult={() => void handleSharePuzzleProgress()}
               onInviteFriends={() => void handleInviteFriends()}
               onOpenSummary={() => setSummaryOpen(true)}

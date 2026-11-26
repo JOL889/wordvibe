@@ -9,10 +9,20 @@ import {
   normalizeLevelNumber,
   type FiveDifficultyLevel,
 } from './settingsLogic';
-import { buildConsonantVowelMeaningClue, hasCuratedWordMeaning } from './wordMeanings';
+import {
+  getQueuedIdSet,
+  getRetiredIdSet,
+  selectComebackCandidate,
+} from './retirementQueueLogic';
+import {
+  buildConsonantVowelMeaningClue,
+  countWordConsonantsAndVowels,
+  hasCuratedWordMeaning,
+} from './wordMeanings';
 import {
   buildCompletedWordSquare,
   getPrecomputedTargetsForLength,
+  validateWordSquare,
   type CompletedWordSquare,
 } from './wordSquareLogic';
 import {
@@ -25,6 +35,10 @@ export type CrosswordSlotType = 'row' | 'col';
 
 export interface CrosswordBoardState {
   boardId: string;
+  /** Permanent item ID tracked in retiredIds / redemptionQueue (e.g. `puzzle:5:HEART` or `faith:word:islam:PEACE`) */
+  puzzleItemId: string;
+  /** Which retirement mode owns this board's outcome */
+  trackerMode?: 'puzzle' | 'faith';
   length: WordLength;
   levelNumber: number;
   level: FiveDifficultyLevel;
@@ -51,6 +65,18 @@ export interface CrosswordBoardState {
   wrongChecks: number;
   /** Game completion state — only 'won' once EVERY row AND column is solved individually */
   status: 'playing' | 'won';
+}
+
+export function formatActiveWordLetterStats(
+  word: string,
+  direction: TypingDirection
+): string {
+  const { length, vowels, consonants } = countWordConsonantsAndVowels(word);
+  const dirLabel = direction === 'down' ? 'Down' : 'Across';
+  const letterLabel = length === 1 ? 'Letter' : 'Letters';
+  const vowelLabel = vowels === 1 ? 'Vowel' : 'Vowels';
+  const consonantLabel = consonants === 1 ? 'Consonant' : 'Consonants';
+  return `${dirLabel} • ${length} ${letterLabel} (${vowels} ${vowelLabel}, ${consonants} ${consonantLabel})`;
 }
 
 export interface CrosswordLevelClimbState {
@@ -154,6 +180,10 @@ function anchorCountForDifficulty(length: WordLength, levelNumber: number): numb
   return 0; // Level 5+: zero starter anchors
 }
 
+function makePuzzleItemId(length: WordLength, target: string): string {
+  return `puzzle:${length}:${target.trim().toUpperCase()}`;
+}
+
 function pickCrosswordSolution(params: {
   length: WordLength;
   levelNumber: number;
@@ -170,22 +200,82 @@ function pickCrosswordSolution(params: {
     if (built) return built;
   }
 
+  // 1. Check Smart Comeback Queue for Puzzle Mode (seamless — NO badge, normal XP)
+  const comebackEntry = selectComebackCandidate('puzzle', (entry) => {
+    const snapLen = Number(entry.snapshot?.length);
+    if (snapLen === 4 || snapLen === 5 || snapLen === 6) {
+      return snapLen === length;
+    }
+    const parts = entry.id.split(':');
+    return parts.length >= 3 && Number(parts[1]) === length;
+  });
+
+  if (comebackEntry) {
+    const snapRows = comebackEntry.snapshot?.rows;
+    const snapTarget =
+      typeof comebackEntry.snapshot?.target === 'string'
+        ? comebackEntry.snapshot.target.toUpperCase()
+        : (comebackEntry.id.split(':')[2] || '').toUpperCase();
+
+    if (
+      Array.isArray(snapRows) &&
+      snapRows.length === length &&
+      snapRows.every((r): r is string => typeof r === 'string') &&
+      validateWordSquare(snapRows, length)
+    ) {
+      const cols = Array.from({ length }, (_, c) => snapRows.map((r) => r[c]).join(''));
+      const rIdx = snapRows.indexOf(snapTarget);
+      const cIdx = rIdx === -1 ? cols.indexOf(snapTarget) : -1;
+      return {
+        length,
+        target: snapTarget || snapRows[0],
+        rows: snapRows,
+        cols,
+        targetPlacement: {
+          orientation: rIdx !== -1 ? 'row' : 'col',
+          index: rIdx !== -1 ? rIdx : Math.max(0, cIdx),
+        },
+      };
+    }
+
+    if (snapTarget.length === length) {
+      const rebuilt = buildCompletedWordSquare(snapTarget, length);
+      if (rebuilt) return rebuilt;
+    }
+  }
+
+  const retiredIds = getRetiredIdSet('puzzle');
+  const queuedIds = getQueuedIdSet('puzzle');
+  const isAvailablePuzzleWord = (w: string): boolean => {
+    const pid = makePuzzleItemId(length, w);
+    return !retiredIds.has(pid) && !queuedIds.has(pid);
+  };
+
   const category = getCategoryById(categoryId);
   const catWords =
     length === 4 ? category.words4 : length === 6 ? category.words6 : category.words5;
   const globalPool = SOLUTION_WORDS[length];
   const precomputedForLen = getPrecomputedTargetsForLength(length);
-  const mergedPool = Array.from(
+  const rawMergedPool = Array.from(
     new Set([...catWords, ...filterWordsByLevel(globalPool, band), ...precomputedForLen])
   );
+  const eligiblePool = rawMergedPool.filter(isAvailablePuzzleWord);
+  const mergedPool = eligiblePool.length > 0 ? eligiblePool : rawMergedPool;
 
   const isAllCuratedSquare = (sq: CompletedWordSquare): boolean =>
     sq.rows.every((w) => hasCuratedWordMeaning(w)) &&
     sq.cols.every((w) => hasCuratedWordMeaning(w));
 
-  // Try up to 10 zero-repeat target draws (respecting global seen boards) preferring squares with 100% curated meanings
+  const retiredTargetWords = Array.from(retiredIds)
+    .filter((id) => id.startsWith(`puzzle:${length}:`))
+    .map((id) => id.slice(`puzzle:${length}:`.length));
+  const queuedTargetWords = Array.from(queuedIds)
+    .filter((id) => id.startsWith(`puzzle:${length}:`))
+    .map((id) => id.slice(`puzzle:${length}:`.length));
+
+  // Try zero-repeat target draws (excluding retiredIds, queuedIds, and seen boards) preferring curated meanings
   const globalSeen = getBucketSeenKeys(globalBucket);
-  const tried: string[] = [...globalSeen];
+  const tried: string[] = [...globalSeen, ...retiredTargetWords, ...queuedTargetWords];
   const maxAttempts = length === 6 ? 5 : 10;
   let backupBuilt: CompletedWordSquare | null = null;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -196,8 +286,9 @@ function pickCrosswordSolution(params: {
       tried
     );
     tried.push(pickedWord);
+    if (!isAvailablePuzzleWord(pickedWord) && eligiblePool.length > 0) continue;
     const built = buildCompletedWordSquare(pickedWord, length);
-    if (built) {
+    if (built && (isAvailablePuzzleWord(built.target) || eligiblePool.length === 0)) {
       if (isAllCuratedSquare(built)) {
         markBucketKeySeen(globalBucket, built.target);
         return built;
@@ -206,18 +297,38 @@ function pickCrosswordSolution(params: {
     }
   }
 
-  // Zero-repeat draw from precomputed verified asymmetric words (100% curated dictionary meanings!)
-  if (precomputedForLen.length > 0) {
+  // Zero-repeat draw from precomputed verified asymmetric words (skipping retired & queued)
+  const freshPrecomputed = precomputedForLen.filter(isAvailablePuzzleWord);
+  if (freshPrecomputed.length > 0) {
     const guaranteedPick = pickZeroRepeatItem(
       `crossword:precomputed:${length}`,
-      precomputedForLen,
+      freshPrecomputed,
       (w) => w,
-      globalSeen
+      [...globalSeen, ...retiredTargetWords, ...queuedTargetWords]
     );
     const builtGuaranteed = buildCompletedWordSquare(guaranteedPick, length);
     if (builtGuaranteed) {
       markBucketKeySeen(globalBucket, builtGuaranteed.target);
       return builtGuaranteed;
+    }
+  }
+
+  if (backupBuilt && isAvailablePuzzleWord(backupBuilt.target)) {
+    markBucketKeySeen(globalBucket, backupBuilt.target);
+    return backupBuilt;
+  }
+
+  // Procedural fallback across VALID_WORDS[length] when curated/precomputed pools are retired or exhausted
+  const dictWords = Array.from(VALID_WORDS[length]);
+  const stepOffset = (retiredIds.size * 31 + levelNumber * 17) % Math.max(1, dictWords.length);
+  const procCap = length === 6 ? 12 : 30;
+  for (let i = 0; i < Math.min(dictWords.length, procCap); i++) {
+    const candidate = dictWords[(stepOffset + i * 7) % dictWords.length];
+    if (!isAvailablePuzzleWord(candidate)) continue;
+    const built = buildCompletedWordSquare(candidate, length);
+    if (built) {
+      markBucketKeySeen(globalBucket, built.target);
+      return built;
     }
   }
 
@@ -283,6 +394,8 @@ export function createCrosswordBoard(params: {
   levelNumber?: number;
   categoryId?: string;
   forcedTarget?: string;
+  trackerMode?: 'puzzle' | 'faith';
+  faithReligion?: string;
 }): CrosswordBoardState {
   const categoryId = params.categoryId || 'general-classic';
   const levelNumber = normalizeLevelNumber(params.levelNumber ?? params.level, 1);
@@ -308,8 +421,16 @@ export function createCrosswordBoard(params: {
     lockedCells[r][c] = true;
   }
 
+  const trackerMode = params.trackerMode || 'puzzle';
+  const puzzleItemId =
+    trackerMode === 'faith' && params.faithReligion
+      ? `faith:word:${params.faithReligion}:${solution.target}`
+      : makePuzzleItemId(L, solution.target);
+
   return {
     boardId: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    puzzleItemId,
+    trackerMode,
     length: L,
     levelNumber,
     level: band,

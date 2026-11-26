@@ -1,4 +1,5 @@
 import type { FiveDifficultyLevel } from './settingsLogic';
+import { EXPANDED_TRIVIA_ITEMS } from './triviaBankExpanded';
 
 export interface CuratedBankTriviaItem {
   id: string;
@@ -35,12 +36,12 @@ const Q = (
 });
 
 /**
- * Large curated offline Trivia & Faith Study Question Bank (~180 distinct questions)
+ * Large curated offline Trivia & Faith Study Question Bank (395+ distinct questions)
  * Strictly graded across Novice -> Beginner -> Intermediate -> Expert -> Legendary.
- * Paired with `zeroRepeatDeck.ts` so repeat probability across sessions and reloads is 0%
- * until the entire bucket has been played.
+ * Paired with `retirementQueueLogic.ts` & `zeroRepeatDeck.ts` so correct answers never repeat
+ * and missed questions return via the smart comeback queue.
  */
-export const CURATED_TRIVIA_BANK: CuratedBankTriviaItem[] = [
+const BASE_CURATED_TRIVIA_BANK: CuratedBankTriviaItem[] = [
   // =========================================================================
   // GENERAL KNOWLEDGE (30 Questions: 6 per tier)
   // =========================================================================
@@ -982,3 +983,21 @@ export const CURATED_TRIVIA_BANK: CuratedBankTriviaItem[] = [
     'Weekly rest protects community dignity, family warmth, and unhurried gratitude.',
     'Modern sleep and wellness science echoes this ancient call to deliberate restorative pauses.'),
 ];
+
+export const CURATED_TRIVIA_BANK: CuratedBankTriviaItem[] = (() => {
+  const seenIds = new Set<string>();
+  const seenQuestions = new Set<string>();
+  const deduped: CuratedBankTriviaItem[] = [];
+  for (const item of [...BASE_CURATED_TRIVIA_BANK, ...EXPANDED_TRIVIA_ITEMS]) {
+    const cleanId = item.id.trim().toLowerCase();
+    const cleanQuestion = item.question.trim().toLowerCase();
+    if (!cleanId || !cleanQuestion || seenIds.has(cleanId) || seenQuestions.has(cleanQuestion)) {
+      continue;
+    }
+    seenIds.add(cleanId);
+    seenQuestions.add(cleanQuestion);
+    deduped.push(item);
+  }
+  return deduped;
+})();
+

@@ -63,6 +63,8 @@ const VERIFIED_BASE_MATRICES: Record<WordLength, string[][]> = {
     ['PASTAS', 'ACCUSE', 'SHARPS', 'TERBIA', 'INFORM', 'LESSEE'],
     ['CAMASS', 'AGARIC', 'VERGER', 'ENSURE', 'ADHERE', 'TAYRAS'],
     ['PASTIL', 'ACHENE', 'SCARFS', 'TURBOS', 'ASPIRE', 'SESAME'],
+    ['MELDED', 'INLINE', 'STANCE', 'LINGAM', 'AROUSE', 'YESSED'],
+    ['SETULA', 'CRORES', 'ARMETS', 'ROTATE', 'CRISES', 'ESTERS'],
   ],
 };
 

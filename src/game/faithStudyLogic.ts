@@ -1,5 +1,16 @@
 import { VALID_WORDS, type WordLength } from '../data/words';
 import {
+  EXPANDED_FAITH_TRIVIA_BY_RELIGION,
+  EXPANDED_FAITH_WORDS_BY_RELIGION,
+} from './faithBankExpanded';
+import {
+  getQueuedIdSet,
+  getRedemptionMeta,
+  getRetiredIdSet,
+  selectComebackCandidate,
+  shuffleQuestionOptions,
+} from './retirementQueueLogic';
+import {
   levelNumberToDifficultyBand,
   normalizeLevelNumber,
   type FiveDifficultyLevel,
@@ -10,6 +21,7 @@ import {
   type TriviaDifficulty,
   type TriviaQuestion,
 } from './triviaLogic';
+import { getWordMeaningClue } from './wordMeanings';
 import {
   getBucketRemainingCount,
   getBucketSeenKeys,
@@ -918,8 +930,45 @@ export function isReligionId(val: unknown): val is ReligionId {
   return typeof val === 'string' && RELIGION_IDS.includes(val as ReligionId);
 }
 
+const MERGED_TRADITION_CACHE = new Map<ReligionId, FaithTraditionProfile>();
+
 export function getFaithTradition(religion: ReligionId): FaithTraditionProfile {
-  return FAITH_TRADITIONS[religion] || FAITH_TRADITIONS.christianity;
+  const safeId: ReligionId = FAITH_TRADITIONS[religion] ? religion : 'christianity';
+  const cached = MERGED_TRADITION_CACHE.get(safeId);
+  if (cached) return cached;
+
+  const base = FAITH_TRADITIONS[safeId];
+  const wordSeen = new Set<string>();
+  const mergedWords: FaithWordEntry[] = [];
+  for (const w of [...base.words, ...(EXPANDED_FAITH_WORDS_BY_RELIGION[safeId] || [])]) {
+    const clean = w.word.trim().toUpperCase();
+    if (!wordSeen.has(clean) && VALID_WORDS[w.length]?.has(clean)) {
+      wordSeen.add(clean);
+      mergedWords.push({ ...w, word: clean });
+    }
+  }
+
+  const qSeen = new Set<string>();
+  const mergedTrivia: TriviaQuestion[] = [];
+  const rawTrivia = [
+    ...base.trivia.map((q, idx) => ({ ...q, id: q.id || `faith-inline:${safeId}:${idx}` })),
+    ...(EXPANDED_FAITH_TRIVIA_BY_RELIGION[safeId] || []),
+  ];
+  for (const q of rawTrivia) {
+    const key = q.question.trim().toLowerCase();
+    if (!qSeen.has(key)) {
+      qSeen.add(key);
+      mergedTrivia.push(q);
+    }
+  }
+
+  const merged: FaithTraditionProfile = {
+    ...base,
+    words: mergedWords,
+    trivia: mergedTrivia,
+  };
+  MERGED_TRADITION_CACHE.set(safeId, merged);
+  return merged;
 }
 
 function hashSeed(str: string): number {
@@ -944,11 +993,42 @@ export function pickFaithPuzzleWord(
   religion: ReligionId,
   length: WordLength,
   dateKey: string,
-  excludeWords: string[] = []
+  excludeWords: string[] = [],
+  allowComeback = false
 ): FaithWordEntry {
   const profile = getFaithTradition(religion);
   const validSet = VALID_WORDS[length];
+  const retiredIds = getRetiredIdSet('faith');
+  const queuedIds = getQueuedIdSet('faith');
   const excluded = new Set(excludeWords.map((w) => w.toUpperCase()));
+
+  // Seamless comeback check for missed faith crossword words (no badge / no 2X XP)
+  if (allowComeback) {
+    const comeback = selectComebackCandidate('faith', (entry) =>
+      entry.id.startsWith(`faith:word:${religion}:`)
+    );
+    if (comeback) {
+      const targetWord = comeback.id.slice(`faith:word:${religion}:`.length).toUpperCase();
+      const matched = profile.words.find((w) => w.word === targetWord && VALID_WORDS[w.length].has(w.word));
+      if (matched) return matched;
+      if (targetWord.length === 4 || targetWord.length === 5 || targetWord.length === 6) {
+        const len = targetWord.length as WordLength;
+        if (VALID_WORDS[len].has(targetWord)) {
+          return {
+            word: targetWord,
+            length: len,
+            clue: getWordMeaningClue(targetWord, profile.name),
+            funFact: `${profile.name} reflection word drawn from ${profile.sacredTextLabel}.`,
+          };
+        }
+      }
+    }
+  }
+
+  const isFreshFaithWord = (entry: FaithWordEntry): boolean => {
+    const wid = `faith:word:${religion}:${entry.word}`;
+    return !excluded.has(entry.word) && !retiredIds.has(wid) && !queuedIds.has(wid);
+  };
 
   const lengthMatches = profile.words.filter(
     (entry) => entry.length === length && validSet.has(entry.word)
@@ -958,19 +1038,44 @@ export function pickFaithPuzzleWord(
       ? lengthMatches
       : profile.words.filter((entry) => VALID_WORDS[entry.length].has(entry.word));
 
-  const fresh = pool.filter((entry) => !excluded.has(entry.word));
-  const candidates = fresh.length > 0 ? fresh : pool;
-  const idx = hashSeed(`${religion}::word::${dateKey}::${length}::${excludeWords.length}`) % candidates.length;
-  return candidates[idx];
+  const fresh = pool.filter(isFreshFaithWord);
+  if (fresh.length > 0) {
+    const idx =
+      hashSeed(`${religion}::word::${dateKey}::${length}::${excludeWords.length}::${retiredIds.size}`) %
+      fresh.length;
+    return fresh[idx];
+  }
+
+  // Fallback across all remaining words for this tradition (any length)
+  const anyLenFresh = profile.words.filter(
+    (entry) => VALID_WORDS[entry.length].has(entry.word) && isFreshFaithWord(entry)
+  );
+  if (anyLenFresh.length > 0) {
+    return anyLenFresh[hashSeed(`${religion}::any::${dateKey}::${retiredIds.size}`) % anyLenFresh.length];
+  }
+
+  // Infinite procedural fallback from VALID_WORDS[length] excluding retired & queued words
+  const dictWords = Array.from(validSet);
+  const startOffset = hashSeed(`${religion}::dict::${dateKey}::${retiredIds.size}`) % Math.max(1, dictWords.length);
+  for (let i = 0; i < dictWords.length; i++) {
+    const candidate = dictWords[(startOffset + i) % dictWords.length];
+    const wid = `faith:word:${religion}:${candidate}`;
+    if (!excluded.has(candidate) && !retiredIds.has(wid) && !queuedIds.has(wid)) {
+      return {
+        word: candidate,
+        length,
+        clue: getWordMeaningClue(candidate, profile.name),
+        funFact: `Vocabulary enrichment linked with ${profile.name} (${profile.sacredTextLabel}).`,
+      };
+    }
+  }
+
+  const idx = hashSeed(`${religion}::word::${dateKey}::${length}::${excludeWords.length}`) % pool.length;
+  return pool[idx];
 }
 
-export function getFaithTriviaQuestions(
-  religion: ReligionId,
-  count = 5,
-  difficultyFilter?: TriviaDifficulty
-): TriviaQuestion[] {
+function getMergedFaithPool(religion: ReligionId): Array<TriviaQuestion & { id: string; difficulty: FiveDifficultyLevel }> {
   const profile = getFaithTradition(religion);
-  const normFilter = difficultyFilter ? normalizeToFiveLevel(difficultyFilter) : undefined;
   const bankItems = CURATED_TRIVIA_BANK.filter(
     (item) => item.categoryId === `faith:${religion}`
   ).map((item) => ({
@@ -981,10 +1086,35 @@ export function getFaithTriviaQuestions(
     explanation: item.explanation,
     funFact: item.funFact,
     category: `Faith Study · ${profile.name}`,
-    difficulty: item.level as TriviaDifficulty,
+    difficulty: item.level as FiveDifficultyLevel,
   }));
 
-  const combined = [...bankItems, ...profile.trivia];
+  const traditionItems = profile.trivia.map((q, idx) => ({
+    ...q,
+    id: q.id || `faith-inline:${religion}:${idx}`,
+    funFact: q.funFact ?? '',
+    category: `Faith Study · ${profile.name}`,
+    difficulty: normalizeToFiveLevel(q.difficulty),
+  }));
+
+  const dedupMap = new Map<string, (typeof bankItems)[number]>();
+  for (const q of [...bankItems, ...traditionItems]) {
+    const key = q.question.trim().toLowerCase();
+    if (!dedupMap.has(key)) {
+      dedupMap.set(key, q);
+    }
+  }
+  return Array.from(dedupMap.values());
+}
+
+export function getFaithTriviaQuestions(
+  religion: ReligionId,
+  count = 5,
+  difficultyFilter?: TriviaDifficulty
+): TriviaQuestion[] {
+  const profile = getFaithTradition(religion);
+  const normFilter = difficultyFilter ? normalizeToFiveLevel(difficultyFilter) : undefined;
+  const combined = getMergedFaithPool(religion);
   const base = normFilter
     ? combined.filter((q) => normalizeToFiveLevel(q.difficulty) === normFilter)
     : combined;
@@ -1000,6 +1130,8 @@ export function getFaithTriviaQuestions(
   return out;
 }
 
+let proceduralFaithSeq = 0;
+
 function generateProceduralFaithQuestion(
   religion: ReligionId,
   level: FiveDifficultyLevel,
@@ -1007,7 +1139,7 @@ function generateProceduralFaithQuestion(
 ): TriviaQuestion {
   const profile = getFaithTradition(religion);
 
-  // 1) Sacred term & clue challenge from the tradition's verified word list
+  // 1) Sacred term & clue challenge from the tradition's verified expanded word list
   for (let i = 0; i < profile.words.length; i++) {
     const entry = profile.words[i];
     const id = `faith-proc:word:${religion}:${entry.word}`;
@@ -1016,9 +1148,13 @@ function generateProceduralFaithQuestion(
       continue;
     }
     const otherWords = profile.words.filter((w) => w.word !== entry.word).map((w) => w.word);
-    const distractors = otherWords.slice(0, 3);
+    const distractors: string[] = [];
+    for (let d = 0; d < otherWords.length && distractors.length < 3; d++) {
+      const cand = otherWords[(i * 7 + d * 13) % otherWords.length];
+      if (!distractors.includes(cand)) distractors.push(cand);
+    }
     while (distractors.length < 3) {
-      distractors.push('WISDOM');
+      distractors.push(['WISDOM', 'PEACE', 'GRACE', 'LIGHT'][distractors.length]);
     }
     const slot = (i + entry.word.charCodeAt(0)) % 4;
     const options: [string, string, string, string] = ['', '', '', ''];
@@ -1089,11 +1225,37 @@ function generateProceduralFaithQuestion(
     };
   }
 
-  // 4) Dynamic comparative scripture reflection
-  const idx = Math.floor(Math.random() * 10000);
+  // 4) Infinite non-repeating dynamic scripture & sacred-word reflection fallback
+  proceduralFaithSeq += 1;
+  const uid = `faith-proc:infinite:${religion}:${Date.now()}:${proceduralFaithSeq}`;
+  const entry = profile.words[proceduralFaithSeq % profile.words.length];
+  const passage = profile.passages[proceduralFaithSeq % profile.passages.length];
+  if (proceduralFaithSeq % 2 === 0 && entry) {
+    const otherWords = profile.words.filter((w) => w.word !== entry.word).map((w) => w.word);
+    const distractors = otherWords.slice(0, 3);
+    while (distractors.length < 3) distractors.push('TRUTH');
+    const slot = proceduralFaithSeq % 4;
+    const options: [string, string, string, string] = ['', '', '', ''];
+    options[slot] = entry.word;
+    let di = 0;
+    for (let s = 0; s < 4; s++) {
+      if (s !== slot) options[s] = distractors[di++];
+    }
+    return {
+      id: uid,
+      question: `Reflection Review #${proceduralFaithSeq}: Which ${entry.length}-letter term in ${profile.name} study corresponds to "${entry.clue}"?`,
+      options,
+      correctIndex: slot,
+      explanation: `${entry.word}: ${entry.clue}`,
+      funFact: entry.funFact,
+      category: `Faith Study · ${profile.name}`,
+      difficulty: level,
+    };
+  }
+
   return {
-    id: `faith-proc:wisdom:${religion}:${idx}`,
-    question: `Which sacred text serves as the foundational scripture anchor for ${profile.name} study in WordVibe?`,
+    id: uid,
+    question: `Study Anchor #${proceduralFaithSeq}: Which sacred text carries this teaching — "${passage.quote}"?`,
     options: [
       profile.sacredTextLabel,
       'Astronomical Almanac',
@@ -1101,7 +1263,7 @@ function generateProceduralFaithQuestion(
       'Botanical Field Atlas',
     ],
     correctIndex: 0,
-    explanation: `${profile.name} study draws daily passages from ${profile.sacredTextLabel}.`,
+    explanation: `${passage.reference} (${profile.sacredTextLabel}): ${passage.reflection}`,
     funFact: profile.tagline,
     category: `Faith Study · ${profile.name}`,
     difficulty: level,
@@ -1118,43 +1280,72 @@ export function drawZeroRepeatFaithQuestion(params: {
   const levelNumber = normalizeLevelNumber(params.levelNumber ?? params.level, 1);
   const level = levelNumberToDifficultyBand(levelNumber);
   const profile = getFaithTradition(religion);
+  const allForReligion = getMergedFaithPool(religion);
 
-  const bankItems = CURATED_TRIVIA_BANK.filter(
-    (item) => item.categoryId === `faith:${religion}`
-  ).map((item) => ({
-    id: item.id,
-    question: item.question,
-    options: item.options,
-    correctIndex: item.correctIndex,
-    explanation: item.explanation,
-    funFact: item.funFact,
-    category: `Faith Study · ${profile.name}`,
-    difficulty: item.level as FiveDifficultyLevel,
-  }));
+  // 1. Check Smart Comeback Queue for Faith Study (seamless — NO Redemption badge / NO 2X XP)
+  const comebackEntry = selectComebackCandidate('faith', (entry) => {
+    if (entry.id.startsWith(`faith:word:${religion}:`)) return false; // reserved for crossword
+    if (entry.snapshot?.religion === religion && entry.snapshot?.question) return true;
+    return allForReligion.some((q) => q.id === entry.id);
+  });
 
-  const traditionItems = profile.trivia.map((q, idx) => ({
-    ...q,
-    id: `faith-inline:${religion}:${idx}`,
-    funFact: q.funFact ?? '',
-    category: `Faith Study · ${profile.name}`,
-    difficulty: normalizeToFiveLevel(q.difficulty),
-  }));
+  if (comebackEntry) {
+    const matchedStatic = allForReligion.find((q) => q.id === comebackEntry.id);
+    const snapQ = comebackEntry.snapshot?.question as TriviaQuestion | undefined;
+    const rawReturning: TriviaQuestion | null = matchedStatic
+      ? {
+          id: matchedStatic.id,
+          question: matchedStatic.question,
+          options: matchedStatic.options,
+          correctIndex: matchedStatic.correctIndex,
+          explanation: matchedStatic.explanation,
+          funFact: matchedStatic.funFact,
+          category: `Faith Study · ${profile.name}`,
+          difficulty: matchedStatic.difficulty,
+        }
+      : snapQ
+      ? {
+          ...snapQ,
+          id: comebackEntry.id,
+          category: `Faith Study · ${profile.name}`,
+        }
+      : null;
 
-  // Deduplicate by lowercase question text while merging both sources
-  const dedupMap = new Map<string, (typeof bankItems)[number]>();
-  for (const q of [...bankItems, ...traditionItems]) {
-    dedupMap.set(q.question.trim().toLowerCase(), q);
+    if (rawReturning) {
+      const meta = getRedemptionMeta('faith');
+      const shuffled = shuffleQuestionOptions(
+        rawReturning,
+        comebackEntry.wrongCount + meta.totalRoundsPlayed
+      );
+      // Faith Mode requirement: never expose isRedemptionRound / badge / 2X XP
+      const { isRedemptionRound: _dropBadge, redemptionWrongCount: _dropCount, ...seamless } = shuffled;
+      return {
+        ...seamless,
+        id: comebackEntry.id,
+      };
+    }
   }
-  const allForReligion = Array.from(dedupMap.values());
+
+  // 2. Serve a brand-new unseen question (strictly excluding retiredIds & redemptionQueue IDs)
+  const retiredIds = getRetiredIdSet('faith');
+  const queuedIds = getQueuedIdSet('faith');
   const globalSeenBucket = `faith:${religion}:seen_all`;
   const alreadySeenGlobal = getBucketSeenKeys(globalSeenBucket);
   const combinedExcludes = Array.from(
     new Set([
       ...excludeIdsOrQuestions,
       ...alreadySeenGlobal,
+      ...retiredIds,
+      ...queuedIds,
     ])
   );
   const excludeSet = new Set(combinedExcludes.map((s) => s.trim().toLowerCase()));
+
+  const isEligibleNew = (q: (typeof allForReligion)[number]): boolean =>
+    !retiredIds.has(q.id) &&
+    !queuedIds.has(q.id) &&
+    !excludeSet.has(q.id.toLowerCase()) &&
+    !excludeSet.has(q.question.trim().toLowerCase());
 
   const levelFiltered = allForReligion.filter((q) => q.difficulty === level);
   const primaryPool = levelFiltered.length > 0 ? levelFiltered : allForReligion;
@@ -1168,9 +1359,7 @@ export function drawZeroRepeatFaithQuestion(params: {
 
   let chosen: TriviaQuestion | null = null;
   if (remainingPrimary > 0) {
-    const filteredPrimary = primaryPool.filter(
-      (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
-    );
+    const filteredPrimary = primaryPool.filter(isEligibleNew);
     if (filteredPrimary.length > 0) {
       chosen = pickZeroRepeatItem(
         `faith:${religion}:${level}`,
@@ -1182,9 +1371,7 @@ export function drawZeroRepeatFaithQuestion(params: {
   }
 
   if (!chosen) {
-    const remainingAll = allForReligion.filter(
-      (q) => !excludeSet.has(q.id.toLowerCase()) && !excludeSet.has(q.question.trim().toLowerCase())
-    );
+    const remainingAll = allForReligion.filter(isEligibleNew);
     if (remainingAll.length > 0) {
       chosen = pickZeroRepeatItem(
         `faith:${religion}:all`,
@@ -1205,4 +1392,5 @@ export function drawZeroRepeatFaithQuestion(params: {
   markBucketKeySeen(globalSeenBucket, chosen.question);
   return chosen;
 }
+
 

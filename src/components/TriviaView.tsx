@@ -44,6 +44,7 @@ import {
   type TriviaClimbProgress,
   type TriviaQuestion,
 } from '../game/triviaLogic';
+import { recordModeOutcome } from '../game/retirementQueueLogic';
 import { rewardedAdService, type RewardPlacement } from '../services/rewardedAdService';
 import { soundService } from '../services/soundService';
 
@@ -220,6 +221,10 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
     soundService.playTriviaWrong();
     setStreakBeforeMiss(streak);
     setStageXpEarned(0);
+    recordModeOutcome('trivia', question.id || `trivia-text:${question.question}`, false, {
+      categoryId: selectedCategoryId,
+      question,
+    });
     onAnswerRecorded({
       correct: false,
       difficulty: question.difficulty,
@@ -255,16 +260,22 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
     pendingTriviaByKey.delete(`${selectedCategoryId}::${safeLevel}`);
 
     const isCorrect = optionIdx === question.correctIndex;
+    const questionId = question.id || `trivia-text:${question.question}`;
     let xpGained = 5;
     if (isCorrect) {
       const nextStreak = streak + 1;
-      xpGained = calculateTriviaXp(question.difficulty, nextStreak);
+      const baseXp = calculateTriviaXp(question.difficulty, nextStreak);
+      xpGained = question.isRedemptionRound ? baseXp * 2 : baseXp;
       soundService.playTriviaCorrect(nextStreak);
       setLastXpFlash(xpGained);
       setStageXpEarned((x) => x + xpGained);
       if (sessionMode === 'sprint') {
         setSprintCorrect((c) => c + 1);
       }
+      recordModeOutcome('trivia', questionId, true, {
+        categoryId: selectedCategoryId,
+        question,
+      });
       onAnswerRecorded({
         correct: true,
         difficulty: question.difficulty,
@@ -281,6 +292,10 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
       } else {
         setStageXpEarned((x) => x + 5);
       }
+      recordModeOutcome('trivia', questionId, false, {
+        categoryId: selectedCategoryId,
+        question,
+      });
       onAnswerRecorded({
         correct: false,
         difficulty: question.difficulty,
@@ -702,6 +717,15 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
               </span>
             )}
           </div>
+
+          {question.isRedemptionRound && (
+            <div
+              data-testid="trivia-redemption-badge"
+              className="mt-3 inline-flex items-center gap-1.5 rounded-xl wv-gold-pill px-3 py-1 text-xs sm:text-sm font-extrabold shadow-[0_0_16px_rgba(245,158,11,0.45)] animate-pulse"
+            >
+              <span>⚡ Redemption Round — 2X XP!</span>
+            </div>
+          )}
 
           {question.personalizationReason && (
             <p

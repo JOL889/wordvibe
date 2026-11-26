@@ -16,6 +16,7 @@ import {
   RELIGION_IDS,
   type ReligionId,
 } from '../game/faithStudyLogic';
+import { recordModeOutcome } from '../game/retirementQueueLogic';
 import type { TriviaQuestion } from '../game/triviaLogic';
 import { soundService } from '../services/soundService';
 import { ReligionIcon } from './ReligionIcons';
@@ -106,6 +107,11 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
     setSelectedIdx(optIdx);
     pendingFaithByKey.delete(`${activeReligion}::sprint`);
     const isRight = optIdx === currentQ.correctIndex;
+    const questionId = currentQ.id || `faith-q:${activeReligion}:${currentQ.question}`;
+    recordModeOutcome('faith', questionId, isRight, {
+      religion: activeReligion,
+      question: currentQ,
+    });
     setAnsweredCount((a) => a + 1);
     if (isRight) {
       setCorrectCount((prev) => prev + 1);

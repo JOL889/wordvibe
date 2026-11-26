@@ -728,9 +728,20 @@ export default function App() {
         showToast(outcome.message, 2600);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unable to sync Verified XP.';
-      setSyncStatusMessage(msg);
-      if (!silent) showToast('Sync paused — will retry after cooldown.', 2600);
+      const rawMsg = err instanceof Error ? err.message : 'Unable to sync Verified XP.';
+      const isPermDenied = rawMsg.includes('Missing or insufficient permissions');
+      const friendlyMsg = isPermDenied
+        ? 'Cloud sync paused — verify your sign-in session and XP rules for users/{uid}.'
+        : rawMsg;
+      setSyncStatusMessage(friendlyMsg);
+      if (!silent) {
+        showToast(
+          isPermDenied
+            ? 'Sync paused — check your signed-in session.'
+            : 'Sync paused — will retry after cooldown.',
+          3200
+        );
+      }
     } finally {
       setIsSyncingScore(false);
     }
@@ -2067,9 +2078,18 @@ export default function App() {
     if (shouldAutoFlushBatch(verifiedStateRef.current, 'leaderboard_open')) {
       void performVerifiedFlush(true);
     } else if (firebaseUserRef.current && isOnlineRef.current) {
-      void fetchWeeklyLeaderboardSingleDoc(false).then((res) => {
-        setLeaderboardCache(res.cache);
-      });
+      void fetchWeeklyLeaderboardSingleDoc(false)
+        .then((res) => {
+          setLeaderboardCache(res.cache);
+        })
+        .catch((err) => {
+          const rawMsg = err instanceof Error ? err.message : '';
+          if (rawMsg.includes('Missing or insufficient permissions')) {
+            setSyncStatusMessage(
+              'Unable to read cloud profile — verify your signed-in session.'
+            );
+          }
+        });
     }
   }, [performVerifiedFlush]);
 
@@ -2880,14 +2900,30 @@ export default function App() {
         lastClaimReceipt={lastClaimReceipt}
         onManualSyncScore={() => performVerifiedFlush(false)}
         onRefreshLeaderboardCache={async () => {
-          const res = await fetchWeeklyLeaderboardSingleDoc(true);
-          setLeaderboardCache(res.cache);
-          showToast(
-            res.fromCache
-              ? 'Using cached leaderboard (30-min quota guard).'
-              : 'Leaderboard refreshed (1 Firestore read)!',
-            2400
-          );
+          try {
+            const res = await fetchWeeklyLeaderboardSingleDoc(true);
+            setLeaderboardCache(res.cache);
+            showToast(
+              res.fromCache
+                ? 'Using cached leaderboard (30-min quota guard).'
+                : 'Leaderboard refreshed (1 Firestore read)!',
+              2400
+            );
+          } catch (err) {
+            const rawMsg = err instanceof Error ? err.message : '';
+            const isPermDenied = rawMsg.includes('Missing or insufficient permissions');
+            setSyncStatusMessage(
+              isPermDenied
+                ? 'Unable to read cloud profile — verify your signed-in session.'
+                : 'Unable to refresh cloud profile right now.'
+            );
+            showToast(
+              isPermDenied
+                ? 'Unable to read cloud profile.'
+                : 'Unable to refresh leaderboard.',
+              3000
+            );
+          }
         }}
         onStartGuestSession={async () => {
           setAuthBusy(true);

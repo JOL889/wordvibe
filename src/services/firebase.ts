@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase/app';
+import { getAnalytics, type Analytics } from 'firebase/analytics';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import {
   doc,
@@ -9,17 +10,30 @@ import {
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig);
+
+let analyticsInstance: Analytics | null = null;
+if (typeof window !== 'undefined') {
+  try {
+    analyticsInstance = getAnalytics(app);
+  } catch {
+    analyticsInstance = null;
+  }
+}
+export const analytics = analyticsInstance;
 
 function createFirestoreInstance(): Firestore {
+  const databaseId =
+    typeof firebaseConfig.firestoreDatabaseId === 'string' &&
+    firebaseConfig.firestoreDatabaseId.trim().length > 0
+      ? firebaseConfig.firestoreDatabaseId.trim()
+      : undefined;
   try {
-    return initializeFirestore(
-      app,
-      { experimentalForceLongPolling: true },
-      firebaseConfig.firestoreDatabaseId
-    );
+    return databaseId
+      ? initializeFirestore(app, { experimentalForceLongPolling: true }, databaseId)
+      : initializeFirestore(app, { experimentalForceLongPolling: true });
   } catch {
-    return getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    return databaseId ? getFirestore(app, databaseId) : getFirestore(app);
   }
 }
 

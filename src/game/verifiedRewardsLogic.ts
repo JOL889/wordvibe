@@ -532,11 +532,16 @@ export function resetUnverifiedDeltaAndFlag(
 
 export function applySuccessfulBatchSync(
   state: VerifiedRewardLocalState,
-  nowMs: number = Date.now()
+  nowMs: number = Date.now(),
+  isRemoteCreate = false
 ): VerifiedRewardLocalState {
   const currentWeekKey = getUtcWeekKey(nowMs);
-  const isNewDay = nowMs - (state.dailyWindowStartMs || nowMs) >= DAY_WINDOW_MS;
-  const baseWeekly = state.weekKey === currentWeekKey ? state.weeklyRewardXp : 0;
+  const isNewDay = isRemoteCreate || nowMs - (state.dailyWindowStartMs || nowMs) >= DAY_WINDOW_MS;
+  const baseVerified = isRemoteCreate ? 0 : state.verifiedRewardXp;
+  const baseWeekly = !isRemoteCreate && state.weekKey === currentWeekKey ? state.weeklyRewardXp : 0;
+  const baseRounds = isRemoteCreate ? 0 : state.roundsPlayed;
+  const basePuzzles = isRemoteCreate ? 0 : state.puzzlesSolved;
+  const baseTrivia = isRemoteCreate ? 0 : state.triviaCorrect;
   const baseDaily = isNewDay ? 0 : state.dailyVerifiedXp;
   const deltaXp = state.pendingBuffer.pendingXp;
   const deltaRounds = state.pendingBuffer.rounds.length;
@@ -545,11 +550,11 @@ export function applySuccessfulBatchSync(
   const synced: VerifiedRewardLocalState = {
     ...state,
     weekKey: currentWeekKey,
-    verifiedRewardXp: state.verifiedRewardXp + deltaXp,
+    verifiedRewardXp: baseVerified + deltaXp,
     weeklyRewardXp: baseWeekly + deltaXp,
-    roundsPlayed: state.roundsPlayed + deltaRounds,
-    puzzlesSolved: state.puzzlesSolved + state.pendingBuffer.pendingPuzzlesSolved,
-    triviaCorrect: state.triviaCorrect + state.pendingBuffer.pendingTriviaCorrect,
+    roundsPlayed: baseRounds + deltaRounds,
+    puzzlesSolved: basePuzzles + state.pendingBuffer.pendingPuzzlesSolved,
+    triviaCorrect: baseTrivia + state.pendingBuffer.pendingTriviaCorrect,
     dailyVerifiedXp: baseDaily + deltaXp,
     dailyWindowStartMs: isNewDay ? nowMs : state.dailyWindowStartMs || nowMs,
     lastSyncAtMs: nowMs,
@@ -559,6 +564,151 @@ export function applySuccessfulBatchSync(
   synced.integrityHash = hash;
   synced.pendingBuffer.integrityHash = hash;
   return synced;
+}
+
+export interface RemoteUserXpSnapshot {
+  xp: number;
+  dailyXp: number;
+  weeklyXp: number;
+  weekKey: string;
+  dailyWindowStartMs: number;
+  roundsPlayed: number;
+  puzzlesSolved: number;
+  triviaCorrect: number;
+  streak: number;
+}
+
+function toNonNegativeInt(value: unknown, fallback = 0): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  return Math.max(0, Math.floor(value));
+}
+
+export function extractRemoteUserXpSnapshot(
+  data: Record<string, unknown>,
+  nowMs: number = Date.now(),
+  fallbackDailyStartMs: number = nowMs
+): RemoteUserXpSnapshot {
+  const currentWeekKey = getUtcWeekKey(nowMs);
+  const weekKey =
+    typeof data.weekKey === 'string' && data.weekKey.length === 10
+      ? data.weekKey
+      : currentWeekKey;
+  const rawDailyStart =
+    typeof data.dailyWindowStartMs === 'number' && Number.isFinite(data.dailyWindowStartMs)
+      ? Math.floor(data.dailyWindowStartMs)
+      : Math.floor(fallbackDailyStartMs);
+
+  const xp = toNonNegativeInt(
+    typeof data.xp === 'number' ? data.xp : data.verifiedRewardXp,
+    0
+  );
+  const rawWeekly = toNonNegativeInt(
+    typeof data.weeklyXp === 'number' ? data.weeklyXp : data.weeklyRewardXp,
+    0
+  );
+  const rawDaily = toNonNegativeInt(
+    typeof data.dailyXp === 'number' ? data.dailyXp : data.dailyVerifiedXp,
+    0
+  );
+
+  return {
+    xp,
+    dailyXp: nowMs - rawDailyStart >= DAY_WINDOW_MS ? 0 : rawDaily,
+    weeklyXp: weekKey === currentWeekKey ? rawWeekly : 0,
+    weekKey: currentWeekKey,
+    dailyWindowStartMs: nowMs - rawDailyStart >= DAY_WINDOW_MS ? nowMs : rawDailyStart,
+    roundsPlayed: toNonNegativeInt(data.roundsPlayed, 0),
+    puzzlesSolved: toNonNegativeInt(data.puzzlesSolved, 0),
+    triviaCorrect: toNonNegativeInt(data.triviaCorrect, 0),
+    streak: toNonNegativeInt(data.streak, 0),
+  };
+}
+
+export function buildUserSyncState(params: {
+  localState: VerifiedRewardLocalState;
+  remoteData: Record<string, unknown> | null;
+  remoteLastSyncMs?: number;
+  nowMs?: number;
+}): {
+  nextState: VerifiedRewardLocalState;
+  isRemoteCreate: boolean;
+  xp: number;
+  dailyXp: number;
+  weeklyXp: number;
+  deltaXp: number;
+  deltaRounds: number;
+} {
+  const nowMs = params.nowMs ?? Date.now();
+  const currentWeekKey = getUtcWeekKey(nowMs);
+  const deltaXp = Math.max(
+    0,
+    Math.min(MAX_XP_PER_BATCH, Math.floor(params.localState.pendingBuffer.pendingXp))
+  );
+  const deltaRounds = Math.max(0, params.localState.pendingBuffer.rounds.length);
+
+  if (!params.remoteData) {
+    const nextState = applySuccessfulBatchSync(params.localState, nowMs, true);
+    const xp = Math.min(MAX_XP_PER_BATCH, Math.max(0, Math.floor(nextState.verifiedRewardXp)));
+    const dailyXp = Math.max(0, Math.floor(nextState.dailyVerifiedXp));
+    const weeklyXp = Math.max(0, Math.floor(nextState.weeklyRewardXp));
+    nextState.verifiedRewardXp = xp;
+    nextState.dailyVerifiedXp = dailyXp;
+    nextState.weeklyRewardXp = weeklyXp;
+    const hash = recomputeStateIntegrityHash(nextState);
+    nextState.integrityHash = hash;
+    nextState.pendingBuffer.integrityHash = hash;
+    return {
+      nextState,
+      isRemoteCreate: true,
+      xp,
+      dailyXp,
+      weeklyXp,
+      deltaXp: xp,
+      deltaRounds,
+    };
+  }
+
+  const remoteSnap = extractRemoteUserXpSnapshot(
+    params.remoteData,
+    nowMs,
+    params.remoteLastSyncMs ?? nowMs
+  );
+  const xp = remoteSnap.xp + deltaXp;
+  const dailyXp = remoteSnap.dailyXp + deltaXp;
+  const weeklyXp = remoteSnap.weeklyXp + deltaXp;
+  const cleared = createEmptyPendingBuffer(params.localState.uid, currentWeekKey);
+
+  const nextState: VerifiedRewardLocalState = {
+    ...params.localState,
+    weekKey: currentWeekKey,
+    verifiedRewardXp: xp,
+    weeklyRewardXp: weeklyXp,
+    dailyVerifiedXp: dailyXp,
+    dailyWindowStartMs: remoteSnap.dailyWindowStartMs,
+    roundsPlayed: Math.max(params.localState.roundsPlayed, remoteSnap.roundsPlayed) + deltaRounds,
+    puzzlesSolved:
+      Math.max(params.localState.puzzlesSolved, remoteSnap.puzzlesSolved) +
+      params.localState.pendingBuffer.pendingPuzzlesSolved,
+    triviaCorrect:
+      Math.max(params.localState.triviaCorrect, remoteSnap.triviaCorrect) +
+      params.localState.pendingBuffer.pendingTriviaCorrect,
+    streak: Math.max(params.localState.streak, remoteSnap.streak),
+    lastSyncAtMs: nowMs,
+    pendingBuffer: cleared,
+  };
+  const hash = recomputeStateIntegrityHash(nextState);
+  nextState.integrityHash = hash;
+  nextState.pendingBuffer.integrityHash = hash;
+
+  return {
+    nextState,
+    isRemoteCreate: false,
+    xp,
+    dailyXp,
+    weeklyXp,
+    deltaXp,
+    deltaRounds,
+  };
 }
 
 export function isLeaderboardCacheFresh(

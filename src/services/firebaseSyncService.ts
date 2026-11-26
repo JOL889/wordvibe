@@ -20,14 +20,13 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import {
-  applySuccessfulBatchSync,
   buildEmailClaimUrl,
+  buildUserSyncState,
   buildWhatsAppClaimUrl,
   type ClaimConfirmationReceipt,
-  computeIntegrityHash,
   createDefaultVerifiedRewardState,
   createEmptyPendingBuffer,
-  DAY_WINDOW_MS,
+  extractRemoteUserXpSnapshot,
   type FirebaseAuthType,
   generateClaimCode,
   getSyncCooldownRemainingMs,
@@ -306,22 +305,15 @@ export async function loadOrHydrateRemoteUserProfile(
       return { state: cleanLocal, remoteExists: false };
     }
 
-    const data = snap.data();
+    const data = snap.data() as Record<string, unknown>;
     const nowMs = Date.now();
-    const currentWeekKey = getUtcWeekKey(nowMs);
-    const remoteWeekKey = typeof data.weekKey === 'string' ? data.weekKey : currentWeekKey;
-    const remoteWeeklyXp =
-      remoteWeekKey === currentWeekKey && typeof data.weeklyRewardXp === 'number'
-        ? data.weeklyRewardXp
-        : 0;
-    const remoteDailyStart =
-      typeof data.dailyWindowStartMs === 'number' ? data.dailyWindowStartMs : nowMs;
-    const remoteDailyXp =
-      nowMs - remoteDailyStart >= DAY_WINDOW_MS
-        ? 0
-        : typeof data.dailyVerifiedXp === 'number'
-        ? data.dailyVerifiedXp
-        : 0;
+    const lastSyncAtMs = timestampToMs(data.lastSyncAt, 0);
+    const remoteSnap = extractRemoteUserXpSnapshot(
+      data,
+      nowMs,
+      lastSyncAtMs > 0 ? lastSyncAtMs : nowMs
+    );
+    const currentWeekKey = remoteSnap.weekKey;
 
     // Keep legitimate pending rounds only if local UID matches and passes integrity verification
     let pendingBuffer = createEmptyPendingBuffer(uid, currentWeekKey);
@@ -329,7 +321,7 @@ export async function loadOrHydrateRemoteUserProfile(
 
     if (localState.uid === uid && localState.pendingBuffer.pendingXp > 0) {
       const check = verifyBufferIntegrity(localState, nowMs);
-      if (check.valid && localState.verifiedRewardXp === (data.verifiedRewardXp || 0)) {
+      if (check.valid && localState.verifiedRewardXp === remoteSnap.xp) {
         pendingBuffer = {
           ...localState.pendingBuffer,
           weekKey: currentWeekKey,
@@ -345,16 +337,28 @@ export async function loadOrHydrateRemoteUserProfile(
         displayName || (typeof data.displayName === 'string' ? data.displayName : 'Player')
       ),
       authType,
-      verifiedRewardXp: typeof data.verifiedRewardXp === 'number' ? data.verifiedRewardXp : 0,
-      weeklyRewardXp: remoteWeeklyXp,
+      verifiedRewardXp: remoteSnap.xp,
+      weeklyRewardXp: remoteSnap.weeklyXp,
       weekKey: currentWeekKey,
-      roundsPlayed: typeof data.roundsPlayed === 'number' ? data.roundsPlayed : 0,
-      puzzlesSolved: typeof data.puzzlesSolved === 'number' ? data.puzzlesSolved : 0,
-      triviaCorrect: typeof data.triviaCorrect === 'number' ? data.triviaCorrect : 0,
-      streak: typeof data.streak === 'number' ? data.streak : 0,
-      dailyVerifiedXp: remoteDailyXp,
-      dailyWindowStartMs: nowMs - remoteDailyStart >= DAY_WINDOW_MS ? nowMs : remoteDailyStart,
-      lastSyncAtMs: timestampToMs(data.lastSyncAt, 0),
+      roundsPlayed:
+        remoteSnap.roundsPlayed > 0 || localState.uid !== uid
+          ? remoteSnap.roundsPlayed
+          : localState.roundsPlayed,
+      puzzlesSolved:
+        remoteSnap.puzzlesSolved > 0 || localState.uid !== uid
+          ? remoteSnap.puzzlesSolved
+          : localState.puzzlesSolved,
+      triviaCorrect:
+        remoteSnap.triviaCorrect > 0 || localState.uid !== uid
+          ? remoteSnap.triviaCorrect
+          : localState.triviaCorrect,
+      streak:
+        remoteSnap.streak > 0 || localState.uid !== uid
+          ? remoteSnap.streak
+          : localState.streak,
+      dailyVerifiedXp: remoteSnap.dailyXp,
+      dailyWindowStartMs: remoteSnap.dailyWindowStartMs,
+      lastSyncAtMs,
       suspiciousActivity: Boolean(data.suspiciousActivity) || Boolean(tamperDetectedReason),
       suspiciousReason:
         tamperDetectedReason ||
@@ -420,12 +424,18 @@ export async function flushVerifiedBatchToFirestore(
     try {
       const snap = await getDoc(doc(db, 'users', uid));
       if (snap.exists()) {
+        const remoteData = snap.data() as Record<string, unknown>;
+        const remoteSnap = extractRemoteUserXpSnapshot(
+          remoteData,
+          nowMs,
+          timestampToMs(remoteData.lastSyncAt, nowMs)
+        );
         await updateDoc(doc(db, 'users', uid), {
+          xp: remoteSnap.xp,
+          dailyXp: remoteSnap.dailyXp,
+          weeklyXp: remoteSnap.weeklyXp,
           suspiciousActivity: true,
           suspiciousReason: flagged.suspiciousReason || 'Tamper detected',
-          lastBatchXpDelta: 0,
-          roundsCompletedInBatch: 0,
-          integrityHash: flagged.integrityHash,
           lastSyncAt: serverTimestamp(),
         });
       }
@@ -453,9 +463,9 @@ export async function flushVerifiedBatchToFirestore(
     };
   }
 
-  const deltaXp = state.pendingBuffer.pendingXp;
-  const deltaRounds = state.pendingBuffer.rounds.length;
-  if (deltaXp <= 0 && deltaRounds <= 0 && state.lastSyncAtMs > 0) {
+  const pendingDeltaXp = state.pendingBuffer.pendingXp;
+  const pendingDeltaRounds = state.pendingBuffer.rounds.length;
+  if (pendingDeltaXp <= 0 && pendingDeltaRounds <= 0 && state.lastSyncAtMs > 0) {
     return {
       state,
       synced: false,
@@ -466,68 +476,59 @@ export async function flushVerifiedBatchToFirestore(
   }
 
   const currentWeekKey = getUtcWeekKey(nowMs);
-  const nextState = applySuccessfulBatchSync(state, nowMs);
-  const hashForDoc = computeIntegrityHash({
-    uid,
-    verifiedRewardXp: nextState.verifiedRewardXp,
-    weeklyRewardXp: nextState.weeklyRewardXp,
-    roundsPlayed: nextState.roundsPlayed,
-    dailyVerifiedXp: nextState.dailyVerifiedXp,
-    pendingXp: 0,
-    pendingRoundsCount: 0,
-    weekKey: currentWeekKey,
-  });
-  nextState.integrityHash = hashForDoc;
-  nextState.pendingBuffer.integrityHash = hashForDoc;
 
   try {
     const userRef = doc(db, 'users', uid);
     const snap = await getDoc(userRef);
+    const remoteData = snap.exists() ? (snap.data() as Record<string, unknown>) : null;
+    const remoteLastSyncMs = remoteData ? timestampToMs(remoteData.lastSyncAt, nowMs) : nowMs;
+    const syncPlan = buildUserSyncState({
+      localState: state,
+      remoteData,
+      remoteLastSyncMs,
+      nowMs,
+    });
+    const { nextState, isRemoteCreate, xp, dailyXp, weeklyXp, deltaXp, deltaRounds } = syncPlan;
     const cleanName = sanitizeLeaderboardDisplayName(nextState.displayName);
 
-    if (!snap.exists()) {
+    if (isRemoteCreate) {
       await setDoc(userRef, {
         uid,
         displayName: cleanName,
         authType: nextState.authType,
-        verifiedRewardXp: nextState.verifiedRewardXp,
-        weeklyRewardXp: nextState.weeklyRewardXp,
+        xp,
+        dailyXp,
+        weeklyXp,
         weekKey: currentWeekKey,
-        roundsPlayed: nextState.roundsPlayed,
-        puzzlesSolved: nextState.puzzlesSolved,
-        triviaCorrect: nextState.triviaCorrect,
-        streak: nextState.streak,
-        dailyVerifiedXp: nextState.dailyVerifiedXp,
-        dailyWindowStartMs: nextState.dailyWindowStartMs,
+        roundsPlayed: Math.max(0, Math.floor(nextState.roundsPlayed)),
+        puzzlesSolved: Math.max(0, Math.floor(nextState.puzzlesSolved)),
+        triviaCorrect: Math.max(0, Math.floor(nextState.triviaCorrect)),
+        streak: Math.max(0, Math.floor(nextState.streak)),
+        dailyWindowStartMs: Math.floor(nextState.dailyWindowStartMs),
         lastSyncAt: serverTimestamp(),
-        roundsCompletedInBatch: deltaRounds,
-        lastBatchXpDelta: deltaXp,
-        integrityHash: hashForDoc,
-        suspiciousActivity: false,
         accountCreatedAt: serverTimestamp(),
       });
     } else {
       await updateDoc(userRef, {
         displayName: cleanName,
         authType: nextState.authType,
-        verifiedRewardXp: nextState.verifiedRewardXp,
-        weeklyRewardXp: nextState.weeklyRewardXp,
+        xp,
+        dailyXp,
+        weeklyXp,
         weekKey: currentWeekKey,
-        roundsPlayed: nextState.roundsPlayed,
-        puzzlesSolved: nextState.puzzlesSolved,
-        triviaCorrect: nextState.triviaCorrect,
-        streak: nextState.streak,
-        dailyVerifiedXp: nextState.dailyVerifiedXp,
-        dailyWindowStartMs: nextState.dailyWindowStartMs,
+        roundsPlayed: Math.max(0, Math.floor(nextState.roundsPlayed)),
+        puzzlesSolved: Math.max(0, Math.floor(nextState.puzzlesSolved)),
+        triviaCorrect: Math.max(0, Math.floor(nextState.triviaCorrect)),
+        streak: Math.max(0, Math.floor(nextState.streak)),
+        dailyWindowStartMs: Math.floor(nextState.dailyWindowStartMs),
         lastSyncAt: serverTimestamp(),
-        roundsCompletedInBatch: deltaRounds,
-        lastBatchXpDelta: deltaXp,
-        integrityHash: hashForDoc,
       });
     }
 
-    // Conditionally refresh shared weekly_current summary if player qualifies for top 25
-    await maybeRefreshWeeklyLeaderboardSummary({
+    saveVerifiedRewardState(nextState);
+
+    // Refresh local leaderboard summary cache without touching denied collection paths
+    updateLocalLeaderboardSummaryCache({
       uid,
       name: cleanName,
       weeklyRewardXp: nextState.weeklyRewardXp,
@@ -553,55 +554,28 @@ export async function flushVerifiedBatchToFirestore(
   }
 }
 
-async function maybeRefreshWeeklyLeaderboardSummary(playerEntry: RemoteLeaderboardEntry): Promise<void> {
-  if (playerEntry.weeklyRewardXp <= 0) return;
-  const cached = loadWeeklyLeaderboardCache();
-  const minQualifyingXp =
-    cached &&
-    cached.weekKey === playerEntry.weekKey &&
-    cached.topEntries.length >= 25
-      ? cached.topEntries[cached.topEntries.length - 1].weeklyRewardXp
-      : 0;
+function updateLocalLeaderboardSummaryCache(playerEntry: RemoteLeaderboardEntry): WeeklyLeaderboardCache {
+  const nowMs = Date.now();
+  const existingCache = loadWeeklyLeaderboardCache();
+  const existingTop: RemoteLeaderboardEntry[] =
+    existingCache && existingCache.weekKey === playerEntry.weekKey
+      ? existingCache.topEntries
+      : [];
 
-  if (cached && cached.weekKey === playerEntry.weekKey && playerEntry.weeklyRewardXp < minQualifyingXp) {
-    return;
-  }
+  const nextTop =
+    playerEntry.weeklyRewardXp > 0
+      ? mergePlayerIntoLeaderboardTop(existingTop, playerEntry, playerEntry.weekKey)
+      : existingTop;
 
-  const boardPath = 'leaderboards/weekly_current';
-  try {
-    const boardRef = doc(db, 'leaderboards', 'weekly_current');
-    const boardSnap = await getDoc(boardRef);
-    const existingTop: RemoteLeaderboardEntry[] =
-      boardSnap.exists() && Array.isArray(boardSnap.data().topEntries)
-        ? (boardSnap.data().topEntries as RemoteLeaderboardEntry[])
-        : [];
-
-    const nextTop = mergePlayerIntoLeaderboardTop(existingTop, playerEntry, playerEntry.weekKey);
-    const payload = {
-      weekKey: playerEntry.weekKey,
-      updatedAt: serverTimestamp(),
-      prizePoolLabel: WEEKLY_PRIZE_POOL_LABEL,
-      lastUpdatedBy: playerEntry.uid,
-      topEntries: nextTop,
-    };
-
-    if (!boardSnap.exists()) {
-      await setDoc(boardRef, payload);
-    } else {
-      await updateDoc(boardRef, payload);
-    }
-
-    const nowMs = Date.now();
-    saveWeeklyLeaderboardCache({
-      weekKey: playerEntry.weekKey,
-      updatedAtMs: nowMs,
-      fetchedAtMs: nowMs,
-      prizePoolLabel: WEEKLY_PRIZE_POOL_LABEL,
-      topEntries: nextTop,
-    });
-  } catch {
-    // Non-fatal: individual user sync already succeeded
-  }
+  const updatedCache: WeeklyLeaderboardCache = {
+    weekKey: playerEntry.weekKey,
+    updatedAtMs: nowMs,
+    fetchedAtMs: nowMs,
+    prizePoolLabel: WEEKLY_PRIZE_POOL_LABEL,
+    topEntries: nextTop,
+  };
+  saveWeeklyLeaderboardCache(updatedCache);
+  return updatedCache;
 }
 
 export async function fetchWeeklyLeaderboardSingleDoc(
@@ -630,41 +604,47 @@ export async function fetchWeeklyLeaderboardSingleDoc(
     return { cache: fallback, fromCache: true, readsUsed: 0 };
   }
 
-  const boardPath = 'leaderboards/weekly_current';
+  const uid = auth.currentUser.uid;
+  const userPath = `users/${uid}`;
   try {
-    const snap = await getDoc(doc(db, 'leaderboards', 'weekly_current'));
+    const snap = await getDoc(doc(db, 'users', uid));
     if (!snap.exists()) {
-      const emptyCache: WeeklyLeaderboardCache = {
+      const freshEmpty: WeeklyLeaderboardCache = {
         weekKey: currentWeekKey,
         updatedAtMs: nowMs,
         fetchedAtMs: nowMs,
         prizePoolLabel: WEEKLY_PRIZE_POOL_LABEL,
-        topEntries: [],
+        topEntries:
+          existingCache && existingCache.weekKey === currentWeekKey
+            ? existingCache.topEntries
+            : [],
       };
-      saveWeeklyLeaderboardCache(emptyCache);
-      return { cache: emptyCache, fromCache: false, readsUsed: 1 };
+      saveWeeklyLeaderboardCache(freshEmpty);
+      return { cache: freshEmpty, fromCache: false, readsUsed: 1 };
     }
 
-    const data = snap.data();
-    const boardWeek = typeof data.weekKey === 'string' ? data.weekKey : currentWeekKey;
-    const rawEntries = Array.isArray(data.topEntries)
-      ? (data.topEntries as RemoteLeaderboardEntry[]).filter(
-          (e) => e && typeof e.uid === 'string' && (!e.weekKey || e.weekKey === currentWeekKey)
-        )
-      : [];
+    const data = snap.data() as Record<string, unknown>;
+    const lastSyncAtMs = timestampToMs(data.lastSyncAt, nowMs);
+    const remoteSnap = extractRemoteUserXpSnapshot(data, nowMs, lastSyncAtMs);
+    const displayName = sanitizeLeaderboardDisplayName(
+      typeof data.displayName === 'string'
+        ? data.displayName
+        : auth.currentUser.displayName || 'Player'
+    );
 
-    const freshCache: WeeklyLeaderboardCache = {
-      weekKey: boardWeek === currentWeekKey ? boardWeek : currentWeekKey,
-      updatedAtMs: timestampToMs(data.updatedAt, nowMs),
-      fetchedAtMs: nowMs,
-      prizePoolLabel:
-        typeof data.prizePoolLabel === 'string' ? data.prizePoolLabel : WEEKLY_PRIZE_POOL_LABEL,
-      topEntries: rawEntries.slice(0, 25),
-    };
-    saveWeeklyLeaderboardCache(freshCache);
+    const freshCache = updateLocalLeaderboardSummaryCache({
+      uid,
+      name: displayName,
+      weeklyRewardXp: remoteSnap.weeklyXp,
+      verifiedRewardXp: remoteSnap.xp,
+      puzzlesSolved: remoteSnap.puzzlesSolved,
+      triviaCorrect: remoteSnap.triviaCorrect,
+      streak: remoteSnap.streak,
+      weekKey: currentWeekKey,
+    });
     return { cache: freshCache, fromCache: false, readsUsed: 1 };
   } catch (error) {
-    handleFirestoreError(error, OperationType.GET, boardPath);
+    handleFirestoreError(error, OperationType.GET, userPath);
   }
 }
 

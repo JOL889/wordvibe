@@ -3,11 +3,13 @@ import assert from 'node:assert/strict';
 import {
   applySuccessfulBatchSync,
   buildEmailClaimUrl,
+  buildUserSyncState,
   buildWhatsAppClaimUrl,
   calculateVerifiedRoundXp,
   CLAIM_EMAIL_ADDRESS,
   CLAIM_WHATSAPP_NUMBER,
   createDefaultVerifiedRewardState,
+  extractRemoteUserXpSnapshot,
   getSyncCooldownRemainingMs,
   isLeaderboardCacheFresh,
   LEADERBOARD_CACHE_TTL_MS,
@@ -297,4 +299,88 @@ test('600,000 Verified XP milestone claim validation & pre-filled WhatsApp / Ema
   });
   assert.ok(mailUrl.startsWith(`mailto:${CLAIM_EMAIL_ADDRESS}?`));
   assert.match(decodeURIComponent(mailUrl), /claim_123/);
+});
+
+test('applySuccessfulBatchSync aligns dailyWindowStartMs and batch totals on initial remote doc creation', () => {
+  const t0 = Date.UTC(2026, 10, 26, 10, 0, 0);
+  let state = createDefaultVerifiedRewardState('uid-new', 'Nova', 'anonymous', t0);
+  // Simulate 5 minutes passing before completing a round and syncing for the first time
+  const roundTime = t0 + 5 * 60_000;
+  const roundRes = recordVerifiedOnlineRound(state, {
+    isOnline: true,
+    isSignedIn: true,
+    mode: 'puzzle',
+    won: true,
+    nowMs: roundTime,
+  });
+  assert.equal(roundRes.eligibleForVerifiedReward, true);
+  state = roundRes.state;
+
+  const syncTime = roundTime + 90_000;
+  const created = applySuccessfulBatchSync(state, syncTime, true);
+  assert.equal(created.dailyWindowStartMs, syncTime);
+  assert.equal(created.verifiedRewardXp, roundRes.xpQueued);
+  assert.equal(created.weeklyRewardXp, roundRes.xpQueued);
+  assert.equal(created.dailyVerifiedXp, roundRes.xpQueued);
+  assert.equal(created.roundsPlayed, 1);
+});
+
+test('buildUserSyncState produces integer xp/dailyXp/weeklyXp capped at 1500 per sync and aligned with remote xp', () => {
+  const t0 = Date.UTC(2026, 10, 26, 10, 0, 0);
+  let state = createDefaultVerifiedRewardState('uid-sync', 'Tunde', 'anonymous', t0);
+  const roundRes = recordVerifiedOnlineRound(state, {
+    isOnline: true,
+    isSignedIn: true,
+    mode: 'puzzle',
+    won: true,
+    nowMs: t0 + 10_000,
+  });
+  state = roundRes.state;
+
+  // 1. Initial remote create
+  const createSync = buildUserSyncState({
+    localState: state,
+    remoteData: null,
+    nowMs: t0 + 15_000,
+  });
+  assert.equal(createSync.isRemoteCreate, true);
+  assert.equal(createSync.xp, roundRes.xpQueued);
+  assert.equal(createSync.dailyXp, roundRes.xpQueued);
+  assert.equal(createSync.weeklyXp, roundRes.xpQueued);
+  assert.ok(Number.isInteger(createSync.xp));
+  assert.ok(createSync.xp <= MAX_XP_PER_BATCH);
+
+  // 2. Subsequent update against existing remote doc with xp=400
+  const nextRound = recordVerifiedOnlineRound(createSync.nextState, {
+    isOnline: true,
+    isSignedIn: true,
+    mode: 'trivia',
+    won: true,
+    nowMs: t0 + SYNC_COOLDOWN_MS + 30_000,
+  });
+  const updateSync = buildUserSyncState({
+    localState: nextRound.state,
+    remoteData: {
+      xp: 400.7,
+      dailyXp: 120,
+      weeklyXp: 400,
+      weekKey: getUtcWeekKey(t0),
+      dailyWindowStartMs: t0,
+    },
+    nowMs: t0 + SYNC_COOLDOWN_MS + 35_000,
+  });
+  assert.equal(updateSync.isRemoteCreate, false);
+  assert.equal(updateSync.xp, 400 + nextRound.xpQueued);
+  assert.equal(updateSync.dailyXp, 120 + nextRound.xpQueued);
+  assert.equal(updateSync.weeklyXp, 400 + nextRound.xpQueued);
+  assert.ok(Number.isInteger(updateSync.xp));
+  assert.ok(updateSync.deltaXp <= MAX_XP_PER_BATCH);
+
+  // 3. Extract snapshot handles stale daily window rollover
+  const rolled = extractRemoteUserXpSnapshot(
+    { xp: 500, dailyXp: 300, weeklyXp: 500, dailyWindowStartMs: t0 },
+    t0 + 25 * 60 * 60 * 1000
+  );
+  assert.equal(rolled.xp, 500);
+  assert.equal(rolled.dailyXp, 0);
 });

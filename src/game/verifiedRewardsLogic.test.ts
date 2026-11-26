@@ -17,6 +17,7 @@ import {
   MAX_XP_PER_24H,
   MAX_XP_PER_BATCH,
   mergePlayerIntoLeaderboardTop,
+  reconcileVerifiedStateUid,
   recordVerifiedOnlineRound,
   resetUnverifiedDeltaAndFlag,
   REWARD_MILESTONE_XP,
@@ -465,4 +466,30 @@ test('buildUserSyncState produces integer xp/dailyXp/weeklyXp capped at 1500 per
   );
   assert.equal(rolled.xp, 500);
   assert.equal(rolled.dailyXp, 0);
+});
+
+test('reconcileVerifiedStateUid binds authenticated uid while preserving hash integrity and isolating distinct accounts', () => {
+  const t0 = Date.UTC(2026, 10, 26, 12, 0, 0);
+  const anon = createDefaultVerifiedRewardState(null, 'Player', 'anonymous', t0);
+  const bound = reconcileVerifiedStateUid(anon, 'uid-guest-1', 'Tolu_W', 'anonymous');
+  assert.equal(bound.uid, 'uid-guest-1');
+  assert.equal(bound.pendingBuffer.uid, 'uid-guest-1');
+  assert.equal(bound.displayName, 'Tolu_W');
+  assert.equal(verifyBufferIntegrity(bound, t0 + 10_000).valid, true);
+
+  // Earning XP under uid-guest-1 and switching to uid-user-2 resets state cleanly for uid-user-2
+  const withRound = recordVerifiedOnlineRound(bound, {
+    isOnline: true,
+    isSignedIn: true,
+    mode: 'trivia',
+    won: true,
+    nowMs: t0 + 10_000,
+  }).state;
+  assert.ok(withRound.pendingBuffer.pendingXp > 0);
+
+  const switched = reconcileVerifiedStateUid(withRound, 'uid-user-2', 'RealUser', 'email');
+  assert.equal(switched.uid, 'uid-user-2');
+  assert.equal(switched.pendingBuffer.pendingXp, 0);
+  assert.equal(switched.verifiedRewardXp, 0);
+  assert.equal(verifyBufferIntegrity(switched, t0 + 20_000).valid, true);
 });

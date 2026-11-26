@@ -127,8 +127,10 @@ import {
   XP_COSTS,
 } from './game/xpEconomyLogic';
 import {
+  AUTO_FLUSH_XP_THRESHOLD,
   calculateOfflineWrongXp,
   calculateVerifiedRoundXp,
+  reconcileVerifiedStateUid,
   recordVerifiedOnlineRound,
   shouldAutoFlushBatch,
   type ClaimConfirmationReceipt,
@@ -366,6 +368,11 @@ export default function App() {
   firebaseUserRef.current = firebaseUser;
   const isOnlineRef = useRef(isOnline);
   isOnlineRef.current = isOnline;
+  const playerDisplayNameRef = useRef(
+    userAccount?.username || initialBoot.profile.displayName || 'Player'
+  );
+  playerDisplayNameRef.current =
+    userAccount?.username || playerProfile.displayName || 'Player';
 
   const [profileModalMode, setProfileModalMode] = useState<ProfileAuthMode>(() =>
     loadLocalUserAccount() ? 'edit' : 'signin'
@@ -790,10 +797,54 @@ export default function App() {
   }, []);
 
   const performVerifiedFlush = useCallback(async (silent = false): Promise<void> => {
-    if (!firebaseUserRef.current || !isOnlineRef.current) return;
+    const onlineNow = typeof navigator !== 'undefined' ? navigator.onLine : isOnlineRef.current;
+    if (!onlineNow) {
+      const offlineMsg = 'Offline — progress stays saved locally until reconnected.';
+      setSyncStatusMessage(offlineMsg);
+      if (!silent) showToast(offlineMsg, 2800);
+      return;
+    }
+
     setIsSyncingScore(true);
     try {
-      const outcome = await flushVerifiedBatchToFirestore(verifiedStateRef.current);
+      let activeUser = firebaseUserRef.current;
+      if (!activeUser) {
+        const authRes = await ensureAnonymousSession();
+        if (!authRes.user) {
+          const authMsg = authRes.error || 'Unable to start cloud sync session.';
+          setSyncStatusMessage(authMsg);
+          if (!silent) showToast(authMsg, 3000);
+          return;
+        }
+        activeUser = authRes.user;
+        firebaseUserRef.current = activeUser;
+        setFirebaseUser(activeUser);
+      }
+
+      const authType = resolveFirebaseAuthType(activeUser);
+      let workingState = reconcileVerifiedStateUid(
+        verifiedStateRef.current,
+        activeUser.uid,
+        playerDisplayNameRef.current,
+        authType
+      );
+      if (workingState !== verifiedStateRef.current) {
+        try {
+          const hydrated = await loadOrHydrateRemoteUserProfile(
+            activeUser.uid,
+            workingState,
+            playerDisplayNameRef.current,
+            authType
+          );
+          workingState = hydrated.state;
+        } catch {
+          // Proceed with locally reconciled UID if initial fetch is unavailable
+        }
+        verifiedStateRef.current = workingState;
+        setVerifiedState(workingState);
+      }
+
+      const outcome = await flushVerifiedBatchToFirestore(workingState);
       verifiedStateRef.current = outcome.state;
       setVerifiedState(outcome.state);
       setSyncStatusMessage(outcome.message);
@@ -826,7 +877,7 @@ export default function App() {
     }
   }, [showToast]);
 
-  // Subscribe to Firebase Auth, hydrate remote user profile + 30-min leaderboard cache when signed in
+  // Subscribe to Firebase Auth, bind UID immediately, and hydrate remote user profile + leaderboard cache
   useEffect(() => {
     let active = true;
 
@@ -841,14 +892,25 @@ export default function App() {
 
       const authType = resolveFirebaseAuthType(user);
       const displayName =
-        userAccount?.username ||
+        playerDisplayNameRef.current ||
         user.displayName ||
-        playerProfile.displayName ||
         'Player';
+
+      // Bind UID immediately so rounds completed before getDoc resolves still accumulate Verified XP
+      const boundState = reconcileVerifiedStateUid(
+        verifiedStateRef.current,
+        user.uid,
+        displayName,
+        authType
+      );
+      if (boundState !== verifiedStateRef.current) {
+        verifiedStateRef.current = boundState;
+        setVerifiedState(boundState);
+      }
 
       void loadOrHydrateRemoteUserProfile(
         user.uid,
-        verifiedStateRef.current,
+        boundState,
         displayName,
         authType
       )
@@ -863,7 +925,7 @@ export default function App() {
           setLeaderboardCache(res.cache);
         })
         .catch(() => {
-          // Non-fatal: player continues with offline Practice XP safely
+          // Keep boundState UID active even if remote fetch was temporarily blocked
         });
     });
 
@@ -871,7 +933,13 @@ export default function App() {
       active = false;
       unsub();
     };
-  }, [playerProfile.displayName, userAccount?.username]);
+  }, []);
+
+  // Automatically start a guest Firebase session for returning users when online and auth modal is dismissed
+  useEffect(() => {
+    if (!isOnline || profileModalOpen || firebaseUser) return;
+    void ensureAnonymousSession().catch(() => {});
+  }, [firebaseUser, isOnline, profileModalOpen]);
 
   // Flush buffered online XP on tab background/session finish if 5-min cooldown allows
   useEffect(() => {
@@ -2228,7 +2296,10 @@ export default function App() {
 
   const handleOpenWeeklyRankModal = useCallback(() => {
     setWeeklyRankOpen(true);
-    if (shouldAutoFlushBatch(verifiedStateRef.current, 'leaderboard_open')) {
+    if (
+      verifiedStateRef.current.pendingBuffer.pendingXp >= AUTO_FLUSH_XP_THRESHOLD &&
+      shouldAutoFlushBatch(verifiedStateRef.current, 'leaderboard_open')
+    ) {
       void performVerifiedFlush(true);
     } else if (firebaseUserRef.current && isOnlineRef.current) {
       void fetchWeeklyLeaderboardSingleDoc(false)
@@ -2680,6 +2751,7 @@ export default function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenProfile={() => setProfileViewOpen(true)}
         onNavigateSection={handleNavigateHeaderSection}
+        showXp={activeTab !== 'home'}
       />
 
       <ConfettiBurst
@@ -2771,15 +2843,9 @@ export default function App() {
             countdown={countdown}
             weekDays={weekDays}
             challenges={homeChallenges}
-            activeCategoryName={activeCategory.name}
             spotlight={spotlight}
             playsRemaining={categoryProgress.playsRemaining}
             canSaveStreak={isStreakRecoverable}
-            weeklyProgress={weeklyProgress}
-            weeklyCountdown={weeklyCountdown}
-            leaderboardRank={leaderboardSummary.rank}
-            verifiedXp={verifiedState.verifiedRewardXp}
-            pendingVerifiedXp={verifiedState.pendingBuffer.pendingXp}
             playerProfile={playerProfile}
             onOpenPersonalize={() => setPersonalizationOpen(true)}
             onPlayPersonalizedPuzzle={() => handlePlayPersonalizedPuzzle()}
@@ -2796,7 +2862,6 @@ export default function App() {
               setActiveTab('trivia');
               window.scrollTo({ top: 0, behavior: 'instant' });
             }}
-            onOpenWeeklyRank={handleOpenWeeklyRankModal}
             onSelectChallenge={handleSelectChallenge}
             onPlayEntertainmentCategory={handlePlayEntertainmentCategory}
             onBrowseEntertainment={() => {
@@ -3255,6 +3320,8 @@ export default function App() {
         firebaseEmail={firebaseUser?.email || null}
         isOnline={isOnline}
         isSyncing={isSyncingScore}
+        lastSyncAtMs={verifiedState.lastSyncAtMs}
+        syncStatusMessage={syncStatusMessage}
         onClose={() => setProfileViewOpen(false)}
         onEditProfile={() => {
           setProfileViewOpen(false);
@@ -3280,6 +3347,8 @@ export default function App() {
               const fbRes = await signInOrLinkEmail(acct.email, passwordPlain, true);
               if (fbRes.user) {
                 await updateFirebaseDisplayName(acct.username);
+              } else if (!firebaseUserRef.current) {
+                await ensureAnonymousSession();
               }
             } else if (isOnlineRef.current && profileModalMode === 'edit') {
               await updateFirebaseDisplayName(acct.username);
@@ -3290,10 +3359,13 @@ export default function App() {
               ...prev,
               displayName: acct.username,
             }));
-            setVerifiedState((prev) => ({
-              ...prev,
-              displayName: acct.username,
-            }));
+            setVerifiedState((prev) => {
+              const next = { ...prev, displayName: acct.username };
+              if (next.uid) {
+                return reconcileVerifiedStateUid(next, next.uid, acct.username, next.authType);
+              }
+              return next;
+            });
             await saveEmailProgressBundle(
               buildEmailProgressBundle({
                 ...acct,

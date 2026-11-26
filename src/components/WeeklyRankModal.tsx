@@ -561,9 +561,9 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                     <span data-testid="firebase-auth-status" className="font-semibold wv-text">
                       {firebaseSignedIn
                         ? firebaseUserEmail || userAccount?.email || 'Cloud Account Synced'
-                        : userAccount?.email
-                        ? userAccount.email
-                        : 'Not Signed In'}
+                        : isOnline
+                        ? userAccount?.email || 'Ready for Cloud Sync'
+                        : 'Offline Mode'}
                     </span>
                   </div>
 
@@ -571,7 +571,7 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                     <button
                       type="button"
                       data-testid="sync-verified-score-btn"
-                      disabled={!firebaseSignedIn || !isOnline || isSyncingScore || cooldownLeftMs > 0}
+                      disabled={!isOnline || isSyncingScore || cooldownLeftMs > 0}
                       onClick={() => void onManualSyncScore()}
                       className="inline-flex min-h-9 items-center gap-1.5 rounded-lg wv-accent-btn px-3 py-1.5 text-xs sm:text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >

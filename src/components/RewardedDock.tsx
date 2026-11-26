@@ -52,7 +52,7 @@ export const RewardedDock: React.FC<RewardedDockProps> = ({
   return (
     <div
       data-testid="rewarded-dock"
-      className="mx-auto flex w-full max-w-xl flex-wrap items-center justify-center gap-2 px-3 py-1"
+      className="mx-auto flex w-full max-w-2xl lg:max-w-3xl flex-wrap items-center justify-center gap-2.5 px-3 sm:px-6 py-1.5"
     >
       {showCluesBtn && (
         <button
@@ -61,9 +61,9 @@ export const RewardedDock: React.FC<RewardedDockProps> = ({
             e.currentTarget.blur();
             onToggleCluePanel();
           }}
-          className="inline-flex min-h-12 items-center gap-1.5 rounded-xl border wv-border wv-card px-4 py-2 text-xs sm:text-sm font-bold wv-text transition-colors hover:opacity-85 whitespace-nowrap shrink-0 cursor-pointer"
+          className="inline-flex min-h-12 sm:min-h-[52px] items-center gap-2 rounded-2xl border wv-border wv-card px-4 sm:px-5 py-2.5 text-sm sm:text-base font-bold wv-text transition-colors hover:opacity-85 whitespace-nowrap shrink-0 cursor-pointer"
         >
-          <BookOpen className="h-4 w-4 wv-accent-text" aria-hidden="true" />
+          <BookOpen className="h-4 w-4 sm:h-5 sm:w-5 wv-accent-text" aria-hidden="true" />
           <span>{cluePanelOpen ? 'Hide Clues' : `Show Clues (${unlockedCount})`}</span>
         </button>
       )}
@@ -75,9 +75,9 @@ export const RewardedDock: React.FC<RewardedDockProps> = ({
             e.currentTarget.blur();
             onWatchAdSaveStreak();
           }}
-          className="inline-flex min-h-12 items-center gap-1.5 rounded-xl border wv-accent-pill px-4 py-2 text-xs sm:text-sm font-bold transition-transform active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
+          className="inline-flex min-h-12 sm:min-h-[52px] items-center gap-2 rounded-2xl border wv-accent-pill px-4 sm:px-5 py-2.5 text-sm sm:text-base font-bold transition-transform active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
         >
-          <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+          <ShieldCheck className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
           <span>Save Streak ({previousLostStreak})</span>
         </button>
       )}
@@ -91,9 +91,9 @@ export const RewardedDock: React.FC<RewardedDockProps> = ({
               e.currentTarget.blur();
               onShareResult();
             }}
-            className="inline-flex min-h-12 items-center gap-1.5 rounded-xl wv-accent-btn px-3.5 py-2 text-xs sm:text-sm font-bold transition-transform active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex min-h-12 sm:min-h-[52px] items-center gap-2 rounded-2xl wv-accent-btn px-4 sm:px-5 py-2.5 text-sm sm:text-base font-bold transition-transform active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
           >
-            <Share2 className="h-4 w-4" aria-hidden="true" />
+            <Share2 className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
             <span>Share Progress</span>
           </button>
 
@@ -105,9 +105,9 @@ export const RewardedDock: React.FC<RewardedDockProps> = ({
                 e.currentTarget.blur();
                 onInviteFriends();
               }}
-              className="inline-flex min-h-12 items-center gap-1.5 rounded-xl border wv-border wv-card px-3.5 py-2 text-xs sm:text-sm font-bold wv-text transition-colors hover:opacity-85 whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex min-h-12 sm:min-h-[52px] items-center gap-2 rounded-2xl border wv-border wv-card px-4 sm:px-5 py-2.5 text-sm sm:text-base font-bold wv-text transition-colors hover:opacity-85 whitespace-nowrap shrink-0 cursor-pointer"
             >
-              <UserPlus className="h-4 w-4 wv-accent-text" aria-hidden="true" />
+              <UserPlus className="h-4 w-4 sm:h-5 sm:w-5 wv-accent-text" aria-hidden="true" />
               <span>Invite Friends</span>
             </button>
           )}
@@ -118,7 +118,7 @@ export const RewardedDock: React.FC<RewardedDockProps> = ({
               e.currentTarget.blur();
               onOpenSummary();
             }}
-            className="inline-flex min-h-12 items-center gap-1.5 rounded-xl border wv-border wv-card px-4 py-2 text-xs sm:text-sm font-bold wv-text transition-colors hover:opacity-85 whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex min-h-12 sm:min-h-[52px] items-center gap-2 rounded-2xl border wv-border wv-card px-4 sm:px-5 py-2.5 text-sm sm:text-base font-bold wv-text transition-colors hover:opacity-85 whitespace-nowrap shrink-0 cursor-pointer"
           >
             <span>Summary</span>
           </button>
@@ -130,9 +130,9 @@ export const RewardedDock: React.FC<RewardedDockProps> = ({
                 e.currentTarget.blur();
                 onWatchAdUnlockCategory();
               }}
-              className="inline-flex min-h-12 items-center gap-1.5 rounded-xl wv-accent-btn px-4 py-2 text-xs sm:text-sm font-bold transition-transform active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex min-h-12 sm:min-h-[52px] items-center gap-2 rounded-2xl wv-accent-btn px-4 sm:px-5 py-2.5 text-sm sm:text-base font-bold transition-transform active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
             >
-              <Lock className="h-4 w-4" aria-hidden="true" />
+              <Lock className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
               <span>Unlock Topic</span>
             </button>
           ) : (
@@ -143,10 +143,10 @@ export const RewardedDock: React.FC<RewardedDockProps> = ({
                 e.currentTarget.blur();
                 onNewBoard();
               }}
-              className="inline-flex min-h-12 items-center gap-1.5 rounded-xl wv-gold-pill px-4 py-2 text-xs sm:text-sm font-bold transition-transform active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex min-h-12 sm:min-h-[52px] items-center gap-2 rounded-2xl wv-gold-pill px-5 py-2.5 text-sm sm:text-base font-bold transition-transform active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
             >
               <span>{sessionMode === 'level_climb' ? 'Next Climb Board' : 'Next Crossword'}</span>
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
             </button>
           )}
         </>

@@ -28,6 +28,7 @@ interface HeaderProps {
   onOpenSettings: () => void;
   onOpenProfile?: () => void;
   onNavigateSection?: (section: 'streak' | 'rules' | 'faq') => void;
+  showXp?: boolean;
 }
 
 const SOUND_MODE_LABEL: Record<SoundMode, string> = {
@@ -56,6 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSettings,
   onOpenProfile,
   onNavigateSection,
+  showXp = true,
 }) => {
   return (
     <header className="sticky top-0 z-30 w-full border-b wv-border wv-card backdrop-blur-md">
@@ -131,13 +133,26 @@ export const Header: React.FC<HeaderProps> = ({
               e.currentTarget.blur();
               onOpenWeeklyRank();
             }}
-            aria-label={`${weeklyXp} XP. Open leaderboard and rewards.`}
+            aria-label={
+              showXp
+                ? `${weeklyXp} XP. Open leaderboard and rewards.`
+                : `Rank ${weeklyGradeId}. Open leaderboard and rewards.`
+            }
             title="Leaderboard & Rewards"
             className="inline-flex h-10 items-center gap-1.5 rounded-xl border wv-border wv-card-muted px-2.5 sm:px-3 text-sm font-bold wv-text transition-transform active:scale-95 whitespace-nowrap cursor-pointer"
           >
             <Trophy className="h-4 w-4 wv-accent-text shrink-0" aria-hidden="true" />
             <span data-testid="header-rank-value" className="font-mono-tabular">
-              {weeklyXp.toLocaleString()} XP
+              {showXp ? (
+                `${weeklyXp.toLocaleString()} XP`
+              ) : leaderboardRank ? (
+                <>
+                  <span className="hidden sm:inline">#{leaderboardRank} · </span>
+                  <span>Rank {weeklyGradeId}</span>
+                </>
+              ) : (
+                `Rank ${weeklyGradeId}`
+              )}
             </span>
           </button>
 

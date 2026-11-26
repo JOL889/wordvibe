@@ -18,6 +18,7 @@ import type { StatsData } from '../game/puzzleLogic';
 import type { PlayerProfileState } from '../game/playerProfileLogic';
 import type { LocalUserAccount } from '../game/userAccountLogic';
 import type { WeeklyActivityState } from '../game/weeklyLogic';
+import { getSyncCooldownRemainingMs } from '../game/verifiedRewardsLogic';
 import { UserAvatar } from './UserAvatar';
 
 interface ProfileViewModalProps {
@@ -35,6 +36,8 @@ interface ProfileViewModalProps {
   firebaseEmail: string | null;
   isOnline: boolean;
   isSyncing: boolean;
+  lastSyncAtMs?: number;
+  syncStatusMessage?: string | null;
   onClose: () => void;
   onEditProfile: () => void;
   onSyncProgress?: () => Promise<void> | void;
@@ -56,12 +59,30 @@ export const ProfileViewModal: React.FC<ProfileViewModalProps> = ({
   firebaseEmail,
   isOnline,
   isSyncing,
+  lastSyncAtMs = 0,
+  syncStatusMessage = null,
   onClose,
   onEditProfile,
   onSyncProgress,
   onSignOut,
 }) => {
+  const [nowMs, setNowMs] = React.useState(() => Date.now());
+  const cooldownLeftMs = getSyncCooldownRemainingMs(lastSyncAtMs, nowMs);
+
+  React.useEffect(() => {
+    if (!open || cooldownLeftMs <= 0) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [open, cooldownLeftMs]);
+
   if (!open) return null;
+
+  const formatCooldown = (ms: number): string => {
+    const totalSec = Math.ceil(ms / 1000);
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    return `${mins}:${String(secs).padStart(2, '0')}`;
+  };
 
   const displayName = userAccount?.realName || playerProfile.displayName || 'WordVibe Player';
   const username = userAccount?.username || playerProfile.displayName || 'Player';
@@ -248,6 +269,15 @@ export const ProfileViewModal: React.FC<ProfileViewModalProps> = ({
 
         {/* Footer Actions */}
         <div className="border-t wv-border px-5 py-4 space-y-2.5 bg-[var(--wv-surface)]">
+          {syncStatusMessage && (
+            <p
+              data-testid="profile-sync-status-message"
+              role="status"
+              className="rounded-xl border wv-border wv-card-muted px-3 py-2 text-xs font-semibold wv-text-muted text-center"
+            >
+              {syncStatusMessage}
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-2.5">
             <button
               type="button"
@@ -261,15 +291,21 @@ export const ProfileViewModal: React.FC<ProfileViewModalProps> = ({
             <button
               type="button"
               data-testid="profile-view-sync-btn"
-              disabled={isSyncing || !isOnline}
+              disabled={isSyncing || !isOnline || cooldownLeftMs > 0}
               onClick={() => void onSyncProgress?.()}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border wv-border wv-card-muted px-4 py-2.5 text-base font-bold wv-text hover:opacity-90 disabled:opacity-50 cursor-pointer"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border wv-border wv-card-muted px-4 py-2.5 text-base font-bold wv-text hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               <RefreshCw
                 className={`h-4 w-4 wv-accent-text ${isSyncing ? 'animate-spin' : ''}`}
                 aria-hidden="true"
               />
-              <span>{isSyncing ? 'Syncing...' : 'Sync Now'}</span>
+              <span>
+                {isSyncing
+                  ? 'Syncing...'
+                  : cooldownLeftMs > 0
+                  ? `Wait ${formatCooldown(cooldownLeftMs)}`
+                  : 'Sync Now'}
+              </span>
             </button>
           </div>
           <button

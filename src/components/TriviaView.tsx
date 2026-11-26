@@ -488,18 +488,18 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
     <section
       data-testid="trivia-view"
       aria-label="WordVibe Brain Trivia"
-      className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 pt-3 pb-24 sm:pt-5 animate-stage-enter"
+      className="mx-auto flex w-full max-w-3xl lg:max-w-4xl flex-col gap-5 px-4 sm:px-6 lg:px-8 pt-4 pb-28 sm:pt-6 animate-stage-enter"
     >
       {/* Top Trivia Studio Card: Mode, Category, Locked Timed Level Stepper */}
-      <div className="rounded-2xl border wv-border wv-card p-4 sm:p-5 shadow-xs space-y-3">
+      <div className="rounded-3xl border wv-border wv-card p-5 sm:p-7 shadow-xs space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 font-display text-base font-bold wv-accent-text">
-            <Brain className="h-4 w-4" aria-hidden="true" />
+          <div className="flex items-center gap-2 font-display text-lg sm:text-xl font-bold wv-accent-text">
+            <Brain className="h-5 w-5" aria-hidden="true" />
             <span>Brain Trivia · {activeCategory.name}</span>
           </div>
-          <div className="flex items-center gap-2 font-mono-tabular text-xs sm:text-sm font-bold wv-text">
+          <div className="flex items-center gap-2 font-mono-tabular text-sm sm:text-base font-bold wv-text">
             <span className="inline-flex items-center gap-1">
-              <Flame className="h-4 w-4 wv-accent-text" aria-hidden="true" />
+              <Flame className="h-4 w-4 sm:h-5 sm:w-5 wv-accent-text" aria-hidden="true" />
               <span data-testid="trivia-streak-count">{streak}</span>
             </span>
             <span className="wv-text-muted">·</span>
@@ -516,18 +516,18 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
           <div
             role="group"
             aria-label="Trivia session mode"
-            className="inline-flex items-center rounded-xl border wv-border wv-card-muted p-0.5"
+            className="inline-flex items-center rounded-xl border wv-border wv-card-muted p-1"
           >
             <button
               type="button"
               data-testid="trivia-mode-climb-btn"
               onClick={() => onChangeSessionMode('level_climb')}
               aria-pressed={sessionMode === 'level_climb'}
-              className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs sm:text-sm font-bold cursor-pointer ${
+              className={`inline-flex min-h-11 sm:min-h-12 items-center gap-2 rounded-lg px-4 py-2 text-sm sm:text-base font-bold cursor-pointer ${
                 sessionMode === 'level_climb' ? 'wv-accent-btn' : 'wv-text-muted hover:opacity-90'
               }`}
             >
-              <Trophy className="h-3.5 w-3.5" aria-hidden="true" />
+              <Trophy className="h-4 w-4" aria-hidden="true" />
               <span>Level Climb</span>
             </button>
             <button
@@ -535,18 +535,18 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
               data-testid="trivia-mode-sprint-btn"
               onClick={() => onChangeSessionMode('sprint')}
               aria-pressed={sessionMode === 'sprint'}
-              className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs sm:text-sm font-bold cursor-pointer ${
+              className={`inline-flex min-h-11 sm:min-h-12 items-center gap-2 rounded-lg px-4 py-2 text-sm sm:text-base font-bold cursor-pointer ${
                 sessionMode === 'sprint' ? 'wv-accent-btn' : 'wv-text-muted hover:opacity-90'
               }`}
             >
-              <Zap className="h-3.5 w-3.5" aria-hidden="true" />
+              <Zap className="h-4 w-4" aria-hidden="true" />
               <span>Endless Sprint</span>
             </button>
           </div>
         </div>
 
         {/* Category Pills */}
-        <div data-testid="trivia-category-selector" className="flex flex-wrap gap-1.5">
+        <div data-testid="trivia-category-selector" className="flex flex-wrap gap-2">
           {TRIVIA_CATEGORIES.map((cat) => {
             const isSelected = cat.id === selectedCategoryId;
             const unlocked = isTriviaCategoryUnlocked(
@@ -566,7 +566,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                 type="button"
                 data-trivia-category={cat.id}
                 onClick={() => handleCategoryClick(cat.id)}
-                className={`inline-flex min-h-9 items-center gap-1.5 rounded-xl border px-3 py-1 text-xs sm:text-sm font-bold transition-colors whitespace-nowrap cursor-pointer ${
+                className={`inline-flex min-h-10 sm:min-h-11 items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-sm sm:text-base font-bold transition-colors whitespace-nowrap cursor-pointer ${
                   isSelected
                     ? 'wv-accent-btn border-transparent'
                     : cat.isBonusLocked && !unlocked
@@ -630,33 +630,33 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
         {sessionMode === 'level_climb' && (
           <div
             data-testid="trivia-level-bar"
-            className="flex items-center justify-between gap-2 border-t wv-border pt-3"
+            className="flex items-center justify-between gap-2 border-t wv-border pt-3.5"
           >
             <div className="flex flex-col min-w-0">
-              <span className="text-xs font-bold uppercase tracking-wider wv-text-muted">
+              <span className="text-xs sm:text-sm font-bold uppercase tracking-wider wv-text-muted">
                 Current Level · 15s Timer
               </span>
-              <span className="text-xs wv-text-muted">
+              <span className="text-xs sm:text-sm wv-text-muted">
                 Beat {TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD}/{TRIVIA_LEVEL_CLIMB_TOTAL} in time to reach Level{' '}
                 {safeLevel + 1}
               </span>
             </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
                 data-testid="trivia-level-dec"
                 disabled={safeLevel <= 1}
                 onClick={() => onChangeLevelNumber(Math.max(1, safeLevel - 1))}
                 aria-label="Previous unlocked level"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border wv-border wv-card-muted wv-text transition-transform active:scale-95 disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-xl border wv-border wv-card-muted wv-text transition-transform active:scale-95 disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed"
               >
-                <Minus className="h-4 w-4" aria-hidden="true" />
+                <Minus className="h-5 w-5" aria-hidden="true" />
               </button>
 
               <span
                 data-testid="trivia-active-level-badge"
-                className="inline-flex min-h-10 min-w-[96px] items-center justify-center rounded-xl wv-accent-btn px-3.5 py-1.5 font-mono-tabular text-sm font-extrabold"
+                className="inline-flex min-h-11 min-w-[108px] items-center justify-center rounded-xl wv-accent-btn px-4 py-2 font-mono-tabular text-base font-extrabold"
               >
                 {formatLevelLabel(safeLevel)}
               </span>
@@ -680,12 +680,12 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                     ? 'Next unlocked level'
                     : `Level ${safeLevel + 1} locked until 5 timed wins`
                 }
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border wv-border wv-card-muted wv-text transition-transform active:scale-95 disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-xl border wv-border wv-card-muted wv-text transition-transform active:scale-95 disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed"
               >
                 {canIncrementLevel ? (
-                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  <Plus className="h-5 w-5" aria-hidden="true" />
                 ) : (
-                  <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+                  <Lock className="h-4 w-4" aria-hidden="true" />
                 )}
               </button>
             </div>
@@ -716,10 +716,10 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
       {showClimbSummary ? (
         <div
           data-testid="trivia-round-summary"
-          className="wv-tilt-surface rounded-2xl border-2 wv-border wv-card p-5 sm:p-6 shadow-md animate-modal-pop"
+          className="wv-tilt-surface rounded-3xl border-2 wv-border wv-card p-6 sm:p-8 shadow-md animate-modal-pop"
         >
-          <div className="flex items-center gap-2 text-xs sm:text-sm font-bold wv-accent-text">
-            <Sparkles className="h-4 w-4" aria-hidden="true" />
+          <div className="flex items-center gap-2 text-sm sm:text-base font-bold wv-accent-text">
+            <Sparkles className="h-5 w-5" aria-hidden="true" />
             <span>
               {climbState.promotedToLevelNumber
                 ? `Level Up Unlocked: ${formatLevelLabel(climbState.promotedToLevelNumber)}!`
@@ -727,43 +727,43 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
             </span>
           </div>
 
-          <h2 className="mt-1 font-display text-2xl font-bold wv-text">
+          <h2 className="mt-1.5 font-display text-2xl sm:text-3xl font-bold wv-text">
             {climbState.correctCount} / {TRIVIA_LEVEL_CLIMB_TOTAL} Timed Wins!
           </h2>
-          <p className="mt-1 text-sm wv-text-muted">
+          <p className="mt-1.5 text-sm sm:text-base wv-text-muted">
             {climbState.promotedToLevelNumber
               ? `Awesome speed! You beat all 5 shrinking countdowns and promoted to ${formatLevelLabel(climbState.promotedToLevelNumber)}.`
               : `Answer all ${TRIVIA_LEVEL_CLIMB_PASS_THRESHOLD}/${TRIVIA_LEVEL_CLIMB_TOTAL} before the timer runs out to unlock Level ${(climbState.levelNumber ?? safeLevel) + 1}.`}
           </p>
 
-          <div className="mt-4 grid grid-cols-3 gap-2.5 text-center">
-            <div className="rounded-xl border wv-border wv-card-muted p-3">
-              <div className="font-mono-tabular text-xl font-bold wv-text">
+          <div className="mt-5 grid grid-cols-3 gap-3 text-center">
+            <div className="rounded-2xl border wv-border wv-card-muted p-4">
+              <div className="font-mono-tabular text-2xl sm:text-3xl font-bold wv-text">
                 {Math.round((climbState.correctCount / TRIVIA_LEVEL_CLIMB_TOTAL) * 100)}%
               </div>
-              <div className="text-xs wv-text-muted">Accuracy</div>
+              <div className="text-xs sm:text-sm wv-text-muted">Accuracy</div>
             </div>
-            <div className="rounded-xl border wv-border wv-card-muted p-3">
-              <div className="font-mono-tabular text-xl font-bold wv-accent-text">
+            <div className="rounded-2xl border wv-border wv-card-muted p-4">
+              <div className="font-mono-tabular text-2xl sm:text-3xl font-bold wv-accent-text">
                 +{doubleXpClaimed ? stageXpEarned * 2 : stageXpEarned}
               </div>
-              <div className="text-xs wv-text-muted">Weekly XP</div>
+              <div className="text-xs sm:text-sm wv-text-muted">Weekly XP</div>
             </div>
-            <div className="rounded-xl border wv-border wv-card-muted p-3">
-              <div className="font-mono-tabular text-xl font-bold wv-accent-text">{streak}</div>
-              <div className="text-xs wv-text-muted">Streak</div>
+            <div className="rounded-2xl border wv-border wv-card-muted p-4">
+              <div className="font-mono-tabular text-2xl sm:text-3xl font-bold wv-accent-text">{streak}</div>
+              <div className="text-xs sm:text-sm wv-text-muted">Streak</div>
             </div>
           </div>
 
-          <div className="mt-5 flex flex-col gap-2.5 sm:flex-row">
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             {canOfferDoubleXp && (
               <button
                 type="button"
                 data-testid="trivia-double-xp-btn"
                 onClick={handleDoubleStageXp}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl wv-accent-btn px-4 py-3 text-sm font-bold cursor-pointer"
+                className="flex min-h-12 sm:min-h-[52px] flex-1 items-center justify-center gap-2 rounded-2xl wv-accent-btn px-5 py-3 text-sm sm:text-base font-bold cursor-pointer"
               >
-                <Zap className="h-4 w-4" aria-hidden="true" />
+                <Zap className="h-5 w-5" aria-hidden="true" />
                 <span>Watch Ad: 2x Weekly XP (+{stageXpEarned})</span>
               </button>
             )}
@@ -772,9 +772,9 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
               type="button"
               data-testid="trivia-new-round-btn"
               onClick={handleStartNextClimbStage}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl wv-gold-pill px-4 py-3 font-display text-base font-bold cursor-pointer"
+              className="flex min-h-12 sm:min-h-[52px] flex-1 items-center justify-center gap-2 rounded-2xl wv-gold-pill px-5 py-3 font-display text-base sm:text-lg font-bold cursor-pointer"
             >
-              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              <RefreshCw className="h-5 w-5" aria-hidden="true" />
               <span>
                 {climbState.promotedToLevelNumber
                   ? `Start ${formatLevelLabel(climbState.promotedToLevelNumber)}`
@@ -784,28 +784,28 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
           </div>
         </div>
       ) : question ? (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {/* Prominent High-Contrast 15-Second Countdown Timer Banner Right Above Question Card */}
           {sessionMode === 'level_climb' && (
             <div
               data-testid="trivia-timer-bar"
-              className={`rounded-2xl border-2 p-3.5 shadow-sm transition-colors ${
+              className={`rounded-3xl border-2 p-4 sm:p-5 shadow-sm transition-colors ${
                 isLowTime
                   ? 'border-amber-500/80 bg-amber-500/10'
                   : 'wv-border wv-card'
               }`}
             >
-              <div className="flex items-center justify-between gap-3 mb-2">
-                <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-extrabold uppercase tracking-wider wv-text">
+              <div className="flex items-center justify-between gap-3 mb-2.5">
+                <span className="inline-flex items-center gap-2 text-sm sm:text-base font-extrabold uppercase tracking-wider wv-text">
                   <Clock
-                    className={`h-4 w-4 ${isLowTime ? 'text-amber-500 animate-pulse' : 'wv-accent-text'}`}
+                    className={`h-5 w-5 ${isLowTime ? 'text-amber-500 animate-pulse' : 'wv-accent-text'}`}
                     aria-hidden="true"
                   />
                   <span>Time Remaining</span>
                 </span>
                 <span
                   data-testid="trivia-climb-timer"
-                  className={`inline-flex items-center gap-1.5 rounded-xl border-2 px-3.5 py-1 font-mono-tabular text-lg font-black shadow-xs ${
+                  className={`inline-flex items-center gap-1.5 rounded-xl border-2 px-4 py-1 font-mono-tabular text-xl sm:text-2xl font-black shadow-xs ${
                     isLowTime
                       ? 'border-amber-500 bg-amber-500 text-slate-950 animate-pulse'
                       : 'border-transparent wv-accent-btn'
@@ -815,7 +815,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                 </span>
               </div>
 
-              <div className="h-3 w-full overflow-hidden rounded-full wv-card-muted border wv-border">
+              <div className="h-3.5 w-full overflow-hidden rounded-full wv-card-muted border wv-border">
                 <div
                   className={`h-full rounded-full transition-all duration-300 ${
                     isLowTime ? 'bg-amber-500' : 'wv-accent-btn'
@@ -830,7 +830,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                 <div
                   data-testid="trivia-timeout-notice"
                   role="status"
-                  className="mt-2.5 rounded-xl border border-amber-500/40 bg-amber-500/15 px-3 py-2 text-xs sm:text-sm font-bold wv-text"
+                  className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/15 px-4 py-2.5 text-sm sm:text-base font-bold wv-text"
                 >
                   Time&apos;s up! Unanswered · 0 XP — Advancing to next question...
                 </div>
@@ -840,10 +840,10 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
 
           <div
             data-testid="trivia-question-card"
-            className="wv-tilt-surface rounded-2xl border-2 wv-border wv-card p-5 sm:p-6 shadow-md"
+            className="wv-tilt-surface rounded-3xl border-2 wv-border wv-card p-6 sm:p-8 shadow-md"
           >
-            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b wv-border">
-              <div className="flex items-center gap-2 text-xs sm:text-sm font-bold wv-text-muted">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3.5 border-b wv-border">
+              <div className="flex items-center gap-2.5 text-sm sm:text-base font-bold wv-text-muted">
                 <span data-testid="trivia-round-progress" className="wv-accent-text">
                   {sessionMode === 'level_climb' ? formatLevelLabel(safeLevel) : 'Endless Sprint'}
                 </span>
@@ -857,7 +857,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                 )}
               </div>
 
-              <span className="rounded-lg border wv-border wv-card-muted px-2.5 py-0.5 text-xs font-bold wv-text-muted">
+              <span className="rounded-xl border wv-border wv-card-muted px-3 py-1 text-xs sm:text-sm font-bold wv-text-muted">
                 {question.category}
               </span>
             </div>
@@ -865,28 +865,28 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
           {question.personalizationReason && (
             <p
               data-testid="trivia-personalization-reason"
-              className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold wv-accent-text"
+              className="mt-3.5 inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold wv-accent-text"
             >
-              <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
               <span>{question.personalizationReason}</span>
             </p>
           )}
 
           <h2
             data-testid="trivia-question-text"
-            className="mt-3 font-display text-xl sm:text-2xl font-bold leading-snug wv-text"
+            className="mt-4 font-display text-2xl sm:text-3xl font-bold leading-snug wv-text"
           >
             {question.question}
           </h2>
 
           {selectedIdx === null && (
-            <div className="mt-3.5 space-y-2">
-              <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="mt-4 space-y-2.5">
+              <div className="flex flex-col gap-2.5 sm:flex-row">
                 <button
                   type="button"
                   data-testid="trivia-watch-two-ads-btn"
                   onClick={handleWatchTwoAdsForAnswer}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border wv-accent-pill px-4 py-2.5 text-xs sm:text-sm font-bold transition-transform active:scale-98 cursor-pointer"
+                  className="flex min-h-12 sm:min-h-[52px] flex-1 items-center justify-center gap-2 rounded-2xl border wv-accent-pill px-4 py-3 text-sm sm:text-base font-bold transition-transform active:scale-98 cursor-pointer"
                 >
                   <Zap className="h-4 w-4 shrink-0" aria-hidden="true" />
                   <span>
@@ -901,7 +901,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                     data-testid="trivia-solve-xp-btn"
                     disabled={currentXp < XP_COSTS.TRIVIA_SOLVE}
                     onClick={handleSpendXpForQuestion}
-                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl wv-gold-pill px-4 py-2.5 text-xs sm:text-sm font-extrabold transition-transform active:scale-98 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
+                    className="inline-flex min-h-12 sm:min-h-[52px] shrink-0 items-center justify-center gap-1.5 rounded-2xl wv-gold-pill px-4 py-3 text-sm sm:text-base font-extrabold transition-transform active:scale-98 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
                   >
                     <Zap className="h-4 w-4 shrink-0" aria-hidden="true" />
                     <span>Solve Question · {XP_COSTS.TRIVIA_SOLVE} XP</span>
@@ -911,7 +911,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
             </div>
           )}
 
-          <div data-testid="trivia-options" className="mt-4 grid grid-cols-1 gap-2.5">
+          <div data-testid="trivia-options" className="mt-5 grid grid-cols-1 gap-3">
             {question.options.map((opt, idx) => {
               const isAnswered = selectedIdx !== null;
               const isCorrectOpt = idx === question.correctIndex;
@@ -935,7 +935,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                   data-testid={`trivia-option-${idx}`}
                   disabled={isAnswered || timedOut}
                   onClick={() => handleSelectOption(idx)}
-                  className={`flex min-h-12 items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-base font-semibold transition-all active:scale-[0.985] cursor-pointer disabled:cursor-default ${styleClass} ${
+                  className={`flex min-h-14 sm:min-h-[60px] items-center justify-between gap-3.5 rounded-2xl border px-5 py-3.5 text-left text-base sm:text-lg font-semibold transition-all active:scale-[0.985] cursor-pointer disabled:cursor-default ${styleClass} ${
                     isAnswered && isCorrectOpt
                       ? 'animate-tile-pop'
                       : isAnswered && isPicked && !isCorrectOpt
@@ -943,18 +943,18 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                       : ''
                   }`}
                 >
-                  <span className="flex items-center gap-3">
-                    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border wv-tile-wooden font-display text-xs font-bold">
+                  <span className="flex items-center gap-3.5">
+                    <span className="inline-flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl border wv-tile-wooden font-display text-sm sm:text-base font-bold">
                       {OPTION_LETTERS[idx]}
                     </span>
                     <span>{opt}</span>
                   </span>
 
                   {isAnswered && isCorrectOpt && (
-                    <CheckCircle2 className="h-5 w-5 shrink-0" aria-hidden="true" />
+                    <CheckCircle2 className="h-6 w-6 shrink-0" aria-hidden="true" />
                   )}
                   {isAnswered && isPicked && !isCorrectOpt && (
-                    <XCircle className="h-5 w-5 shrink-0 opacity-85" aria-hidden="true" />
+                    <XCircle className="h-6 w-6 shrink-0 opacity-85" aria-hidden="true" />
                   )}
                 </button>
               );
@@ -964,10 +964,10 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
           {selectedIdx !== null && (
             <div
               data-testid="trivia-explanation-box"
-              className="mt-4 rounded-xl border wv-border wv-card-muted p-4 animate-stage-enter"
+              className="mt-5 rounded-2xl border wv-border wv-card-muted p-5 animate-stage-enter"
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs sm:text-sm font-bold wv-accent-text">
+                <span className="text-sm sm:text-base font-bold wv-accent-text">
                   {selectedIdx === question.correctIndex
                     ? solvedViaXp
                       ? `Solved via ${XP_COSTS.TRIVIA_SOLVE} XP · Advancing...`
@@ -984,31 +984,31 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                     ? 'Study Note · 0 XP'
                     : `Study Note · +${lastXpFlash ?? 0} Offline XP`}
                 </span>
-                <span className="text-xs font-semibold wv-text-muted">{question.category}</span>
+                <span className="text-xs sm:text-sm font-semibold wv-text-muted">{question.category}</span>
               </div>
-              <p className="mt-1.5 text-sm sm:text-base leading-relaxed wv-text">
+              <p className="mt-2 text-base sm:text-lg leading-relaxed wv-text">
                 {question.explanation}
               </p>
 
               {question.funFact && (
                 <div
                   data-testid="trivia-fun-fact"
-                  className="mt-2.5 rounded-lg border wv-border wv-card px-3 py-2 text-xs sm:text-sm leading-relaxed wv-text"
+                  className="mt-3 rounded-xl border wv-border wv-card px-4 py-3 text-sm sm:text-base leading-relaxed wv-text"
                 >
                   <span className="font-bold wv-accent-text">Did You Know? </span>
                   <span>{question.funFact}</span>
                 </div>
               )}
 
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <div className="mt-4 flex flex-col gap-2.5 sm:flex-row">
                 {canOfferRevive && (
                   <button
                     type="button"
                     data-testid="trivia-revive-btn"
                     onClick={handleReviveStreak}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border wv-accent-pill px-4 py-2.5 text-xs sm:text-sm font-bold cursor-pointer"
+                    className="flex min-h-12 sm:min-h-[52px] flex-1 items-center justify-center gap-2 rounded-2xl border wv-accent-pill px-4 py-3 text-sm sm:text-base font-bold cursor-pointer"
                   >
-                    <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                    <ShieldCheck className="h-5 w-5" aria-hidden="true" />
                     <span>Watch Ad: Keep {streakBeforeMiss}-Streak</span>
                   </button>
                 )}
@@ -1023,7 +1023,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                       handleNextStep();
                     }
                   }}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl wv-accent-btn px-4 py-2.5 text-sm font-bold cursor-pointer"
+                  className="flex min-h-12 sm:min-h-[52px] flex-1 items-center justify-center gap-2 rounded-2xl wv-accent-btn px-5 py-3 text-base font-bold cursor-pointer"
                 >
                   <span>
                     {sessionMode === 'level_climb' && climbState.stageComplete
@@ -1032,7 +1032,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                       ? 'Restart Climb (1/5)'
                       : 'Next Question'}
                   </span>
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  <ArrowRight className="h-5 w-5" aria-hidden="true" />
                 </button>
               </div>
             </div>

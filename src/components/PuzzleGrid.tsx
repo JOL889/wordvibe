@@ -239,10 +239,10 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
 
   const tileSizeClass =
     L === 6
-      ? 'h-[clamp(46px,12.8vw,56px)] w-[clamp(46px,12.8vw,56px)] text-[23px] sm:text-[26px]'
+      ? 'h-[clamp(44px,11.8vw,72px)] w-[clamp(44px,11.8vw,72px)] text-[22px] sm:text-[32px]'
       : L === 4
-      ? 'h-[clamp(60px,16vw,70px)] w-[clamp(60px,16vw,70px)] text-[29px] sm:text-[33px]'
-      : 'h-[clamp(52px,14.2vw,62px)] w-[clamp(52px,14.2vw,62px)] text-[26px] sm:text-[30px]';
+      ? 'h-[clamp(62px,17.2vw,94px)] w-[clamp(62px,17.2vw,94px)] text-[30px] sm:text-[42px]'
+      : 'h-[clamp(52px,14vw,82px)] w-[clamp(52px,14vw,82px)] text-[26px] sm:text-[36px]';
 
   const getFeedbackClass = (
     fb: TileState | null,
@@ -276,29 +276,29 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
   };
 
   return (
-    <div className="mx-auto my-0.5 flex w-full max-w-md flex-col items-center gap-1.5 px-2.5 sm:px-3 select-none">
+    <div className="mx-auto my-1 flex w-full max-w-2xl lg:max-w-3xl flex-col items-center gap-2.5 px-3 sm:px-6 select-none">
       {/* Top Active Line Prompt */}
       {board.status === 'playing' && (
         <div
           data-testid="active-line-clue"
-          className="w-full max-w-[390px] rounded-xl border wv-border wv-card px-3 py-2 shadow-xs"
+          className="w-full max-w-xl sm:max-w-2xl rounded-2xl border wv-border wv-card px-4 py-3 shadow-xs"
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider wv-accent-text">
+            <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold uppercase tracking-wider wv-accent-text">
               {typingDirection === 'across' ? (
-                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
               ) : (
-                <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
+                <ArrowDown className="h-4 w-4" aria-hidden="true" />
               )}
               <span>{activeLineLabel}</span>
             </span>
-            <span className="text-xs font-bold wv-text-muted">
+            <span className="text-xs sm:text-sm font-bold wv-text-muted">
               {activeLineSolved ? 'Solved ✓' : 'Active Line'}
             </span>
           </div>
           <p
             data-testid="active-line-letter-stats"
-            className="mt-0.5 text-sm font-semibold leading-snug wv-text"
+            className="mt-1 text-sm sm:text-base font-semibold leading-snug wv-text"
           >
             {activeLineSolved
               ? 'Word complete! Tap another row or column.'
@@ -310,7 +310,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
       {/* Across & Down Direction Quick Strip */}
       <div
         data-testid="crossword-progress-bar"
-        className="flex w-full max-w-[390px] items-center justify-between gap-2 rounded-xl border wv-border wv-card px-3 py-1 text-xs sm:text-sm shadow-xs"
+        className="flex w-full max-w-xl sm:max-w-2xl items-center justify-between gap-2 rounded-2xl border wv-border wv-card px-4 py-2 text-sm sm:text-base shadow-xs"
       >
         <button
           type="button"
@@ -322,11 +322,11 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
             typingDirection === 'across' ? 'wv-accent-text' : 'wv-text-muted hover:opacity-85'
           }`}
         >
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
           <span>Across</span>
         </button>
 
-        <span className="text-xs font-semibold wv-text-muted">Linked Crossword</span>
+        <span className="text-xs sm:text-sm font-semibold wv-text-muted">Linked Crossword</span>
 
         <button
           type="button"
@@ -338,7 +338,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
             typingDirection === 'down' ? 'wv-accent-text' : 'wv-text-muted hover:opacity-85'
           }`}
         >
-          <ArrowDown className="h-4 w-4" aria-hidden="true" />
+          <ArrowDown className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
           <span>Down</span>
         </button>
       </div>
@@ -358,7 +358,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
             focusDeviceKeyboard();
           }
         }}
-        className="wv-tilt-surface relative flex flex-col items-center rounded-2xl border-2 wv-border wv-card p-2.5 sm:p-3 shadow-md"
+        className="wv-tilt-surface relative flex flex-col items-center rounded-3xl border-2 wv-border wv-card p-2.5 sm:p-5 shadow-md"
       >
         {/* Native Device Keyboard Bridge (Enter checks active row or col!) */}
         <input
@@ -406,7 +406,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
         )}
 
         {/* Top Column Indicator Headers (D1..DL) */}
-        <div className="mb-1.5 flex items-center gap-1.5 sm:gap-2 pl-7">
+        <div className="mb-1.5 flex items-center gap-1.5 sm:gap-2.5 pl-[30px] sm:pl-[38px]">
           {Array.from({ length: L }, (_, cIdx) => {
             const colSolved = board.solvedCols[cIdx];
             const isColActive =
@@ -421,12 +421,12 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
                   focusDeviceKeyboard();
                 }}
                 aria-label={`Column ${cIdx + 1} Down ${colSolved ? 'solved' : ''}`}
-                className={`flex h-6 items-center justify-center rounded-md font-mono-tabular text-xs font-bold transition-colors cursor-pointer ${
+                className={`flex h-7 sm:h-8 items-center justify-center rounded-lg font-mono-tabular text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
                   L === 6
-                    ? 'w-[clamp(46px,12.8vw,56px)]'
+                    ? 'w-[clamp(44px,11.8vw,72px)]'
                     : L === 4
-                    ? 'w-[clamp(60px,16vw,70px)]'
-                    : 'w-[clamp(52px,14.2vw,62px)]'
+                    ? 'w-[clamp(62px,17.2vw,94px)]'
+                    : 'w-[clamp(52px,14vw,82px)]'
                 } ${
                   colSolved
                     ? 'wv-accent-pill border'
@@ -435,14 +435,14 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
                     : 'wv-text-muted hover:opacity-80'
                 }`}
               >
-                {colSolved ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : `D${cIdx + 1}`}
+                {colSolved ? <Check className="h-4 w-4" strokeWidth={3} /> : `D${cIdx + 1}`}
               </button>
             );
           })}
         </div>
 
         {/* Grid Rows (A1..AL) */}
-        <div className="flex flex-col gap-1.5 sm:gap-2">
+        <div className="flex flex-col gap-1.5 sm:gap-2.5">
           {Array.from({ length: L }, (_, rIdx) => {
             const rowSolved = board.solvedRows[rIdx];
             const isRowActive =
@@ -454,7 +454,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
                 key={`row-${rIdx}`}
                 data-row-index={rIdx}
                 data-row-solved={rowSolved ? 'true' : 'false'}
-                className={`flex items-center gap-1.5 sm:gap-2 ${
+                className={`flex items-center gap-1.5 sm:gap-2.5 ${
                   isRowShaking ? 'animate-row-shake' : ''
                 }`}
               >
@@ -467,7 +467,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
                     focusDeviceKeyboard();
                   }}
                   aria-label={`Row ${rIdx + 1} Across ${rowSolved ? 'solved' : ''}`}
-                  className={`flex h-7 w-6 shrink-0 items-center justify-center rounded-md font-mono-tabular text-xs font-bold transition-colors cursor-pointer ${
+                  className={`flex h-8 w-6 sm:h-10 sm:w-7 shrink-0 items-center justify-center rounded-lg font-mono-tabular text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
                     rowSolved
                       ? 'wv-accent-pill border'
                       : isRowActive
@@ -475,7 +475,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
                       : 'wv-text-muted hover:opacity-80'
                   }`}
                 >
-                  {rowSolved ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : `A${rIdx + 1}`}
+                  {rowSolved ? <Check className="h-4 w-4" strokeWidth={3} /> : `A${rIdx + 1}`}
                 </button>
 
                 {/* Squares in Row */}
@@ -596,7 +596,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
 
         {/* Gentle play prompt */}
         {board.status === 'playing' && (
-          <p className="mt-3 text-center text-sm font-medium wv-text-muted">
+          <p className="mt-3 text-center text-sm sm:text-base font-medium wv-text-muted">
             Tap any square to spell Across or Down.
           </p>
         )}
@@ -608,7 +608,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
           data-testid="icon-action-bar"
           role="toolbar"
           aria-label="Crossword tools"
-          className="grid w-full max-w-[390px] grid-cols-4 gap-2 pt-0.5"
+          className="grid w-full max-w-xl sm:max-w-2xl grid-cols-4 gap-2 sm:gap-3 pt-0.5"
         >
           {/* 1. Unlimited Hint (Ad) */}
           <button
@@ -617,17 +617,17 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
             onClick={onTriggerHint}
             title="Watch a quick ad to reveal any open tile (Unlimited)"
             aria-label="Unlimited Hint via rewarded ad"
-            className="relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border wv-border wv-card py-1.5 wv-text transition-transform active:scale-95 hover:opacity-90 cursor-pointer"
+            className="relative flex min-h-14 sm:min-h-16 flex-col items-center justify-center gap-1 rounded-2xl border wv-border wv-card py-2 wv-text transition-transform active:scale-95 hover:opacity-90 cursor-pointer"
           >
             <span className="relative">
-              <Lightbulb className="h-[18px] w-[18px] wv-accent-text" aria-hidden="true" />
+              <Lightbulb className="h-5 w-5 sm:h-6 sm:w-6 wv-accent-text" aria-hidden="true" />
               <Play
                 className="absolute -right-2 -top-1 h-2.5 w-2.5 fill-[var(--wv-accent)] text-[var(--wv-accent)]"
                 aria-hidden="true"
               />
             </span>
-            <span className="text-xs font-bold leading-none">Hint</span>
-            <span className="absolute -top-1.5 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full wv-gold-pill px-1 font-mono-tabular text-[11px] font-extrabold">
+            <span className="text-xs sm:text-sm font-bold leading-none">Hint</span>
+            <span className="absolute -top-1.5 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full wv-gold-pill px-1 font-mono-tabular text-xs font-extrabold">
               ∞
             </span>
           </button>
@@ -642,14 +642,14 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
               onChangeDirection(typingDirection === 'across' ? 'down' : 'across');
               focusDeviceKeyboard();
             }}
-            className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border wv-border wv-card py-1.5 wv-text transition-transform active:scale-95 hover:opacity-90 cursor-pointer"
+            className="flex min-h-14 sm:min-h-16 flex-col items-center justify-center gap-1 rounded-2xl border wv-border wv-card py-2 wv-text transition-transform active:scale-95 hover:opacity-90 cursor-pointer"
           >
             {typingDirection === 'across' ? (
-              <ArrowRight className="h-[18px] w-[18px] wv-accent-text" aria-hidden="true" />
+              <ArrowRight className="h-5 w-5 sm:h-6 sm:w-6 wv-accent-text" aria-hidden="true" />
             ) : (
-              <ArrowDown className="h-[18px] w-[18px] wv-accent-text" aria-hidden="true" />
+              <ArrowDown className="h-5 w-5 sm:h-6 sm:w-6 wv-accent-text" aria-hidden="true" />
             )}
-            <span className="text-xs font-bold leading-none capitalize">
+            <span className="text-xs sm:text-sm font-bold leading-none capitalize">
               {typingDirection}
             </span>
           </button>
@@ -661,14 +661,14 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
             onClick={onTriggerWordClue}
             title="Watch an ad to reveal a short dictionary explanation clue"
             aria-label="Unlock Word Clue via rewarded ad"
-            className={`relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border py-1.5 transition-transform active:scale-95 cursor-pointer ${
+            className={`relative flex min-h-14 sm:min-h-16 flex-col items-center justify-center gap-1 rounded-2xl border py-2 transition-transform active:scale-95 cursor-pointer ${
               unlockedClueCount > 0 ? 'wv-accent-pill' : 'wv-border wv-card wv-text hover:opacity-90'
             }`}
           >
-            <BookOpen className="h-[18px] w-[18px] wv-accent-text" aria-hidden="true" />
-            <span className="text-xs font-bold leading-none">Clue / XP</span>
+            <BookOpen className="h-5 w-5 sm:h-6 sm:w-6 wv-accent-text" aria-hidden="true" />
+            <span className="text-xs sm:text-sm font-bold leading-none">Clue / XP</span>
             {unlockedClueCount > 0 && (
-              <span className="absolute -top-1.5 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full wv-accent-btn px-1 font-mono-tabular text-[11px] font-bold">
+              <span className="absolute -top-1.5 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full wv-accent-btn px-1 font-mono-tabular text-xs font-bold">
                 {unlockedClueCount}
               </span>
             )}
@@ -681,10 +681,10 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
             onClick={onTriggerSkipBoard}
             title="Deal a fresh zero-repeat crossword board (or shake phone!)"
             aria-label="Deal a fresh crossword board"
-            className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border wv-border wv-card py-1.5 wv-text transition-transform active:scale-95 hover:opacity-90 cursor-pointer"
+            className="flex min-h-14 sm:min-h-16 flex-col items-center justify-center gap-1 rounded-2xl border wv-border wv-card py-2 wv-text transition-transform active:scale-95 hover:opacity-90 cursor-pointer"
           >
-            <Shuffle className="h-[18px] w-[18px] wv-accent-text" aria-hidden="true" />
-            <span className="text-xs font-bold leading-none">New Grid</span>
+            <Shuffle className="h-5 w-5 sm:h-6 sm:w-6 wv-accent-text" aria-hidden="true" />
+            <span className="text-xs sm:text-sm font-bold leading-none">New Grid</span>
           </button>
         </div>
       )}
@@ -693,7 +693,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
       {board.status === 'playing' && onSpendXpForHint && (
         <div
           data-testid="puzzle-xp-hint-bar"
-          className="flex w-full max-w-[390px] items-center justify-between gap-2 rounded-xl border wv-border wv-card px-3 py-1.5 text-xs shadow-xs"
+          className="flex w-full max-w-xl sm:max-w-2xl items-center justify-between gap-2 rounded-2xl border wv-border wv-card px-4 py-2.5 text-xs sm:text-sm shadow-xs"
         >
           <span className="font-semibold wv-text-muted truncate">
             {currentXp >= XP_COSTS.PUZZLE_HINT
@@ -705,9 +705,9 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
             data-testid="puzzle-hint-xp-btn"
             disabled={currentXp < XP_COSTS.PUZZLE_HINT}
             onClick={onSpendXpForHint}
-            className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-lg wv-gold-pill px-2.5 py-1 text-xs font-extrabold transition-transform active:scale-95 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
+            className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl wv-gold-pill px-3.5 py-1.5 text-xs sm:text-sm font-extrabold transition-transform active:scale-95 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
           >
-            <Zap className="h-3.5 w-3.5" aria-hidden="true" />
+            <Zap className="h-4 w-4" aria-hidden="true" />
             <span>Hint · {XP_COSTS.PUZZLE_HINT} XP</span>
           </button>
         </div>
@@ -718,18 +718,18 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
         <div
           data-testid="lower-word-clue-card"
           data-clue-locked={unlockedMainClue ? 'false' : 'true'}
-          className="w-full max-w-[390px] rounded-xl border wv-border wv-card px-3.5 py-2.5 shadow-xs"
+          className="w-full max-w-xl sm:max-w-2xl rounded-2xl border wv-border wv-card px-4 py-3.5 shadow-xs"
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider wv-accent-text">
+            <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold uppercase tracking-wider wv-accent-text">
               {unlockedMainClue ? (
-                <Unlock className="h-3.5 w-3.5" aria-hidden="true" />
+                <Unlock className="h-4 w-4" aria-hidden="true" />
               ) : (
-                <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+                <Lock className="h-4 w-4" aria-hidden="true" />
               )}
               <span>{activeLineLabel} Clue</span>
             </span>
-            <span className="inline-flex items-center gap-1 rounded-md border wv-border wv-card-muted px-2 py-0.5 font-mono-tabular text-[11px] font-bold wv-text-muted">
+            <span className="inline-flex items-center gap-1 rounded-md border wv-border wv-card-muted px-2.5 py-0.5 font-mono-tabular text-xs font-bold wv-text-muted">
               {unlockedMainClue ? 'Unlocked' : 'Locked'}
             </span>
           </div>
@@ -737,20 +737,20 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
           {unlockedMainClue ? (
             <p
               data-testid="lower-clue-text"
-              className="mt-1.5 text-sm font-semibold leading-snug wv-text"
+              className="mt-2 text-base sm:text-lg font-semibold leading-snug wv-text"
             >
               {unlockedMainClue}
             </p>
           ) : (
-            <div className="mt-1.5 space-y-2">
+            <div className="mt-2 space-y-2.5">
               <p
                 data-testid="lower-clue-locked-msg"
-                className="text-xs sm:text-sm font-medium leading-snug wv-text-muted"
+                className="text-sm sm:text-base font-medium leading-snug wv-text-muted"
               >
                 Watch an ad or spend {XP_COSTS.PUZZLE_CLUE} XP to unlock this{' '}
                 {typingDirection === 'down' ? 'Down' : 'Across'} clue.
               </p>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <button
                   type="button"
                   data-testid="unlock-active-clue-btn"
@@ -761,9 +761,9 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
                       onTriggerWordClue();
                     }
                   }}
-                  className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-xl wv-accent-btn px-3 py-1.5 text-xs font-bold transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
+                  className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl wv-accent-btn px-4 py-2 text-xs sm:text-sm font-bold transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
                 >
-                  <Play className="h-3 w-3 fill-current" aria-hidden="true" />
+                  <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
                   <span>Watch Ad to Unlock Clue</span>
                 </button>
                 {onSpendXpForClue && (
@@ -772,9 +772,9 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
                     data-testid="unlock-active-clue-xp-btn"
                     disabled={currentXp < XP_COSTS.PUZZLE_CLUE}
                     onClick={() => onSpendXpForClue(activeSlotType, activeSlotIndex)}
-                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded-xl wv-gold-pill px-3 py-1.5 text-xs font-extrabold transition-transform active:scale-95 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
+                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl wv-gold-pill px-4 py-2 text-xs sm:text-sm font-extrabold transition-transform active:scale-95 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
                   >
-                    <Zap className="h-3.5 w-3.5" aria-hidden="true" />
+                    <Zap className="h-4 w-4" aria-hidden="true" />
                     <span>Unlock · {XP_COSTS.PUZZLE_CLUE} XP</span>
                   </button>
                 )}
@@ -788,14 +788,14 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
       {puzzleTimedOut && board.status === 'playing' && onRetryTimedRound && (
         <div
           data-testid="puzzle-timeout-banner"
-          className="flex w-full max-w-[390px] items-center justify-between gap-3 rounded-xl border-2 wv-border wv-card px-3.5 py-2.5 shadow-sm animate-stage-enter"
+          className="flex w-full max-w-xl sm:max-w-2xl items-center justify-between gap-3 rounded-2xl border-2 wv-border wv-card px-4 py-3.5 shadow-sm animate-stage-enter"
         >
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-xs sm:text-sm font-extrabold wv-accent-text">
+            <div className="flex items-center gap-1.5 text-sm sm:text-base font-extrabold wv-accent-text">
               <Clock className="h-4 w-4 shrink-0" aria-hidden="true" />
               <span>Time&apos;s Up! 0 XP · Advancing...</span>
             </div>
-            <p className="text-xs wv-text-muted">
+            <p className="text-xs sm:text-sm wv-text-muted">
               Unanswered puzzle · Climb resets to 1/5 with a fresh 15s-scaled round.
             </p>
           </div>
@@ -803,9 +803,9 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
             type="button"
             data-testid="puzzle-retry-timed-btn"
             onClick={onRetryTimedRound}
-            className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl wv-gold-pill px-3 py-1.5 text-xs font-extrabold cursor-pointer whitespace-nowrap"
+            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl wv-gold-pill px-4 py-2 text-xs sm:text-sm font-extrabold cursor-pointer whitespace-nowrap"
           >
-            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
             <span>Retry 1/5</span>
           </button>
         </div>
@@ -815,9 +815,9 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
       {board.status === 'won' && (
         <div
           data-testid="completed-cross-grid"
-          className="mt-1 w-full max-w-[390px] space-y-2.5 animate-stage-enter"
+          className="mt-1 w-full max-w-xl sm:max-w-2xl space-y-3 animate-stage-enter"
         >
-          <div className="rounded-xl border wv-border wv-card px-3.5 py-2.5 text-xs sm:text-sm">
+          <div className="rounded-2xl border wv-border wv-card px-4 py-3.5 text-sm sm:text-base">
             <div className="mb-2 flex items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1.5 text-xs font-bold wv-accent-text">
                 <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
@@ -939,23 +939,23 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
       {featuredTopics.length > 0 && onSelectFeaturedTopic && onOpenTopicsExplorer && (
         <div
           data-testid="puzzle-topics-showcase"
-          className="mt-1 w-full max-w-[390px] rounded-xl border-2 wv-border wv-card p-3 shadow-xs"
+          className="mt-1 w-full max-w-xl sm:max-w-2xl rounded-2xl border-2 wv-border wv-card p-4 sm:p-5 shadow-xs"
         >
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider wv-accent-text">
-              <Compass className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <div className="flex items-center gap-1.5 text-xs sm:text-sm font-extrabold uppercase tracking-wider wv-accent-text">
+              <Compass className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" aria-hidden="true" />
               <span>Featured Topics</span>
             </div>
             <button
               type="button"
               data-testid="topics-showcase-all-btn"
               onClick={onOpenTopicsExplorer}
-              className="text-xs font-bold wv-accent-text hover:underline cursor-pointer whitespace-nowrap"
+              className="text-xs sm:text-sm font-bold wv-accent-text hover:underline cursor-pointer whitespace-nowrap"
             >
               All Topics →
             </button>
           </div>
-          <div className="mt-2 grid grid-cols-3 gap-1.5">
+          <div className="mt-3 grid grid-cols-3 gap-2 sm:gap-3">
             {featuredTopics.slice(0, 3).map((topic) => {
               const isPermanent = permanentlyUnlockedCategories.includes(topic.id);
               const plays = topic.isPremium ? categoryPlaysRemainingMap[topic.id] || 0 : -1;
@@ -966,16 +966,16 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
                   type="button"
                   data-testid={`featured-topic-${topic.id}`}
                   onClick={() => onSelectFeaturedTopic(topic)}
-                  className={`flex flex-col items-start justify-between rounded-lg border p-2 text-left transition-transform active:scale-95 cursor-pointer ${
+                  className={`flex min-h-14 sm:min-h-16 flex-col items-start justify-between rounded-xl border p-2.5 sm:p-3 text-left transition-transform active:scale-95 cursor-pointer ${
                     isSelected
                       ? 'wv-accent-btn border-transparent'
                       : 'wv-border wv-card-muted wv-text hover:opacity-90'
                   }`}
                 >
-                  <span className="line-clamp-1 w-full text-xs font-extrabold">
+                  <span className="line-clamp-1 w-full text-xs sm:text-sm font-extrabold">
                     {topic.name}
                   </span>
-                  <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold opacity-90">
+                  <span className="mt-1 inline-flex items-center gap-1 text-[11px] sm:text-xs font-bold opacity-90">
                     {topic.isPremium ? (
                       isPermanent ? (
                         <>

@@ -308,6 +308,48 @@ export function recomputeStateIntegrityHash(state: VerifiedRewardLocalState): st
   });
 }
 
+export function reconcileVerifiedStateUid(
+  prev: VerifiedRewardLocalState,
+  uid: string,
+  displayName?: string,
+  authType?: FirebaseAuthType
+): VerifiedRewardLocalState {
+  const cleanName = sanitizeLeaderboardDisplayName(displayName || prev.displayName);
+  const nextAuthType = authType || prev.authType;
+
+  // If switching between two distinct real accounts, start clean for the new UID until Firestore hydrates
+  if (prev.uid && prev.uid !== uid) {
+    return createDefaultVerifiedRewardState(uid, cleanName, nextAuthType);
+  }
+
+  const isSame =
+    prev.uid === uid &&
+    prev.displayName === cleanName &&
+    prev.authType === nextAuthType &&
+    prev.pendingBuffer.uid === uid;
+  if (isSame) {
+    return prev;
+  }
+
+  const next: VerifiedRewardLocalState = {
+    ...prev,
+    uid,
+    displayName: cleanName,
+    authType: nextAuthType,
+    pendingBuffer: {
+      ...prev.pendingBuffer,
+      uid,
+    },
+  };
+  const hash = recomputeStateIntegrityHash(next);
+  next.integrityHash = hash;
+  next.pendingBuffer = {
+    ...next.pendingBuffer,
+    integrityHash: hash,
+  };
+  return next;
+}
+
 export interface RecordOnlineRoundInput {
   isOnline: boolean;
   isSignedIn: boolean;

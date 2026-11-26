@@ -132,22 +132,22 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
     <section
       data-testid="faith-study-view"
       aria-label="Faith Study Endless Sprint"
-      className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-3 sm:px-4 pt-3 pb-24 sm:pt-5 animate-stage-enter"
+      className="mx-auto flex w-full max-w-3xl lg:max-w-4xl flex-col gap-5 px-4 sm:px-6 lg:px-8 pt-4 pb-28 sm:pt-6 animate-stage-enter"
     >
       {/* Tradition Selector + Unbounded Numeric Level Stepper */}
-      <div className="rounded-2xl border wv-border wv-card p-3.5 sm:p-4 shadow-xs space-y-3">
+      <div className="rounded-3xl border wv-border wv-card p-4 sm:p-6 shadow-xs space-y-3.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 font-display text-base font-bold wv-accent-text">
-            <BookOpen className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <div className="flex items-center gap-2 font-display text-lg sm:text-xl font-bold wv-accent-text">
+            <BookOpen className="h-5 w-5 shrink-0" aria-hidden="true" />
             <span>Faith Study · Endless Sprint</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full border wv-accent-pill px-2.5 py-0.5 text-xs font-bold">
+            <span className="inline-flex items-center gap-1 rounded-full border wv-accent-pill px-3 py-1 text-xs sm:text-sm font-bold">
               <Zap className="h-3.5 w-3.5" aria-hidden="true" />
               <span>{isOnline ? 'Practice · 0 Online XP' : 'Offline Practice'}</span>
             </span>
             {isCompletedToday && (
-              <span className="inline-flex items-center gap-1 rounded-full border wv-border wv-card-muted px-2.5 py-0.5 text-xs font-bold wv-text">
+              <span className="inline-flex items-center gap-1 rounded-full border wv-border wv-card-muted px-3 py-1 text-xs sm:text-sm font-bold wv-text">
                 <CheckCircle2 className="h-3.5 w-3.5 wv-accent-text" aria-hidden="true" />
                 <span>Active</span>
               </span>
@@ -159,11 +159,11 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
           data-testid="religion-switcher"
           role="tablist"
           aria-label="Choose faith tradition"
-          className="relative grid grid-cols-6 gap-1 rounded-xl border wv-border wv-card-muted p-1"
+          className="relative grid grid-cols-6 gap-1 rounded-2xl border wv-border wv-card-muted p-1"
         >
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute top-1 bottom-1 left-1 rounded-lg border wv-border wv-card shadow-xs transition-transform duration-300 ease-out"
+            className="pointer-events-none absolute top-1 bottom-1 left-1 rounded-xl border wv-border wv-card shadow-xs transition-transform duration-300 ease-out"
             style={{
               width: 'calc((100% - 8px) / 6)',
               transform: `translateX(${Math.max(0, activeIdx) * 100}%)`,
@@ -182,13 +182,13 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
                 aria-label={`${item.name} (${item.shortLabel})`}
                 data-religion={id}
                 onClick={() => handleSelectReligion(id)}
-                className={`relative z-10 flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-xs font-bold transition-colors cursor-pointer active:scale-95 ${
+                className={`relative z-10 flex min-h-14 sm:min-h-16 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-xs sm:text-sm font-bold transition-colors cursor-pointer active:scale-95 ${
                   isSelected ? 'wv-text' : 'wv-text-muted hover:opacity-90'
                 }`}
               >
                 <ReligionIcon
                   religion={id}
-                  className={`h-5 w-5 transition-transform duration-200 ${
+                  className={`h-6 w-6 sm:h-7 sm:w-7 transition-transform duration-200 ${
                     isSelected ? 'scale-110 wv-accent-text' : ''
                   }`}
                 />
@@ -202,20 +202,20 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
       {/* Daily Reflection & Quick Crossword Link */}
       <div
         key={`passage-${activeReligion}`}
-        className="rounded-2xl border wv-border wv-card p-4 sm:p-5 shadow-xs animate-stage-enter"
+        className="rounded-3xl border wv-border wv-card p-5 sm:p-7 shadow-xs animate-stage-enter"
       >
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl wv-accent-pill border">
-            <ReligionIcon religion={activeReligion} className="h-5 w-5" />
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-2xl wv-accent-pill border">
+            <ReligionIcon religion={activeReligion} className="h-6 w-6 sm:h-7 sm:w-7" />
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider wv-accent-text">
+            <p className="text-xs sm:text-sm font-bold uppercase tracking-wider wv-accent-text">
               {tradition.name} · {tradition.sacredTextLabel}
             </p>
             {showScriptureReferences && (
               <p
                 data-testid="faith-passage-reference"
-                className="text-xs sm:text-sm font-medium wv-text-muted"
+                className="text-sm sm:text-base font-medium wv-text-muted"
               >
                 {passage.reference}
               </p>
@@ -225,28 +225,28 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
 
         <blockquote
           data-testid="faith-passage-quote"
-          className="mt-2.5 font-display text-lg sm:text-xl font-bold leading-snug wv-text"
+          className="mt-3.5 font-display text-xl sm:text-2xl font-bold leading-snug wv-text"
         >
           &ldquo;{passage.quote}&rdquo;
         </blockquote>
 
-        <div className="mt-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-t wv-border pt-3">
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t wv-border pt-3.5">
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold wv-text">
-              <Grid3X3 className="h-4 w-4 wv-accent-text shrink-0" aria-hidden="true" />
+            <div className="flex items-center gap-1.5 text-sm sm:text-base font-bold wv-text">
+              <Grid3X3 className="h-4 w-4 sm:h-5 sm:w-5 wv-accent-text shrink-0" aria-hidden="true" />
               <span>{tradition.shortLabel} Crossword Puzzle</span>
             </div>
-            <p className="mt-0.5 text-xs sm:text-sm wv-text-muted line-clamp-1">{dailyWord.clue}</p>
+            <p className="mt-0.5 text-sm sm:text-base wv-text-muted line-clamp-1">{dailyWord.clue}</p>
           </div>
 
           <button
             type="button"
             data-testid="play-faith-puzzle-btn"
             onClick={() => onPlayFaithPuzzle(activeReligion)}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-xs sm:text-sm font-bold wv-accent-btn cursor-pointer whitespace-nowrap"
+            className="inline-flex min-h-12 sm:min-h-[52px] shrink-0 items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm sm:text-base font-bold wv-accent-btn cursor-pointer whitespace-nowrap"
           >
             <span>Play Crossword</span>
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -256,27 +256,27 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
         <div
           key={`faith-q-${currentQ.question}`}
           data-testid="faith-quiz-card"
-          className="wv-tilt-surface rounded-2xl border-2 wv-border wv-card p-4 sm:p-6 shadow-md animate-stage-enter"
+          className="wv-tilt-surface rounded-3xl border-2 wv-border wv-card p-5 sm:p-8 shadow-md animate-stage-enter"
         >
-          <div className="flex items-center justify-between gap-2 pb-3 border-b wv-border">
-            <div className="flex items-center gap-2 text-xs sm:text-sm font-bold wv-text-muted">
+          <div className="flex items-center justify-between gap-2 pb-3.5 border-b wv-border">
+            <div className="flex items-center gap-2 text-sm sm:text-base font-bold wv-text-muted">
               <span data-testid="faith-sprint-counter" className="font-mono-tabular wv-text">
                 Endless Sprint #{answeredCount + (selectedIdx !== null ? 0 : 1)}
               </span>
             </div>
-            <span className="font-mono-tabular text-xs sm:text-sm font-bold wv-text-muted">
+            <span className="font-mono-tabular text-sm sm:text-base font-bold wv-text-muted">
               {correctCount}/{answeredCount} ({accuracy}%)
             </span>
           </div>
 
           <h2
             data-testid="faith-question-text"
-            className="mt-4 font-display text-xl sm:text-2xl font-bold leading-snug wv-text"
+            className="mt-4 font-display text-2xl sm:text-3xl font-bold leading-snug wv-text"
           >
             {currentQ.question}
           </h2>
 
-          <div className="mt-4 grid grid-cols-1 gap-2.5">
+          <div className="mt-5 grid grid-cols-1 gap-3">
             {currentQ.options.map((opt, idx) => {
               const isAnswered = selectedIdx !== null;
               const isCorrectOpt = idx === currentQ.correctIndex;
@@ -300,7 +300,7 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
                   data-testid={`faith-option-${idx}`}
                   disabled={isAnswered}
                   onClick={() => handleAnswer(idx)}
-                  className={`flex min-h-12 items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-base font-semibold transition-all active:scale-[0.985] cursor-pointer disabled:cursor-default ${styleClass} ${
+                  className={`flex min-h-14 sm:min-h-[60px] items-center justify-between gap-3.5 rounded-2xl border px-5 py-3.5 text-left text-base sm:text-lg font-semibold transition-all active:scale-[0.985] cursor-pointer disabled:cursor-default ${styleClass} ${
                     isAnswered && isCorrectOpt
                       ? 'animate-tile-pop'
                       : isAnswered && isPicked && !isCorrectOpt
@@ -308,18 +308,18 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
                       : ''
                   }`}
                 >
-                  <span className="flex items-center gap-3">
-                    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border wv-tile-wooden font-display text-xs font-bold">
+                  <span className="flex items-center gap-3.5">
+                    <span className="inline-flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl border wv-tile-wooden font-display text-sm sm:text-base font-bold">
                       {OPTION_LETTERS[idx]}
                     </span>
                     <span>{opt}</span>
                   </span>
 
                   {isAnswered && isCorrectOpt && (
-                    <CheckCircle2 className="h-5 w-5 shrink-0" aria-hidden="true" />
+                    <CheckCircle2 className="h-6 w-6 shrink-0" aria-hidden="true" />
                   )}
                   {isAnswered && isPicked && !isCorrectOpt && (
-                    <XCircle className="h-5 w-5 shrink-0 opacity-85" aria-hidden="true" />
+                    <XCircle className="h-6 w-6 shrink-0 opacity-85" aria-hidden="true" />
                   )}
                 </button>
               );
@@ -329,9 +329,9 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
           {selectedIdx !== null && (
             <div
               data-testid="faith-explanation-box"
-              className="mt-4 rounded-xl border wv-border wv-card-muted p-4 animate-stage-enter"
+              className="mt-5 rounded-2xl border wv-border wv-card-muted p-5 animate-stage-enter"
             >
-              <p className="text-xs sm:text-sm font-bold wv-accent-text">
+              <p className="text-sm sm:text-base font-bold wv-accent-text">
                 {selectedIdx === currentQ.correctIndex
                   ? isOnline
                     ? 'Insight Unlocked! · Practice Only (0 Online XP)'
@@ -340,14 +340,14 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
                   ? 'Study Note · 0 Online XP'
                   : 'Study Note · +14 Offline XP'}
               </p>
-              <p className="mt-1 text-sm sm:text-base leading-relaxed wv-text">
+              <p className="mt-1.5 text-base sm:text-lg leading-relaxed wv-text">
                 {currentQ.explanation}
               </p>
 
               {currentQ.funFact && (
                 <div
                   data-testid="faith-fun-fact"
-                  className="mt-2.5 rounded-lg border wv-border wv-card px-3 py-2 text-xs sm:text-sm wv-text"
+                  className="mt-3 rounded-xl border wv-border wv-card px-4 py-3 text-sm sm:text-base wv-text"
                 >
                   <span className="font-bold wv-accent-text">Did You Know? </span>
                   <span>{currentQ.funFact}</span>
@@ -358,10 +358,10 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
                 type="button"
                 data-testid="faith-next-btn"
                 onClick={handleNext}
-                className="mt-3.5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold wv-accent-btn cursor-pointer"
+                className="mt-4 flex min-h-12 sm:min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-base font-bold wv-accent-btn cursor-pointer"
               >
                 <span>Next Question (Endless)</span>
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                <ArrowRight className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
           )}

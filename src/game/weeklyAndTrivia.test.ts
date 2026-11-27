@@ -81,7 +81,7 @@ test('weekly rollover awards last week bonus coins/XP into the new Monday cycle 
   assert.equal(rolled.totalXp, 3200 + rolled.pendingWeekSummary.bonusXpAwarded);
 });
 
-test('12+ achievements track across WordVibe puzzles & Trivia and unlock cleanly', () => {
+test('12+ achievements track across Wordvibe puzzles & Trivia and unlock cleanly', () => {
   assert.ok(ACHIEVEMENTS.length >= 10, 'Expected at least 10 achievements');
   let state = createFreshWeeklyState('2026-11-16');
 

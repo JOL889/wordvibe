@@ -84,7 +84,7 @@ export const ProfileViewModal: React.FC<ProfileViewModalProps> = ({
     return `${mins}:${String(secs).padStart(2, '0')}`;
   };
 
-  const displayName = userAccount?.realName || playerProfile.displayName || 'WordVibe Player';
+  const displayName = userAccount?.realName || playerProfile.displayName || 'Wordvibe Player';
   const username = userAccount?.username || playerProfile.displayName || 'Player';
   const email = userAccount?.email || firebaseEmail || 'Not linked';
   const winRate =

@@ -73,7 +73,7 @@ export const Header: React.FC<HeaderProps> = ({
           >
             W
           </span>
-          <span className="font-black">WordVibe</span>
+          <span className="font-black">Wordvibe</span>
         </a>
 
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
@@ -151,7 +151,7 @@ export const Header: React.FC<HeaderProps> = ({
               e.currentTarget.blur();
               onOpenSettings();
             }}
-            aria-label="Open WordVibe settings"
+            aria-label="Open Wordvibe settings"
             title="Settings & Themes"
             className="inline-flex h-10 w-9 sm:w-10 items-center justify-center rounded-xl wv-text transition-transform active:scale-90 hover:opacity-80 cursor-pointer"
           >

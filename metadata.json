@@ -1,6 +1,6 @@
 {
-  "name": "WordVibe: Daily Puzzle, AI Trivia & Faith Study",
-  "description": "Play WordVibe: Daily Word Game, Brain Trivia, Vocabulary Builder, and Bible/Quran Faith Study with daily streaks, smart hints, and offline PWA support.",
+  "name": "Wordvibe: Daily Puzzle, AI Trivia & Faith Study",
+  "description": "Play Wordvibe: Daily Word Game, Brain Trivia, Vocabulary Builder, and Bible/Quran Faith Study with daily streaks, smart hints, and offline PWA support.",
   "requestFramePermissions": ["geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

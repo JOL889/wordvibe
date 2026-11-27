@@ -138,7 +138,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
   {
     id: 'wordsmith_5',
     title: 'Wordsmith',
-    description: 'Solve 5 WordVibe word puzzles during the current UTC week.',
+    description: 'Solve 5 Wordvibe word puzzles during the current UTC week.',
     mode: 'puzzle',
     xpReward: 90,
     coinReward: 30,
@@ -219,7 +219,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
   {
     id: 'daily_champion_3',
     title: 'Daily Regular',
-    description: 'Solve 3 Daily WordVibe puzzles within the week.',
+    description: 'Solve 3 Daily Wordvibe puzzles within the week.',
     mode: 'puzzle',
     xpReward: 95,
     coinReward: 30,

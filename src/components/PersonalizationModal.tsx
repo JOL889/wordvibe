@@ -220,7 +220,7 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
           <div>
             <div className="flex items-center gap-1.5 text-xs font-semibold wv-accent-text">
               <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Personalize WordVibe &amp; Offline Region</span>
+              <span>Personalize Wordvibe &amp; Offline Region</span>
             </div>
             <h2
               id="personalize-modal-title"
@@ -424,7 +424,7 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 text-xs font-bold wv-text">
                 <Brain className="h-4 w-4 wv-accent-text" aria-hidden="true" />
-                <span>What WordVibe Learned About You</span>
+                <span>What Wordvibe Learned About You</span>
               </div>
               <button
                 type="button"
@@ -460,7 +460,7 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
             <p className="mt-2.5 text-xs leading-relaxed wv-text-muted">
               {insights.topCategoryNames.length > 0
                 ? `Top studied puzzle themes: ${insights.topCategoryNames.join(', ')}. Peak window: ${insights.peakWindowLabel}.`
-                : `Play puzzles and Trivia so WordVibe can adapt your recommended pace cleanly offline.`}
+                : `Play puzzles and Trivia so Wordvibe can adapt your recommended pace cleanly offline.`}
             </p>
           </div>
 

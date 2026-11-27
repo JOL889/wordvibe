@@ -29,7 +29,7 @@ async function startServer() {
   app.use(express.json({ limit: '16kb' }));
 
   app.get('/healthz', (_req, res) => {
-    res.status(200).json({ status: 'ok', app: 'WordVibe' });
+    res.status(200).json({ status: 'ok', app: 'Wordvibe' });
   });
 
   app.get('/api/leaderboard', (_req, res) => {
@@ -117,11 +117,11 @@ async function startServer() {
   }
 
   httpServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`WordVibe server listening on http://0.0.0.0:${PORT}`);
+    console.log(`Wordvibe server listening on http://0.0.0.0:${PORT}`);
   });
 }
 
 startServer().catch((err) => {
-  console.error('Failed to start WordVibe server:', err);
+  console.error('Failed to start Wordvibe server:', err);
   process.exit(1);
 });

@@ -222,7 +222,7 @@ test('formatShareText outputs clean emoji grid, score summary, and non-default c
     streak: 5,
     categoryId: 'astrology',
   });
-  assert.ok(text.includes('WordVibe Daily #42 · Astrology & Zodiac (5-Letter) 2/6'));
+  assert.ok(text.includes('Wordvibe Daily #42 · Astrology & Zodiac (5-Letter) 2/6'));
   assert.ok(text.includes('Streak: 5 days'));
   assert.ok(text.includes('🟩🟩🟩🟩🟩'));
 });

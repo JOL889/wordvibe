@@ -937,7 +937,7 @@ export function buildClaimPayoutMessage(params: {
   roundsPlayed: number;
 }): string {
   return [
-    'MindSpark / WordVibe ₦10,000 Milestone Claim',
+    'Wordvibe ₦10,000 Milestone Claim',
     `Claim ID: ${params.claimId}`,
     `Claim Code: ${params.claimCode}`,
     `Player UID: ${params.uid}`,
@@ -974,7 +974,7 @@ export function buildEmailClaimUrl(params: {
   verifiedXpAtClaim: number;
   roundsPlayed: number;
 }): string {
-  const subject = `WordVibe ₦10,000 Reward Claim (${params.claimCode})`;
+  const subject = `Wordvibe ₦10,000 Reward Claim (${params.claimCode})`;
   const body = buildClaimPayoutMessage(params);
   return `mailto:${CLAIM_EMAIL_ADDRESS}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }

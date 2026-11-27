@@ -2,7 +2,7 @@
   "entities": {
     "UserVerifiedProfile": {
       "title": "UserVerifiedProfile",
-      "description": "Verified online reward profile and anti-cheat telemetry for a MindSpark/WordVibe player.",
+      "description": "Verified online reward profile and anti-cheat telemetry for a Wordvibe player.",
       "type": "object",
       "properties": {
         "uid": {

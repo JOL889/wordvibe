@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "WordVibe: Daily Word Puzzle, Brain Trivia & Faith Study",
-  "short_name": "WordVibe",
-  "description": "Play WordVibe free online or offline: 4x4, 5x5 & 6x6 linked word puzzles, Brain Trivia, and Bible, Quran, Torah, Gita & Dharma Faith Study.",
+  "name": "Wordvibe: Daily Word Puzzle, Brain Trivia & Faith Study",
+  "short_name": "Wordvibe",
+  "description": "Play Wordvibe free online or offline: 4x4, 5x5 & 6x6 linked word puzzles, Brain Trivia, and Bible, Quran, Torah, Gita & Dharma Faith Study.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -2683,8 +2683,8 @@ export default function App() {
   useEffect(() => {
     if (typeof document === 'undefined') return;
     document.title = isPrivacyRoute
-      ? 'Privacy Policy — WordVibe'
-      : 'WordVibe: Daily Word Puzzle, Brain Trivia & Faith Study';
+      ? 'Privacy Policy — Wordvibe'
+      : 'Wordvibe: Daily Word Puzzle, Brain Trivia & Faith Study';
   }, [isPrivacyRoute]);
 
   const handleClearAllLocalData = useCallback(async () => {

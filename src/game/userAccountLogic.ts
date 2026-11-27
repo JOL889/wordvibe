@@ -285,7 +285,7 @@ export function buildPuzzleSharePayload(params: {
   const baseGridText = formatCrosswordShareText(params.board);
   const who = params.username ? `@${params.username}` : 'I';
   return {
-    title: 'WordVibe Crossword Solved!',
+    title: 'Wordvibe Crossword Solved!',
     text: `${baseGridText}\n\n${who} hit ${params.weeklyXp.toLocaleString()} Weekly XP · Rank #${params.rank} of ${params.totalActivePlayers} active players this week (🔥 ${params.streak} streak)!\nPlay with me:`,
     url: params.appUrl,
   };
@@ -302,8 +302,8 @@ export function buildLeaderboardSharePayload(params: {
 }): SocialSharePayload {
   const handle = params.username ? `@${params.username}` : 'Player';
   return {
-    title: `WordVibe Weekly Rank #${params.rank}`,
-    text: `${handle} is Rank #${params.rank} of ${params.totalActivePlayers} active players this week on WordVibe! (${params.weeklyXp.toLocaleString()} Weekly XP · ${params.gradeLabel} · ${params.streak}-day streak)\nJoin this week's challenge:`,
+    title: `Wordvibe Weekly Rank #${params.rank}`,
+    text: `${handle} is Rank #${params.rank} of ${params.totalActivePlayers} active players this week on Wordvibe! (${params.weeklyXp.toLocaleString()} Weekly XP · ${params.gradeLabel} · ${params.streak}-day streak)\nJoin this week's challenge:`,
     url: params.appUrl,
   };
 }
@@ -317,8 +317,8 @@ export function buildInviteFriendsPayload(params: {
 }): SocialSharePayload {
   const inviter = params.username ? `@${params.username}` : 'Your friend';
   return {
-    title: 'Challenge me on WordVibe!',
-    text: `${inviter} invited you to WordVibe — daily linked crosswords, brain trivia & faith study! I'm currently Rank #${params.rank} of ${params.totalActivePlayers} active players this week (${params.weeklyXp.toLocaleString()} XP). Tap to play:`,
+    title: 'Challenge me on Wordvibe!',
+    text: `${inviter} invited you to Wordvibe — daily linked crosswords, brain trivia & faith study! I'm currently Rank #${params.rank} of ${params.totalActivePlayers} active players this week (${params.weeklyXp.toLocaleString()} XP). Tap to play:`,
     url: params.appUrl,
   };
 }

@@ -1,4 +1,4 @@
-# Security Specification — MindSpark / WordVibe Firestore Rules
+# Security Specification — Wordvibe Firestore Rules
 
 ## 1. Data Invariants
 1. **Owner-Only Profile & PII Isolation (`/users/{userId}`)**: A player can only read or write their own `/users/{userId}` document (`request.auth.uid == userId`). No list queries on `/users` are permitted.

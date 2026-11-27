@@ -528,7 +528,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
   return (
     <section
       data-testid="trivia-view"
-      aria-label="WordVibe Brain Trivia"
+      aria-label="Wordvibe Brain Trivia"
       className="mx-auto flex w-full max-w-3xl lg:max-w-4xl flex-col gap-5 px-4 sm:px-6 lg:px-8 pt-4 pb-28 sm:pt-6 animate-stage-enter"
     >
       {/* Top Trivia Studio Card: Mode, Category, Locked Timed Level Stepper */}

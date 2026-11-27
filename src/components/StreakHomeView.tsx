@@ -96,7 +96,7 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
   return (
     <section
       data-testid="streak-home"
-      aria-label="WordVibe streak and game launcher"
+      aria-label="Wordvibe streak and game launcher"
       className="mx-auto flex w-full max-w-2xl lg:max-w-6xl flex-col gap-5 sm:gap-6 px-4 sm:px-6 lg:px-8 pt-5 pb-28 sm:pt-7 animate-stage-enter"
     >
       <div className="grid grid-cols-1 gap-5 sm:gap-6 lg:grid-cols-12 lg:items-start lg:gap-7">
@@ -109,7 +109,7 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                 <div>
                   <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs sm:text-sm font-bold uppercase tracking-wider text-white">
                     <Flame className="h-4 w-4 text-white" aria-hidden="true" />
-                    <span className="font-bold">WordVibe Daily Streak</span>
+                    <span className="font-bold">Wordvibe Daily Streak</span>
                   </div>
                   <div className="mt-3 flex items-baseline gap-3.5">
                     <span

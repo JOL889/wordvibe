@@ -238,7 +238,7 @@ export const ProfileAuthModal: React.FC<ProfileAuthModalProps> = ({
         <div className="flex items-start justify-between gap-3 border-b wv-border px-5 py-4">
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-wider wv-accent-text">
-              {isEditing ? 'Player Profile' : 'WordVibe'}
+              {isEditing ? 'Player Profile' : 'Wordvibe'}
             </p>
             <h2
               id="profile-auth-title"

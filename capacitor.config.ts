@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.jol889.wordvibe',
-  appName: 'WordVibe',
+  appName: 'Wordvibe',
   webDir: 'dist',
   server: {
     androidScheme: 'https',

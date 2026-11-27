@@ -63,7 +63,7 @@ self.addEventListener('fetch', (event) => {
             (await caches.match('/'));
           return (
             cached ||
-            new Response('Offline — please reconnect to load WordVibe.', {
+            new Response('Offline — please reconnect to load Wordvibe.', {
               status: 503,
               headers: { 'Content-Type': 'text/plain; charset=utf-8' },
             })

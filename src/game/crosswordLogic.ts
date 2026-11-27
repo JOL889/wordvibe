@@ -1067,7 +1067,7 @@ export function formatCrosswordShareText(board: CrosswordBoardState): string {
   const rowBadges = board.solvedRows.map((s) => (s ? '🟩' : '⬜')).join('');
   const colBadges = board.solvedCols.map((s) => (s ? '🟨' : '⬜')).join('');
   return [
-    `WordVibe ${board.length}×${board.length} Crossword · ${levelLabel}`,
+    `Wordvibe ${board.length}×${board.length} Crossword · ${levelLabel}`,
     `${category.name} · ${prog.solvedWordsCount}/${prog.totalWords} linked words`,
     `Rows ${rowBadges}`,
     `Cols ${colBadges}`,

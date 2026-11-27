@@ -31,7 +31,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({
   return (
     <article
       data-testid="privacy-policy-page"
-      aria-label="WordVibe Privacy Policy"
+      aria-label="Wordvibe Privacy Policy"
       className="mx-auto w-full max-w-3xl lg:max-w-4xl px-4 sm:px-6 lg:px-8 pt-5 pb-28 space-y-5 animate-stage-enter"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -42,7 +42,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({
           className="inline-flex min-h-11 items-center gap-2 rounded-xl border wv-border wv-card px-4 py-2 text-sm font-bold wv-text hover:opacity-85 cursor-pointer"
         >
           <ArrowLeft className="h-4 w-4 wv-accent-text" aria-hidden="true" />
-          <span>Back to WordVibe</span>
+          <span>Back to Wordvibe</span>
         </button>
 
         <span className="inline-flex items-center gap-1.5 rounded-full border wv-border wv-card-muted px-3.5 py-1.5 text-xs font-semibold wv-text-muted">
@@ -53,13 +53,13 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({
       <header className="rounded-3xl border wv-border wv-card p-6 sm:p-8 shadow-xs">
         <div className="flex items-center gap-2.5 text-xs sm:text-sm font-bold uppercase tracking-wider wv-accent-text">
           <ShieldCheck className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
-          <span>WordVibe Legal &amp; Data Practices</span>
+          <span>Wordvibe Legal &amp; Data Practices</span>
         </div>
         <h1 className="mt-2 font-display text-2xl sm:text-3xl font-extrabold wv-text">
           Privacy Policy
         </h1>
         <p className="mt-3 text-sm sm:text-base leading-relaxed wv-text-muted">
-          WordVibe is built to run fast and reliably offline. We respect your privacy and{' '}
+          Wordvibe is built to run fast and reliably offline. We respect your privacy and{' '}
           <strong className="wv-text">never sell your personal data</strong> to data brokers or
           third parties. This policy explains what data is saved on your device, how optional
           cloud sync and advertising partners work, and how you can erase your data at any time.
@@ -72,7 +72,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({
           <h2>1. Data Stored Locally on Your Device</h2>
         </div>
         <p className="text-sm sm:text-base leading-relaxed wv-text-muted">
-          WordVibe stores gameplay and preference data locally in your browser using{' '}
+          Wordvibe stores gameplay and preference data locally in your browser using{' '}
           <strong className="wv-text">localStorage</strong> and{' '}
           <strong className="wv-text">IndexedDB</strong> so your progress persists across offline
           sessions without requiring an account:
@@ -136,7 +136,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({
           <h2>3. Children&apos;s Privacy</h2>
         </div>
         <p className="text-sm sm:text-base leading-relaxed wv-text-muted">
-          WordVibe is intended for a general audience and does not knowingly collect personal
+          Wordvibe is intended for a general audience and does not knowingly collect personal
           information from children under 13 years of age (or the applicable age of digital consent
           in your country). If you are a parent or guardian and believe your child has provided
           personal details through optional cloud sign-in, please contact us so we can promptly
@@ -151,7 +151,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({
         </div>
         <p className="text-sm sm:text-base leading-relaxed wv-text-muted">
           You control your data. You can opt out of optional cloud sync or location personalization
-          inside WordVibe&apos;s settings, clear site storage in your browser, or erase all
+          inside Wordvibe&apos;s settings, clear site storage in your browser, or erase all
           on-device profiles, scores, and cached files below:
         </p>
 
@@ -161,7 +161,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({
             className="flex items-center gap-2.5 rounded-2xl border wv-border wv-card-muted p-4 text-sm font-semibold wv-accent-text"
           >
             <CheckCircle2 className="h-5 w-5 shrink-0" aria-hidden="true" />
-            <span>All local WordVibe profiles, scores, and browser caches have been cleared.</span>
+            <span>All local Wordvibe profiles, scores, and browser caches have been cleared.</span>
           </div>
         ) : confirmClear ? (
           <div className="rounded-2xl border wv-border wv-card-muted p-4 space-y-3">

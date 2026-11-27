@@ -22,7 +22,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ compact = fa
           void install();
         }}
         className="inline-flex min-h-9 items-center gap-1.5 rounded-xl wv-accent-btn px-3 py-1.5 text-xs font-bold whitespace-nowrap shrink-0 cursor-pointer"
-        aria-label="Install WordVibe app"
+        aria-label="Install Wordvibe app"
       >
         <Download className="h-3.5 w-3.5" aria-hidden="true" />
         <span>{compact ? 'Install' : 'Install App'}</span>
@@ -37,7 +37,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ compact = fa
           type="button"
           onClick={() => setShowIOSGuide(true)}
           className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border wv-border wv-card-muted px-3 py-1.5 text-xs font-semibold wv-text transition-colors hover:opacity-85 whitespace-nowrap shrink-0 cursor-pointer"
-          aria-label="Install WordVibe on iOS"
+          aria-label="Install Wordvibe on iOS"
         >
           <Download className="h-3.5 w-3.5" aria-hidden="true" />
           <span>Install</span>

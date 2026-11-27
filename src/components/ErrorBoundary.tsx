@@ -49,7 +49,7 @@ export class ErrorBoundary extends React.Component<
               className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl wv-accent-btn px-4 py-2.5 text-sm font-bold cursor-pointer"
             >
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
-              <span>Reload WordVibe</span>
+              <span>Reload Wordvibe</span>
             </button>
           </div>
         </div>

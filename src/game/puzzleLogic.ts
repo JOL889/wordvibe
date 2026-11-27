@@ -803,8 +803,8 @@ export function formatShareText(params: ShareParams): string {
   const categoryTag = category ? ` · ${category.name}` : '';
   const header =
     mode === 'daily'
-      ? `WordVibe Daily #${puzzleNumber}${categoryTag} (${length}-Letter) ${score}`
-      : `WordVibe Sprint${categoryTag} (${length}-Letter) ${score}`;
+      ? `Wordvibe Daily #${puzzleNumber}${categoryTag} (${length}-Letter) ${score}`
+      : `Wordvibe Sprint${categoryTag} (${length}-Letter) ${score}`;
 
   const gridLines = guesses.map((g) =>
     evaluateGuess(g, target)

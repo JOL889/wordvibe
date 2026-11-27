@@ -367,7 +367,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 id="settings-modal-title"
                 className="font-display text-xl font-bold wv-text"
               >
-                WordVibe Settings
+                Wordvibe Settings
               </h2>
               <p className="text-xs wv-text-muted">
                 Tap any category to expand options
@@ -410,7 +410,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <p className="truncate font-bold wv-text">
                     {userAccount
                       ? `${userAccount.realName} (@${userAccount.username})`
-                      : playerProfile.displayName?.trim() || 'Guest WordVibe Player'}
+                      : playerProfile.displayName?.trim() || 'Guest Wordvibe Player'}
                   </p>
                   <p className="truncate text-xs wv-text-muted">
                     {userAccount?.email || 'Local study & streak progress saved on device'}
@@ -448,7 +448,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border wv-border wv-card px-3 text-xs sm:text-sm font-semibold wv-text hover:opacity-90 cursor-pointer"
               >
                 <Share2 className="h-4 w-4 wv-accent-text" aria-hidden="true" />
-                <span>Share WordVibe</span>
+                <span>Share Wordvibe</span>
               </button>
               <button
                 type="button"
@@ -892,7 +892,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               {aboutTab === 'about' && (
                 <div className="space-y-3 text-sm leading-relaxed wv-text-muted">
                   <p className="rounded-xl border wv-border wv-card p-3.5">
-                    WordVibe works offline using on-device puzzles, trivia, streaks, Faith Study
+                    Wordvibe works offline using on-device puzzles, trivia, streaks, Faith Study
                     progress, and theme preferences. Your optional city choice stays strictly on
                     your device.
                   </p>
@@ -925,7 +925,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   >
                     <div className="min-w-0 space-y-1">
                       <p className="text-xs sm:text-sm font-bold wv-text">
-                        Get WordVibe on Android
+                        Get Wordvibe on Android
                       </p>
                       <p className="text-xs leading-relaxed wv-text-muted">
                         Install the web app directly from Chrome, or download the Android APK
@@ -1070,7 +1070,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <div>
                       <p className="font-bold wv-text">Can I play offline &amp; keep streaks?</p>
                       <p className="mt-1">
-                        Yes! WordVibe caches puzzles, Faith Study, and streaks locally offline and
+                        Yes! Wordvibe caches puzzles, Faith Study, and streaks locally offline and
                         syncs verified online scores when connected.
                       </p>
                     </div>

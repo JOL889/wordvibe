@@ -22,7 +22,7 @@ export const EditorialGuideAndAdSlot: React.FC<EditorialGuideAndAdSlotProps> = (
         <div className="flex flex-col items-center justify-between gap-2 sm:flex-row sm:text-left">
           <div>
             <p className="text-sm sm:text-base font-bold wv-text">
-              WordVibe Free Play
+              Wordvibe Free Play
             </p>
             <p className="text-sm sm:text-base wv-text-muted">
               Play offline anytime with optional hints &amp; clues.

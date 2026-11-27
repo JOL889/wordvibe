@@ -9,6 +9,11 @@ const config: CapacitorConfig = {
     cleartext: false,
     androidScheme: 'https',
   },
+  plugins: {
+    AdMob: {
+      androidAppId: 'ca-app-pub-7584471711915098~8594351362',
+    },
+  },
 };
 
 export default config;

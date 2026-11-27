@@ -5,6 +5,8 @@
  * Normal Trivia supports watching 2 ads concurrently/sequentially to reveal the answer.
  */
 
+import { ADMOB_AD_UNITS, getAdMobUnitId, USE_TEST_ADS } from '../config/admob';
+
 export type RewardPlacement =
   | 'hint'
   | 'puzzle_clue'
@@ -15,9 +17,12 @@ export type RewardPlacement =
   | 'double_xp'
   | 'unlock_trivia_24h'
   | 'puzzle_word_trivia'
+  | 'trivia_reveal_answer'
   | 'trivia_reveal_answer_1'
   | 'trivia_reveal_answer_2'
-  | 'trivia_reveal_answer_pair';
+  | 'trivia_reveal_answer_pair'
+  | 'trivia_low_timer_lifeline'
+  | 'trivia_level_helper';
 
 export type AdLoadState = 'idle' | 'loading' | 'loaded' | 'failed';
 
@@ -49,21 +54,21 @@ export interface AdSDKAdapter {
 }
 
 export const ADMOB_CONFIG = {
-  TEST_REWARDED_ANDROID_ID: 'ca-app-pub-3940256099942544/5224354917',
+  TEST_REWARDED_ANDROID_ID: ADMOB_AD_UNITS.rewarded.test,
   TEST_REWARDED_IOS_ID: 'ca-app-pub-3940256099942544/1712485313',
   PRODUCTION_REWARDED_AD_UNIT_ID:
     (import.meta.env?.VITE_ADMOB_REWARDED_AD_UNIT_ID as string | undefined) ||
-    'ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY',
-  USE_TEST_ADS_BY_DEFAULT: !import.meta.env?.VITE_ADMOB_REWARDED_AD_UNIT_ID,
+    ADMOB_AD_UNITS.rewarded.live,
+  USE_TEST_ADS_BY_DEFAULT: USE_TEST_ADS && !import.meta.env?.VITE_ADMOB_REWARDED_AD_UNIT_ID,
 } as const;
 
 export function getActiveRewardedAdUnitId(): string {
   if (!ADMOB_CONFIG.USE_TEST_ADS_BY_DEFAULT) {
-    return ADMOB_CONFIG.PRODUCTION_REWARDED_AD_UNIT_ID;
+    return getAdMobUnitId('rewarded', false);
   }
   const isApple =
     typeof navigator !== 'undefined' && /iPad|iPhone|iPod/i.test(navigator.userAgent);
-  return isApple ? ADMOB_CONFIG.TEST_REWARDED_IOS_ID : ADMOB_CONFIG.TEST_REWARDED_ANDROID_ID;
+  return isApple ? ADMOB_CONFIG.TEST_REWARDED_IOS_ID : getAdMobUnitId('rewarded', true);
 }
 
 export const AD_OPTIONAL_PROMPT_COOLDOWN_MS = 120_000;
@@ -191,6 +196,14 @@ export const REWARD_PLACEMENTS: Record<RewardPlacement, RewardMeta> = {
     durationSeconds: 5,
     isOptionalPrompt: false,
   },
+  trivia_reveal_answer: {
+    placement: 'trivia_reveal_answer',
+    title: 'Watch Ad to Reveal Answer',
+    rewardLabel: 'Correct Answer Unlocked!',
+    description: 'Watch 1 short rewarded ad to reveal the exact Trivia answer.',
+    durationSeconds: 3,
+    isOptionalPrompt: false,
+  },
   trivia_reveal_answer_1: {
     placement: 'trivia_reveal_answer_1',
     title: 'Reveal Answer · Ad 1 of 2',
@@ -215,6 +228,22 @@ export const REWARD_PLACEMENTS: Record<RewardPlacement, RewardMeta> = {
     durationSeconds: 5,
     isOptionalPrompt: false,
     concurrentAdsCount: 2,
+  },
+  trivia_low_timer_lifeline: {
+    placement: 'trivia_low_timer_lifeline',
+    title: 'Low-Timer Lifeline · Reveal Answer',
+    rewardLabel: 'Lifeline Answer Unlocked!',
+    description: 'Watch a short rewarded interstitial ad to reveal the answer before time runs out.',
+    durationSeconds: 3,
+    isOptionalPrompt: true,
+  },
+  trivia_level_helper: {
+    placement: 'trivia_level_helper',
+    title: 'Level Helper · Reveal Answer',
+    rewardLabel: 'Answer Unlocked!',
+    description: 'Watch a short rewarded interstitial ad to reveal this question’s answer.',
+    durationSeconds: 3,
+    isOptionalPrompt: true,
   },
 };
 

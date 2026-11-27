@@ -9,10 +9,13 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "capacitor:sync:after": "node scripts/configure-android-admob.mjs"
   },
   "dependencies": {
+    "@capacitor-community/admob": "^8.5.0",
     "@capacitor/android": "^8.0.0",
+    "@capacitor/app": "^8.1.2",
     "@capacitor/cli": "^8.0.0",
     "@capacitor/core": "^8.0.0",
     "@capgo/capacitor-social-login": "^8.7.13",

@@ -230,6 +230,7 @@ import {
   attachDeviceSensorListeners,
   triggerHapticPulse,
 } from './services/deviceSensorService';
+import { admobService } from './services/admobService';
 import { musicPlayer } from './services/musicPlayer';
 import { rewardedAdService, type RewardPlacement } from './services/rewardedAdService';
 import { soundService } from './services/soundService';
@@ -483,9 +484,13 @@ export default function NativeWordvibeGame() {
     resolveDailyEntertainmentSpotlight(getLocalDateKey())
   );
   const [activeAdPlacement, setActiveAdPlacement] = useState<RewardPlacement | null>(null);
+  const [isNativeAdShowing, setIsNativeAdShowing] = useState(false);
   const [activeSharePayload, setActiveSharePayload] = useState<SocialSharePayload | null>(null);
   const [pendingCategoryForAd, setPendingCategoryForAd] = useState<PuzzleCategory | null>(null);
+  const pendingCategoryForAdRef = useRef<PuzzleCategory | null>(null);
   const adRewardCallbackRef = useRef<(() => void) | null>(null);
+  const handleRewardEarnedRef = useRef<(placement: RewardPlacement) => void>(() => {});
+  const launchRewardedPlacementRef = useRef<(placement: RewardPlacement) => void>(() => {});
   const achievementTimerRef = useRef<number | null>(null);
   const confettiTimerRef = useRef<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
@@ -615,10 +620,10 @@ export default function NativeWordvibeGame() {
     };
   }, []);
 
-  // Pause procedural background music whenever a rewarded ad preview is active
+  // Pause procedural background music whenever any ad is active
   useEffect(() => {
-    musicPlayer.setPausedForAd(Boolean(activeAdPlacement));
-  }, [activeAdPlacement]);
+    musicPlayer.setPausedForAd(Boolean(activeAdPlacement) || isNativeAdShowing);
+  }, [activeAdPlacement, isNativeAdShowing]);
 
   // Sync theme, accent, animation intensity, independent Sound SFX & Music, fanfare & haptics immediately
   useEffect(() => {
@@ -720,18 +725,31 @@ export default function NativeWordvibeGame() {
     playerProfile.locationOptOut,
   ]);
 
-  // Defer AdMob rewarded ad preload slightly so initial UI frame paints immediately
+  // Defer AdMob SDK initialization & background preloading past initial paint so login/splash never blocks
   useEffect(() => {
+    const unsubPresentation = admobService.subscribeAdPresentation(setIsNativeAdShowing);
     rewardedAdService.setCallbacks({
       onAdFailedToLoad: (reason) => {
         showToast(reason, 2800);
       },
     });
     const timerId = window.setTimeout(() => {
+      void admobService.initialize();
       void rewardedAdService.preloadRewardedAd();
-    }, 250);
-    return () => window.clearTimeout(timerId);
+    }, 300);
+    return () => {
+      window.clearTimeout(timerId);
+      unsubPresentation();
+    };
   }, [showToast]);
+
+  // Suppress App Open ads whenever profile auth modal or Google Sign-In flow is active
+  useEffect(() => {
+    admobService.setAppOpenSuppressionContext({
+      isAuthModalOpen: profileModalOpen,
+      isAuthBusy: authBusy,
+    });
+  }, [profileModalOpen, authBusy]);
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -955,6 +973,9 @@ export default function NativeWordvibeGame() {
     } finally {
       setIsSyncingScore(false);
     }
+    if (!silent) {
+      void admobService.showInterstitial('leaderboard_sync');
+    }
   }, [showToast]);
 
   // Subscribe to Firebase Auth, bind UID immediately, and hydrate remote user profile + leaderboard cache
@@ -1129,6 +1150,7 @@ export default function NativeWordvibeGame() {
     modeConfig.puzzleSessionMode !== 'level_climb' ||
     crosswordBoard.status !== 'playing' ||
     puzzleTimedOut ||
+    isNativeAdShowing ||
     Boolean(activeAdPlacement) ||
     clueSlotModalOpen ||
     summaryOpen ||
@@ -1217,9 +1239,10 @@ export default function NativeWordvibeGame() {
   }, []);
 
   const promptUnlockCategory = useCallback((category: PuzzleCategory) => {
+    pendingCategoryForAdRef.current = category;
     setPendingCategoryForAd(category);
     setSummaryOpen(false);
-    setActiveAdPlacement('unlock_category');
+    launchRewardedPlacementRef.current('unlock_category');
   }, []);
 
   const activateNewBoard = useCallback(
@@ -1799,6 +1822,7 @@ export default function NativeWordvibeGame() {
   );
 
   const isPuzzleModalBlocked =
+    isNativeAdShowing ||
     Boolean(activeAdPlacement) ||
     Boolean(activeSharePayload) ||
     clueSlotModalOpen ||
@@ -2027,7 +2051,7 @@ export default function NativeWordvibeGame() {
       soundService.playHintChime();
 
       if (placement === 'unlock_category') {
-        const targetCat = pendingCategoryForAd || activeCategory;
+        const targetCat = pendingCategoryForAdRef.current || pendingCategoryForAd || activeCategory;
         const latestProgress = categoryProgressRef.current;
         const res = recordCategoryUnlockAdWatch({
           unlockAdProgress: latestProgress.unlockAdProgress,
@@ -2052,6 +2076,7 @@ export default function NativeWordvibeGame() {
         }
 
         setActiveAdPlacement(null);
+        pendingCategoryForAdRef.current = null;
         setPendingCategoryForAd(null);
         setCategoryExplorerOpen(false);
         setSummaryOpen(false);
@@ -2210,6 +2235,35 @@ export default function NativeWordvibeGame() {
       typingDirection,
     ]
   );
+  handleRewardEarnedRef.current = handleRewardEarned;
+
+  const launchRewardedPlacement = useCallback(
+    (placement: RewardPlacement) => {
+      if (!admobService.isNativeRuntime()) {
+        setActiveAdPlacement(placement);
+        return;
+      }
+
+      void admobService.showRewarded(placement).then((res) => {
+        if (res.rewarded) {
+          rewardedAdService.notifyRewardGranted(placement);
+          handleRewardEarnedRef.current(placement);
+          return;
+        }
+        rewardedAdService.notifyDismissed(placement);
+        pendingCategoryForAdRef.current = null;
+        setPendingCategoryForAd(null);
+        pendingClueSlotRef.current = null;
+        setPendingClueSlot(null);
+        adRewardCallbackRef.current = null;
+        if (res.reason === 'load_failed' || res.reason === 'show_failed') {
+          showToast('Rewarded ad is still loading. Please try again in a moment.', 2600);
+        }
+      });
+    },
+    [showToast]
+  );
+  launchRewardedPlacementRef.current = launchRewardedPlacement;
 
   const isCategoryLockedForNext = activeCategory.isPremium && categoryPlaysRemaining <= 0;
 
@@ -2490,9 +2544,35 @@ export default function NativeWordvibeGame() {
   const handleRequestAdPlacement = useCallback(
     (placement: RewardPlacement, onGranted: () => void) => {
       adRewardCallbackRef.current = onGranted;
-      setActiveAdPlacement(placement);
+      launchRewardedPlacement(placement);
     },
-    []
+    [launchRewardedPlacement]
+  );
+
+  const handleRequestRewardedInterstitial = useCallback(
+    async (
+      placement: 'trivia_low_timer_lifeline' | 'trivia_level_helper',
+      onGranted: () => void,
+      onDeclinedOrClosed?: () => void
+    ) => {
+      if (!admobService.isNativeRuntime()) {
+        showToast('Ad lifeline runs on the native Android app.', 2200);
+        onDeclinedOrClosed?.();
+        return;
+      }
+      const res = await admobService.showRewardedInterstitial(placement);
+      if (res.rewarded) {
+        rewardedAdService.notifyRewardGranted(placement);
+        onGranted();
+      } else {
+        rewardedAdService.notifyDismissed(placement);
+        if (res.reason === 'load_failed' || res.reason === 'show_failed') {
+          showToast('Lifeline ad unavailable right now. Resuming timer.', 2400);
+        }
+        onDeclinedOrClosed?.();
+      }
+    },
+    [showToast]
   );
 
   const handleTriviaAnswerRecorded = useCallback(
@@ -2873,7 +2953,10 @@ export default function NativeWordvibeGame() {
     [closePrivacyPolicy]
   );
   const handleOpenPersonalize = useCallback(() => setPersonalizationOpen(true), []);
-  const handleWatchAdSaveStreak = useCallback(() => setActiveAdPlacement('save_streak'), []);
+  const handleWatchAdSaveStreak = useCallback(
+    () => launchRewardedPlacement('save_streak'),
+    [launchRewardedPlacement]
+  );
   const handleStartPuzzleTab = useCallback(() => {
     setActiveTab('puzzle');
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -2907,14 +2990,20 @@ export default function NativeWordvibeGame() {
     },
     [effectiveHapticsEnabled]
   );
-  const handleTriggerHint = useCallback(() => setActiveAdPlacement('hint'), []);
+  const handleTriggerHint = useCallback(
+    () => launchRewardedPlacement('hint'),
+    [launchRewardedPlacement]
+  );
   const handleTriggerWordClue = useCallback(() => setClueSlotModalOpen(true), []);
-  const handleUnlockActiveClue = useCallback((slotType: CrosswordSlotType, index: number) => {
-    const slot = { slotType, index };
-    pendingClueSlotRef.current = slot;
-    setPendingClueSlot(slot);
-    setActiveAdPlacement('puzzle_clue');
-  }, []);
+  const handleUnlockActiveClue = useCallback(
+    (slotType: CrosswordSlotType, index: number) => {
+      const slot = { slotType, index };
+      pendingClueSlotRef.current = slot;
+      setPendingClueSlot(slot);
+      launchRewardedPlacement('puzzle_clue');
+    },
+    [launchRewardedPlacement]
+  );
   const handleTriggerSkipBoard = useCallback(() => {
     if (crosswordBoardRef.current.status === 'playing') {
       recordPuzzleBoardOutcome(crosswordBoardRef.current, false);
@@ -3217,6 +3306,7 @@ export default function NativeWordvibeGame() {
               refreshSignal={refreshSignal}
             isOnline={isOnline}
             isPaused={
+              isNativeAdShowing ||
               Boolean(activeAdPlacement) ||
               Boolean(activeSharePayload) ||
               categoryExplorerOpen ||
@@ -3262,10 +3352,11 @@ export default function NativeWordvibeGame() {
               }));
               showToast(`Promoted to ${formatLevelLabel(safeLv)}!`, 3200);
             }}
-            onUnlockBonusCategory={() => setActiveAdPlacement('unlock_trivia_24h')}
+            onUnlockBonusCategory={() => launchRewardedPlacement('unlock_trivia_24h')}
             onSpendXpUnlockMastermind={handleSpendXpUnlockMastermind}
             onSpendXpSolve={handleSpendXpTriviaSolve}
             onRequestAdPlacement={handleRequestAdPlacement}
+            onRequestRewardedInterstitial={handleRequestRewardedInterstitial}
             onAnswerRecorded={handleTriviaAnswerRecorded}
             onRoundCompleted={handleTriviaRoundCompleted}
             onDoubleXpClaimed={handleTriviaDoubleXpClaimed}
@@ -3451,11 +3542,11 @@ export default function NativeWordvibeGame() {
             onInviteFriends={() => handleInviteFriends()}
             onWatchAdSaveStreak={() => {
               setSummaryOpen(false);
-              setActiveAdPlacement('save_streak');
+              launchRewardedPlacement('save_streak');
             }}
             onWatchAdDoubleXp={() => {
               setSummaryOpen(false);
-              setActiveAdPlacement('double_xp');
+              launchRewardedPlacement('double_xp');
             }}
             onWatchAdUnlockCategory={() => promptUnlockCategory(activeCategory)}
             onNextBoard={() => {
@@ -3620,7 +3711,10 @@ export default function NativeWordvibeGame() {
           handleShareLeaderboardProgress(rank, activeCount, gradeLabel)
         }
         onInviteFriends={(rank, activeCount) => handleInviteFriends(rank, activeCount)}
-        onClose={() => setWeeklyRankOpen(false)}
+        onClose={() => {
+          setWeeklyRankOpen(false);
+          void admobService.showInterstitial('leaderboard_close');
+        }}
           />
         )}
 
@@ -3900,7 +3994,7 @@ export default function NativeWordvibeGame() {
             setActiveCol(index);
           }
 
-          setActiveAdPlacement('puzzle_clue');
+          launchRewardedPlacement('puzzle_clue');
         }}
         onSpendXpSlot={(slotType, index) => {
           setClueSlotModalOpen(false);
@@ -3991,6 +4085,7 @@ export default function NativeWordvibeGame() {
         }
         onCancel={() => {
           setActiveAdPlacement(null);
+          pendingCategoryForAdRef.current = null;
           setPendingCategoryForAd(null);
           setPendingClueSlot(null);
           pendingClueSlotRef.current = null;
@@ -4008,8 +4103,10 @@ export default function NativeWordvibeGame() {
             onShared={(status, platform) => {
               if (status === 'shared') {
                 showToast(platform ? `Shared via ${platform}!` : 'Shared!', 2200);
+                void admobService.showInterstitial('share_or_invite');
               } else if (status === 'copied') {
                 showToast('Share message copied to clipboard!', 2200);
+                void admobService.showInterstitial('share_or_invite');
               } else if (status === 'failed') {
                 showToast('Unable to access clipboard', 2200);
               }

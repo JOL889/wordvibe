@@ -50,6 +50,10 @@ import {
 } from '../game/triviaLogic';
 import { calculateOfflineWrongXp } from '../game/verifiedRewardsLogic';
 import { recordModeOutcome } from '../game/retirementQueueLogic';
+import {
+  advanceSequentialRevealAd,
+  shouldTriggerFourSecondLifeline,
+} from '../game/admobFlowLogic';
 import { XP_COSTS } from '../game/xpEconomyLogic';
 import { useHorizontalSwitch, useScrollSelectedIntoView } from '../hooks/useHorizontalSwitch';
 import { rewardedAdService, type RewardPlacement } from '../services/rewardedAdService';
@@ -81,6 +85,11 @@ interface TriviaViewProps {
   onSpendXpUnlockMastermind?: () => boolean;
   onSpendXpSolve?: (question: TriviaQuestion) => boolean;
   onRequestAdPlacement: (placement: RewardPlacement, onGranted: () => void) => void;
+  onRequestRewardedInterstitial?: (
+    placement: 'trivia_low_timer_lifeline' | 'trivia_level_helper',
+    onGranted: () => void,
+    onDeclinedOrClosed?: () => void
+  ) => void;
   onAnswerRecorded: (params: {
     correct: boolean;
     timedOut?: boolean;
@@ -137,6 +146,7 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
   onSpendXpUnlockMastermind,
   onSpendXpSolve,
   onRequestAdPlacement,
+  onRequestRewardedInterstitial,
   onAnswerRecorded,
   onRoundCompleted,
   onDoubleXpClaimed,
@@ -148,7 +158,7 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
 
   const [question, setQuestion] = useState<TriviaQuestion | null>(null);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const [solvedViaXp, setSolvedViaXp] = useState(false);
+  const [revealMethod, setRevealMethod] = useState<'none' | 'xp' | 'ad'>('none');
   const [timedOut, setTimedOut] = useState(false);
   const [revivedThisQuestion, setRevivedThisQuestion] = useState(false);
   const [streakBeforeMiss, setStreakBeforeMiss] = useState(0);
@@ -158,6 +168,14 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
   const [stageXpEarned, setStageXpEarned] = useState(0);
   const [doubleXpClaimed, setDoubleXpClaimed] = useState(false);
   const [adsWatchedForReveal, setAdsWatchedForReveal] = useState(0);
+  const [levelEntryPromptOpen, setLevelEntryPromptOpen] = useState<boolean>(
+    () => sessionMode === 'level_climb' && !climbState.stageComplete && climbState.questionIndex === 0
+  );
+  const [lifelinePromptOpen, setLifelinePromptOpen] = useState(false);
+  const [rewardedInterstitialBusy, setRewardedInterstitialBusy] = useState(false);
+  const [stagePromptNonce, setStagePromptNonce] = useState(0);
+  const lifelineOfferedQuestionKeyRef = useRef<string | null>(null);
+  const lastEntryPromptKeyRef = useRef<string | null>(null);
   const [questionTimeLeft, setQuestionTimeLeft] = useState<number>(() =>
     getTriviaQuestionTimeLimitSeconds(safeLevel, climbState.questionIndex)
   );
@@ -199,12 +217,15 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
       }
       setQuestion(q);
       setSelectedIdx(null);
-      setSolvedViaXp(false);
+      setRevealMethod('none');
       setTimedOut(false);
       setRevivedThisQuestion(false);
       setStreakBeforeMiss(0);
       setLastXpFlash(null);
       setAdsWatchedForReveal(0);
+      setLifelinePromptOpen(false);
+      setRewardedInterstitialBusy(false);
+      lifelineOfferedQuestionKeyRef.current = null;
       setQuestionTimeLeft(getTriviaQuestionTimeLimitSeconds(lvNum, nextClimbIdx));
     },
     [playerProfile, recentQuestions]
@@ -221,7 +242,33 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
   const showClimbSummary =
     sessionMode === 'level_climb' && climbState.stageComplete && selectedIdx === null && !timedOut;
 
-  // 15-second countdown timer for Level Climb (pauses during modals/ads, timeout banner, or after answering)
+  // Present clean Level entry/helper choice prompt when entering or starting a Trivia Level
+  useEffect(() => {
+    if (sessionMode !== 'level_climb' || showClimbSummary || !question || selectedIdx !== null || timedOut) {
+      setLevelEntryPromptOpen(false);
+      return;
+    }
+    const entryKey = `${selectedCategoryId}::${safeLevel}::${stagePromptNonce}`;
+    if (climbState.questionIndex === 0 && lastEntryPromptKeyRef.current !== entryKey) {
+      lastEntryPromptKeyRef.current = entryKey;
+      setLevelEntryPromptOpen(true);
+    }
+  }, [
+    climbState.questionIndex,
+    question,
+    safeLevel,
+    selectedCategoryId,
+    selectedIdx,
+    sessionMode,
+    showClimbSummary,
+    stagePromptNonce,
+    timedOut,
+  ]);
+
+  const effectiveTimerPaused =
+    isPaused || levelEntryPromptOpen || lifelinePromptOpen || rewardedInterstitialBusy;
+
+  // 15-second countdown timer for Level Climb (pauses during modals/ads/lifeline/entry prompt/timeout/answered)
   useEffect(() => {
     if (
       sessionMode !== 'level_climb' ||
@@ -229,7 +276,7 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
       selectedIdx !== null ||
       timedOut ||
       showClimbSummary ||
-      isPaused
+      effectiveTimerPaused
     ) {
       return;
     }
@@ -242,7 +289,37 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
       });
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [sessionMode, question, selectedIdx, timedOut, showClimbSummary, isPaused]);
+  }, [sessionMode, question, selectedIdx, timedOut, showClimbSummary, effectiveTimerPaused]);
+
+  // Low-timer 4-second lifeline trigger (Rewarded Interstitial with clear decline option)
+  const currentQuestionLifelineKey = question
+    ? `${question.id || question.question}::${climbState.questionIndex}`
+    : null;
+  useEffect(() => {
+    if (!question || !currentQuestionLifelineKey) return;
+    const shouldOffer = shouldTriggerFourSecondLifeline({
+      sessionMode,
+      timeLeftSec: questionTimeLeft,
+      isAnswered: selectedIdx !== null,
+      isTimedOut: timedOut,
+      isStageComplete: showClimbSummary,
+      alreadyOfferedForQuestion: lifelineOfferedQuestionKeyRef.current === currentQuestionLifelineKey,
+      isPaused: effectiveTimerPaused,
+    });
+    if (shouldOffer) {
+      lifelineOfferedQuestionKeyRef.current = currentQuestionLifelineKey;
+      setLifelinePromptOpen(true);
+    }
+  }, [
+    currentQuestionLifelineKey,
+    effectiveTimerPaused,
+    question,
+    questionTimeLeft,
+    selectedIdx,
+    sessionMode,
+    showClimbSummary,
+    timedOut,
+  ]);
 
   // Timeout handler: DO NOT auto-select any option, award 0 XP, and mark timedOut
   useEffect(() => {
@@ -289,14 +366,14 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
 
   // Auto-advance smoothly after timeout banner shows, resetting timer back to 15s on the next question
   useEffect(() => {
-    if (!timedOut || sessionMode !== 'level_climb') {
+    if (!timedOut || sessionMode !== 'level_climb' || isPaused) {
       return;
     }
     const advanceTimer = window.setTimeout(() => {
       drawNextQuestionRef.current(selectedCategoryId, safeLevel, 0, true);
     }, 1100);
     return () => window.clearTimeout(advanceTimer);
-  }, [timedOut, sessionMode, selectedCategoryId, safeLevel]);
+  }, [timedOut, sessionMode, selectedCategoryId, safeLevel, isPaused]);
 
   const handleCategoryClick = (catId: string) => {
     if (!isTriviaCategoryUnlocked(catId, bonusUnlockUntil, Date.now(), mastermindUnlocked)) {
@@ -309,17 +386,22 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
       onUpdateClimbState(fresh);
       setStageXpEarned(0);
       setDoubleXpClaimed(false);
+      setStagePromptNonce((n) => n + 1);
       setQuestionTimeLeft(getTriviaQuestionTimeLimitSeconds(safeLevel, 0));
     }
   };
 
-  const handleSelectOption = (optionIdx: number, skipXpReward = false) => {
+  const handleSelectOption = (
+    optionIdx: number,
+    skipXpReward = false,
+    method: 'none' | 'xp' | 'ad' = skipXpReward ? 'xp' : 'none'
+  ) => {
     if (!question || selectedIdx !== null || timedOut) return;
     const remainingBeforeReset = questionTimeLeft;
     // Reset timer back to 15s immediately upon submitting an answer
     setQuestionTimeLeft(TRIVIA_QUESTION_TIME_LIMIT_SEC);
     setSelectedIdx(optionIdx);
-    setSolvedViaXp(skipXpReward);
+    setRevealMethod(method);
     setTimedOut(false);
     pendingTriviaByKey.delete(`${selectedCategoryId}::${safeLevel}`);
 
@@ -420,23 +502,63 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
     const correctIdx = question.correctIndex;
     if (adsWatchedForReveal === 0) {
       onRequestAdPlacement('trivia_reveal_answer_1', () => {
-        setAdsWatchedForReveal(1);
+        const progress = advanceSequentialRevealAd(0, 2);
+        setAdsWatchedForReveal(progress.completedAds);
         soundService.playHintChime();
       });
     } else if (adsWatchedForReveal === 1) {
       onRequestAdPlacement('trivia_reveal_answer_2', () => {
-        setAdsWatchedForReveal(2);
+        const progress = advanceSequentialRevealAd(1, 2);
+        setAdsWatchedForReveal(progress.completedAds);
         soundService.playHintChime();
-        handleSelectOptionRef.current(correctIdx);
+        if (progress.revealed) {
+          handleSelectOptionRef.current(correctIdx, true, 'ad');
+        }
       });
     }
+  };
+
+  const handleWatchSingleAdForAnswer = () => {
+    if (!question || selectedIdx !== null) return;
+    const correctIdx = question.correctIndex;
+    onRequestAdPlacement('trivia_reveal_answer', () => {
+      soundService.playHintChime();
+      handleSelectOptionRef.current(correctIdx, true, 'ad');
+    });
+  };
+
+  const triggerRewardedInterstitialForQuestion = (
+    placement: 'trivia_low_timer_lifeline' | 'trivia_level_helper'
+  ) => {
+    if (!question || selectedIdx !== null) return;
+    const correctIdx = question.correctIndex;
+    setLevelEntryPromptOpen(false);
+    setLifelinePromptOpen(false);
+    setRewardedInterstitialBusy(true);
+
+    if (!onRequestRewardedInterstitial) {
+      setRewardedInterstitialBusy(false);
+      return;
+    }
+
+    onRequestRewardedInterstitial(
+      placement,
+      () => {
+        setRewardedInterstitialBusy(false);
+        soundService.playHintChime();
+        handleSelectOptionRef.current(correctIdx, true, 'ad');
+      },
+      () => {
+        setRewardedInterstitialBusy(false);
+      }
+    );
   };
 
   const handleSpendXpForQuestion = () => {
     if (!question || selectedIdx !== null || !onSpendXpSolve) return;
     const ok = onSpendXpSolve(question);
     if (!ok) return;
-    handleSelectOption(question.correctIndex, true);
+    handleSelectOption(question.correctIndex, true, 'xp');
   };
 
   const handleReviveStreak = () => {
@@ -460,7 +582,7 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
 
   // Auto-advance smoothly after revealing answer via 500 XP Solve
   useEffect(() => {
-    if (!solvedViaXp || selectedIdx === null) return;
+    if (revealMethod !== 'xp' || selectedIdx === null || isPaused) return;
     const timer = window.setTimeout(() => {
       if (sessionMode === 'level_climb' && climbState.stageComplete) {
         setSelectedIdx(null);
@@ -469,7 +591,7 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
       }
     }, 1450);
     return () => window.clearTimeout(timer);
-  }, [climbState.stageComplete, handleNextStep, selectedIdx, sessionMode, solvedViaXp]);
+  }, [climbState.stageComplete, handleNextStep, isPaused, revealMethod, selectedIdx, sessionMode]);
 
   const handleStartNextClimbStage = () => {
     const targetLevelNum = climbState.promotedToLevelNumber || safeLevel;
@@ -480,6 +602,7 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
     onUpdateClimbState(freshClimb);
     setStageXpEarned(0);
     setDoubleXpClaimed(false);
+    setStagePromptNonce((n) => n + 1);
     drawNextQuestion(selectedCategoryId, targetLevelNum, 0, true);
   };
 
@@ -642,39 +765,53 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
           })}
         </div>
 
-        {/* Mastermind Vault 200 XP Unlock Strip (when still locked) */}
-        {!isTriviaCategoryUnlocked('mastermind-vault', bonusUnlockUntil, Date.now(), mastermindUnlocked) &&
-          onSpendXpUnlockMastermind && (
-            <div
-              data-testid="trivia-mastermind-unlock-bar"
-              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border wv-border wv-card-muted px-3 py-2 text-xs"
-            >
-              <div className="min-w-0">
-                <p className="font-bold wv-text">
-                  Mastermind Vault Locked · Unlock forever with {XP_COSTS.TRIVIA_MASTERMIND_UNLOCK} XP
-                </p>
-              </div>
+        {/* Mastermind Vault Unlock Strip (Watch Ad OR 200 XP) */}
+        {!isTriviaCategoryUnlocked('mastermind-vault', bonusUnlockUntil, Date.now(), mastermindUnlocked) && (
+          <div
+            data-testid="trivia-mastermind-unlock-bar"
+            className="flex flex-wrap items-center justify-between gap-2 rounded-xl border wv-border wv-card-muted px-3 py-2 text-xs"
+          >
+            <div className="min-w-0">
+              <p className="font-bold wv-text">
+                Mastermind Vault Locked · Watch an ad for 24h access or unlock forever with{' '}
+                {XP_COSTS.TRIVIA_MASTERMIND_UNLOCK} XP
+              </p>
+            </div>
+            <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
               <button
                 type="button"
-                data-testid="trivia-unlock-mastermind-xp-btn"
-                disabled={currentXp < XP_COSTS.TRIVIA_MASTERMIND_UNLOCK}
-                onClick={() => {
-                  const ok = onSpendXpUnlockMastermind();
-                  if (ok && sessionMode === 'level_climb') {
-                    const fresh = createTriviaClimbState(safeLevel);
-                    onUpdateClimbState(fresh);
-                    setStageXpEarned(0);
-                    setDoubleXpClaimed(false);
-                    setQuestionTimeLeft(getTriviaQuestionTimeLimitSeconds(safeLevel, 0));
-                  }
-                }}
-                className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl wv-gold-pill px-3 py-1.5 text-xs font-extrabold transition-transform active:scale-95 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
+                data-testid="trivia-unlock-mastermind-ad-btn"
+                onClick={onUnlockBonusCategory}
+                className="inline-flex min-h-10 w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl border wv-accent-pill px-3 py-1.5 text-xs font-extrabold transition-transform active:scale-95 cursor-pointer"
               >
-                <Zap className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Unlock Mastermind · {XP_COSTS.TRIVIA_MASTERMIND_UNLOCK} XP</span>
+                <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span>Watch Ad to Unlock Mastermind</span>
               </button>
+              {onSpendXpUnlockMastermind && (
+                <button
+                  type="button"
+                  data-testid="trivia-unlock-mastermind-xp-btn"
+                  disabled={currentXp < XP_COSTS.TRIVIA_MASTERMIND_UNLOCK}
+                  onClick={() => {
+                    const ok = onSpendXpUnlockMastermind();
+                    if (ok && sessionMode === 'level_climb') {
+                      const fresh = createTriviaClimbState(safeLevel);
+                      onUpdateClimbState(fresh);
+                      setStageXpEarned(0);
+                      setDoubleXpClaimed(false);
+                      setStagePromptNonce((n) => n + 1);
+                      setQuestionTimeLeft(getTriviaQuestionTimeLimitSeconds(safeLevel, 0));
+                    }
+                  }}
+                  className="inline-flex min-h-10 w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl wv-gold-pill px-3 py-1.5 text-xs font-extrabold transition-transform active:scale-95 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <Zap className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span>Unlock Mastermind · {XP_COSTS.TRIVIA_MASTERMIND_UNLOCK} XP</span>
+                </button>
+              )}
             </div>
-          )}
+          </div>
+        )}
 
         {/* Timed Level Progression Bar (Hidden in Endless Sprint; + locked until reached) */}
         {sessionMode === 'level_climb' && (
@@ -909,6 +1046,90 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
                   Time&apos;s up! Unanswered · 0 XP — Advancing to next question...
                 </div>
               )}
+
+              {/* Clean Level Section Entry/Helper Prompt (Rewarded Interstitial option vs Start Playing) */}
+              {levelEntryPromptOpen && selectedIdx === null && !timedOut && (
+                <div
+                  data-testid="trivia-level-entry-prompt"
+                  className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border wv-border wv-card-muted px-4 py-3 animate-stage-enter"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-extrabold wv-text">
+                      {formatLevelLabel(safeLevel)} Ready · Timer Paused
+                    </p>
+                    <p className="text-xs wv-text-muted">
+                      Start playing immediately or watch an ad to reveal this question&apos;s answer.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      data-testid="trivia-entry-start-btn"
+                      onClick={() => setLevelEntryPromptOpen(false)}
+                      className="inline-flex min-h-10 items-center justify-center rounded-xl wv-accent-btn px-4 py-2 text-xs sm:text-sm font-bold cursor-pointer"
+                    >
+                      Start Playing
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="trivia-entry-watch-ad-btn"
+                      onClick={() => triggerRewardedInterstitialForQuestion('trivia_level_helper')}
+                      className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border wv-accent-pill px-3.5 py-2 text-xs sm:text-sm font-bold cursor-pointer"
+                    >
+                      <Zap className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <span>Watch Ad for Answer</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Policy-Compliant 4-Second Low-Timer Lifeline Choice Prompt (Rewarded Interstitial) */}
+          {lifelinePromptOpen && sessionMode === 'level_climb' && selectedIdx === null && !timedOut && (
+            <div
+              data-testid="trivia-lifeline-prompt"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="trivia-lifeline-title"
+              className="rounded-3xl border-2 border-amber-500/75 wv-card p-5 shadow-md animate-modal-pop"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-amber-500">
+                    <Clock className="h-4 w-4" aria-hidden="true" />
+                    <span>4 Seconds Left · Timer Paused</span>
+                  </p>
+                  <h3
+                    id="trivia-lifeline-title"
+                    className="mt-1 font-display text-lg sm:text-xl font-bold wv-text"
+                  >
+                    Need a Lifeline Answer?
+                  </h3>
+                  <p className="mt-1 text-xs sm:text-sm wv-text-muted">
+                    Watch a short rewarded interstitial ad to reveal the correct answer, or decline to resume your final 4 seconds.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-col gap-2.5 sm:flex-row">
+                <button
+                  type="button"
+                  data-testid="trivia-lifeline-watch-btn"
+                  onClick={() => triggerRewardedInterstitialForQuestion('trivia_low_timer_lifeline')}
+                  className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl wv-accent-btn px-4 py-2.5 text-sm font-bold cursor-pointer"
+                >
+                  <Zap className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>Watch Ad for Answer</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="trivia-lifeline-decline-btn"
+                  onClick={() => setLifelinePromptOpen(false)}
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl border wv-border wv-card-muted px-4 py-2.5 text-sm font-bold wv-text hover:opacity-90 cursor-pointer"
+                >
+                  No Thanks · Resume 4s
+                </button>
+              </div>
             </div>
           )}
 
@@ -956,19 +1177,31 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
           {selectedIdx === null && (
             <div className="mt-4 space-y-2.5">
               <div className="flex flex-col gap-2.5 sm:flex-row">
-                <button
-                  type="button"
-                  data-testid="trivia-watch-two-ads-btn"
-                  onClick={handleWatchTwoAdsForAnswer}
-                  className="flex min-h-12 sm:min-h-[52px] flex-1 items-center justify-center gap-2 rounded-2xl border wv-accent-pill px-4 py-3 text-sm sm:text-base font-bold transition-transform active:scale-98 cursor-pointer"
-                >
-                  <Zap className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  <span>
-                    {adsWatchedForReveal === 0
-                      ? 'Watch 2 Ads to Reveal Answer (Ad 1/2)'
-                      : 'Ad 1 Watched! Watch Ad 2/2'}
-                  </span>
-                </button>
+                {sessionMode === 'sprint' ? (
+                  <button
+                    type="button"
+                    data-testid="trivia-watch-two-ads-btn"
+                    onClick={handleWatchTwoAdsForAnswer}
+                    className="flex min-h-12 sm:min-h-[52px] flex-1 items-center justify-center gap-2 rounded-2xl border wv-accent-pill px-4 py-3 text-sm sm:text-base font-bold transition-transform active:scale-98 cursor-pointer"
+                  >
+                    <Zap className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span>
+                      {adsWatchedForReveal === 0
+                        ? 'Watch 2 Ads to Reveal Answer (Ad 1/2)'
+                        : 'Ad 1/2 Watched · Watch Ad 2/2'}
+                    </span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    data-testid="trivia-watch-ad-reveal-btn"
+                    onClick={handleWatchSingleAdForAnswer}
+                    className="flex min-h-12 sm:min-h-[52px] flex-1 items-center justify-center gap-2 rounded-2xl border wv-accent-pill px-4 py-3 text-sm sm:text-base font-bold transition-transform active:scale-98 cursor-pointer"
+                  >
+                    <Zap className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span>Watch Ad to Reveal Answer</span>
+                  </button>
+                )}
                 {onSpendXpSolve && (
                   <button
                     type="button"
@@ -1043,8 +1276,10 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm sm:text-base font-bold wv-accent-text">
                   {selectedIdx === question.correctIndex
-                    ? solvedViaXp
+                    ? revealMethod === 'xp'
                       ? `Solved via ${XP_COSTS.TRIVIA_SOLVE} XP · Advancing...`
+                      : revealMethod === 'ad'
+                      ? 'Answer Revealed via Ad'
                       : `Correct! +${lastXpFlash ?? 0} XP`
                     : timedOut
                     ? "Time's Up! 0 XP · Climb reset to 1/5"

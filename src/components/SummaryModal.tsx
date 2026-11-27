@@ -28,6 +28,7 @@ import {
   type SessionPlayMode,
 } from '../game/settingsLogic';
 import { getWordMeaningClue } from '../game/wordMeanings';
+import { DailyResetCountdown } from './LiveCountdowns';
 
 interface SummaryModalProps {
   open: boolean;
@@ -38,7 +39,7 @@ interface SummaryModalProps {
   isPremiumCategory: boolean;
   categoryPlaysRemaining: number;
   categoryUnlockAdsWatched?: number;
-  countdown: string;
+  countdown?: string;
   stats: StatsData;
   canSaveStreak: boolean;
   canDoubleXp?: boolean;
@@ -119,7 +120,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
       aria-labelledby="summary-modal-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 overflow-y-auto"
     >
-      <div className="my-auto w-full max-w-md rounded-2xl border-2 wv-border wv-card p-5 sm:p-6 shadow-2xl animate-modal-pop">
+      <div className="my-auto w-full max-w-md rounded-2xl border-2 wv-border wv-card p-5 sm:p-6 shadow-lg animate-modal-pop">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs sm:text-sm font-bold uppercase tracking-wider wv-accent-text">
@@ -385,7 +386,9 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
               <Trophy className="h-4 w-4 wv-accent-text" aria-hidden="true" />
               <div>
                 <div className="text-xs font-medium wv-text-muted">Daily Cycle Reset</div>
-                <div className="font-mono-tabular text-sm font-bold wv-text">{countdown}</div>
+                <div className="font-mono-tabular text-sm font-bold wv-text">
+                  {countdown ?? <DailyResetCountdown />}
+                </div>
               </div>
             </div>
 

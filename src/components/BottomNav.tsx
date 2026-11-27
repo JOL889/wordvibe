@@ -17,7 +17,7 @@ const TABS: Array<{ id: AppTab; label: string; testId: string; aria: string }> =
 ];
 const TAB_IDS = TABS.map((t) => t.id);
 
-export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onChangeTab }) => {
+export const BottomNav: React.FC<BottomNavProps> = React.memo(({ activeTab, onChangeTab }) => {
   const activeIdx = Math.max(0, TABS.findIndex((t) => t.id === activeTab));
   const { containerProps } = useHorizontalSwitch({
     items: TAB_IDS,
@@ -31,7 +31,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onChangeTab }) 
       {...containerProps}
       data-testid="bottom-nav"
       aria-label="Primary screen switcher"
-      className="fixed inset-x-0 bottom-0 z-40 border-t wv-border wv-card backdrop-blur-md touch-pan-y select-none"
+      className="fixed inset-x-0 bottom-0 z-40 border-t wv-border wv-card touch-pan-y select-none"
     >
       <div className="relative mx-auto grid h-[68px] max-w-lg grid-cols-4 px-2">
         {/* Sliding Top Accent Pill */}
@@ -98,4 +98,4 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onChangeTab }) 
       </div>
     </nav>
   );
-};
+});

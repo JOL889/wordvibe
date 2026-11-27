@@ -60,7 +60,7 @@ function formatTimerSec(sec: number): string {
   return `${mins}:${String(rem).padStart(2, '0')}`;
 }
 
-export const ModeControls: React.FC<ModeControlsProps> = ({
+export const ModeControls: React.FC<ModeControlsProps> = React.memo(({
   sessionMode,
   levelNumber,
   maxUnlockedLevel,
@@ -122,7 +122,7 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
               onChangeSessionMode('level_climb');
             }}
             aria-pressed={sessionMode === 'level_climb'}
-            className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3.5 sm:px-4 py-2 text-xs sm:text-base font-bold transition-all active:scale-95 whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3.5 sm:px-4 py-2 text-xs sm:text-base font-bold transition-[transform,opacity] active:scale-95 whitespace-nowrap shrink-0 cursor-pointer ${
               sessionMode === 'level_climb'
                 ? 'wv-accent-btn'
                 : 'wv-text-muted hover:opacity-90'
@@ -139,7 +139,7 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
               onChangeSessionMode('sprint');
             }}
             aria-pressed={sessionMode === 'sprint'}
-            className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3.5 sm:px-4 py-2 text-xs sm:text-base font-bold transition-all active:scale-95 whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3.5 sm:px-4 py-2 text-xs sm:text-base font-bold transition-[transform,opacity] active:scale-95 whitespace-nowrap shrink-0 cursor-pointer ${
               sessionMode === 'sprint'
                 ? 'wv-accent-btn'
                 : 'wv-text-muted hover:opacity-90'
@@ -167,7 +167,7 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
               }}
               aria-pressed={autoLengthMode}
               title="Vary grid size across 4×4, 5×5, and 6×6"
-              className={`min-h-11 rounded-xl px-3 sm:px-3.5 py-1.5 text-xs sm:text-base font-bold transition-all active:scale-95 whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`min-h-11 rounded-xl px-3 sm:px-3.5 py-1.5 text-xs sm:text-base font-bold transition-[transform,opacity] active:scale-95 whitespace-nowrap shrink-0 cursor-pointer ${
                 autoLengthMode ? 'wv-gold-pill' : 'wv-text-muted hover:opacity-90'
               }`}
             >
@@ -186,7 +186,7 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
                   onChangeLength(len);
                 }}
                 aria-pressed={active}
-                className={`min-h-11 rounded-xl px-3 sm:px-3.5 py-1.5 text-xs sm:text-base font-bold transition-all active:scale-95 whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`min-h-11 rounded-xl px-3 sm:px-3.5 py-1.5 text-xs sm:text-base font-bold transition-[transform,opacity] active:scale-95 whitespace-nowrap shrink-0 cursor-pointer ${
                   active ? 'wv-accent-btn' : 'wv-text-muted hover:opacity-90'
                 }`}
               >
@@ -362,7 +362,7 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
                         : 'Beat the clock!'
                     }
                     className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1 font-mono-tabular text-base sm:text-lg font-black ${
-                      isLowTime ? 'wv-gold-pill animate-pulse' : 'wv-accent-pill'
+                      isLowTime ? 'wv-gold-pill' : 'wv-accent-pill'
                     }`}
                   >
                     <Clock className="h-4 w-4" aria-hidden="true" />
@@ -394,11 +394,11 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
             className="h-2 sm:h-2.5 w-full overflow-hidden rounded-full wv-card-muted border wv-border"
           >
             <div
-              className={`h-full rounded-full transition-all duration-300 ${
+              className={`h-full w-full origin-left rounded-full transition-transform duration-300 ${
                 isLowTime ? 'bg-amber-500' : 'wv-accent-btn'
               }`}
               style={{
-                width: `${Math.max(0, Math.min(100, (roundTimeLeftSec / roundTimeTotalSec) * 100))}%`,
+                transform: `scaleX(${Math.max(0, Math.min(1, roundTimeLeftSec / roundTimeTotalSec))})`,
               }}
             />
           </div>
@@ -406,4 +406,4 @@ export const ModeControls: React.FC<ModeControlsProps> = ({
       </div>
     </section>
   );
-};
+});

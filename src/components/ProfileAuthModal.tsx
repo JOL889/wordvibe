@@ -231,9 +231,9 @@ export const ProfileAuthModal: React.FC<ProfileAuthModalProps> = ({
           onClose();
         }
       }}
-      className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/75 sm:p-4 backdrop-blur-xs overflow-y-auto"
+      className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/75 sm:p-4 overflow-y-auto"
     >
-      <div className="flex max-h-[95dvh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl border-2 wv-border wv-card shadow-2xl animate-modal-pop">
+      <div className="flex max-h-[95dvh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl border-2 wv-border wv-card shadow-lg animate-modal-pop">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 border-b wv-border px-5 py-4">
           <div className="min-w-0">

@@ -1,10 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Trophy } from 'lucide-react';
 import { BottomNav, type AppTab } from './components/BottomNav';
-import {
-  CategoryExplorerModal,
-  type CategoryFilterTab,
-} from './components/CategoryExplorerModal';
+import type { CategoryFilterTab } from './components/CategoryExplorerModal';
 import { ConfettiBurst } from './components/ConfettiBurst';
 import { EditorialGuideAndAdSlot } from './components/EditorialGuideAndAdSlot';
 import { FaithStudyView } from './components/FaithStudyView';
@@ -12,20 +9,69 @@ import { FloatingReward, type FloatingRewardItem } from './components/FloatingRe
 import { Header } from './components/Header';
 import { ModeControls } from './components/ModeControls';
 import { OfflineBanner } from './components/OfflineBanner';
-import { PersonalizationModal } from './components/PersonalizationModal';
-import { PrivacyPolicyView } from './components/PrivacyPolicyView';
-import { ProfileAuthModal, type ProfileAuthMode } from './components/ProfileAuthModal';
-import { ProfileViewModal } from './components/ProfileViewModal';
+import type { ProfileAuthMode } from './components/ProfileAuthModal';
 import { PuzzleGrid, type SelectedDictionaryWord } from './components/PuzzleGrid';
-import { RewardedAdModal } from './components/RewardedAdModal';
 import { RewardedDock } from './components/RewardedDock';
-import { SettingsModal, type SettingsOpenRequest } from './components/SettingsModal';
+import type { SettingsOpenRequest } from './components/SettingsModal';
 import { StreakHomeView } from './components/StreakHomeView';
-import { SummaryModal } from './components/SummaryModal';
 import { TriviaView } from './components/TriviaView';
-import { WeeklyRankModal, WeeklyRolloverModal } from './components/WeeklyRankModal';
 import { WordTriviaHintPanel } from './components/WordTriviaHintPanel';
-import { WordTriviaRowModal } from './components/WordTriviaRowModal';
+
+const CategoryExplorerModal = lazy(() =>
+  import('./components/CategoryExplorerModal').then((m) => ({
+    default: m.CategoryExplorerModal,
+  }))
+);
+const PersonalizationModal = lazy(() =>
+  import('./components/PersonalizationModal').then((m) => ({
+    default: m.PersonalizationModal,
+  }))
+);
+const PrivacyPolicyView = lazy(() =>
+  import('./components/PrivacyPolicyView').then((m) => ({
+    default: m.PrivacyPolicyView,
+  }))
+);
+const ProfileAuthModal = lazy(() =>
+  import('./components/ProfileAuthModal').then((m) => ({
+    default: m.ProfileAuthModal,
+  }))
+);
+const ProfileViewModal = lazy(() =>
+  import('./components/ProfileViewModal').then((m) => ({
+    default: m.ProfileViewModal,
+  }))
+);
+const RewardedAdModal = lazy(() =>
+  import('./components/RewardedAdModal').then((m) => ({
+    default: m.RewardedAdModal,
+  }))
+);
+const SettingsModal = lazy(() =>
+  import('./components/SettingsModal').then((m) => ({
+    default: m.SettingsModal,
+  }))
+);
+const SummaryModal = lazy(() =>
+  import('./components/SummaryModal').then((m) => ({
+    default: m.SummaryModal,
+  }))
+);
+const WeeklyRankModal = lazy(() =>
+  import('./components/WeeklyRankModal').then((m) => ({
+    default: m.WeeklyRankModal,
+  }))
+);
+const WeeklyRolloverModal = lazy(() =>
+  import('./components/WeeklyRankModal').then((m) => ({
+    default: m.WeeklyRolloverModal,
+  }))
+);
+const WordTriviaRowModal = lazy(() =>
+  import('./components/WordTriviaRowModal').then((m) => ({
+    default: m.WordTriviaRowModal,
+  }))
+);
 import { getCategoryById, type PuzzleCategory } from './data/categories';
 import type { WordLength } from './data/words';
 import {
@@ -65,13 +111,11 @@ import {
   canRecoverStreak,
   CATEGORY_UNLOCK_REQUIRED_ADS,
   consumeCategoryPlay,
-  formatCountdown,
   getCategoryRemainingPlays,
   getCategoryUnlockAdProgress,
   getDailyPuzzleNumber,
   getHomeChallenges,
   getLocalDateKey,
-  getTimeUntilMidnightMs,
   getWeekStreakDays,
   isCategoryAccessible,
   recordCategoryUnlockAdWatch,
@@ -112,8 +156,6 @@ import { gatherUserEnvironmentDetails } from './game/userResearchLogic';
 import {
   applyWeeklyActivityEvent,
   computeWeeklyGrade,
-  formatWeeklyResetCountdown,
-  getNextMondayUtcMs,
   reconcileWeeklyRollover,
   type AchievementDefinition,
   type WeeklyActivityState,
@@ -325,9 +367,6 @@ export default function NativeWordvibeGame() {
     loadWeeklyProgress()
   );
   const [triviaState, setTriviaState] = useState<PersistentTriviaState>(() => loadTriviaState());
-  const [weeklyCountdown, setWeeklyCountdown] = useState<string>(() =>
-    formatWeeklyResetCountdown(getNextMondayUtcMs() - Date.now())
-  );
   const [weeklyRankOpen, setWeeklyRankOpen] = useState(false);
   const [personalizationOpen, setPersonalizationOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -427,9 +466,6 @@ export default function NativeWordvibeGame() {
   const pendingClueSlotRef = useRef<{ slotType: CrosswordSlotType; index: number } | null>(null);
   const cluePanelRef = useRef<HTMLElement | null>(null);
 
-  const [countdown, setCountdown] = useState<string>(() =>
-    formatCountdown(getTimeUntilMidnightMs())
-  );
   const [toast, setToast] = useState<string | null>(null);
 
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -447,6 +483,10 @@ export default function NativeWordvibeGame() {
   const toastTimerRef = useRef<number | null>(null);
   const summaryTimerRef = useRef<number | null>(null);
   const puzzleTimeoutAdvanceRef = useRef<number | null>(null);
+  const winBurstTimerRef = useRef<number | null>(null);
+  const shakeTimerRef = useRef<number | null>(null);
+  const floatingRewardTimersRef = useRef<Set<number>>(new Set());
+  const hasResolvedInitialRegionRef = useRef<boolean>(false);
   const autoAdvanceTimeoutBoardRef = useRef<() => void>(() => {});
   const rewardIdRef = useRef<number>(1);
   const resolvedBoardIdsRef = useRef<Set<string>>(new Set());
@@ -513,9 +553,11 @@ export default function NativeWordvibeGame() {
     (label: string, tone: FloatingRewardItem['tone'] = 'xp') => {
       const id = rewardIdRef.current++;
       setFloatingRewards((prev) => [...prev.slice(-3), { id, label, tone }]);
-      window.setTimeout(() => {
+      const timerId = window.setTimeout(() => {
+        floatingRewardTimersRef.current.delete(timerId);
         setFloatingRewards((prev) => prev.filter((item) => item.id !== id));
       }, 1750);
+      floatingRewardTimersRef.current.add(timerId);
     },
     []
   );
@@ -635,45 +677,34 @@ export default function NativeWordvibeGame() {
     savePlayerProfile(playerProfile);
   }, [playerProfile]);
 
-  // 100% offline regional resolution using timezone + optional device geolocation (zero /api calls)
+  // 100% offline regional resolution from timezone only (zero unsolicited GPS prompts on startup)
   useEffect(() => {
+    if (hasResolvedInitialRegionRef.current) return;
     if (!appSettings.autoDetectLocation || playerProfile.locationOptOut) return;
-    if (playerProfile.location && playerProfile.location.source === 'gps') return;
+    if (playerProfile.location) {
+      hasResolvedInitialRegionRef.current = true;
+      return;
+    }
+    hasResolvedInitialRegionRef.current = true;
 
     const tz =
       playerProfile.environmentSnapshot?.timezone ||
       (typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC');
 
-    const applyTimezoneRegion = (source: 'gps' | 'timezone' = 'timezone') => {
-      const resolved = {
-        ...guessLocationFromTimezone(tz),
-        source,
-        updatedAt: Date.now(),
-      };
-      setPlayerProfile((prev) =>
-        prev.locationOptOut
-          ? prev
-          : {
-              ...prev,
-              locationEnabled: true,
-              location: prev.location?.source === 'manual' ? prev.location : resolved,
-            }
-      );
+    const resolved = {
+      ...guessLocationFromTimezone(tz),
+      source: 'timezone' as const,
+      updatedAt: Date.now(),
     };
-
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      try {
-        navigator.geolocation.getCurrentPosition(
-          () => applyTimezoneRegion('gps'),
-          () => applyTimezoneRegion('timezone'),
-          { timeout: 2200, maximumAge: 600_000 }
-        );
-      } catch {
-        applyTimezoneRegion('timezone');
-      }
-    } else {
-      applyTimezoneRegion('timezone');
-    }
+    setPlayerProfile((prev) =>
+      prev.locationOptOut || prev.location
+        ? prev
+        : {
+            ...prev,
+            locationEnabled: true,
+            location: resolved,
+          }
+    );
   }, [
     appSettings.autoDetectLocation,
     playerProfile.environmentSnapshot?.timezone,
@@ -681,18 +712,22 @@ export default function NativeWordvibeGame() {
     playerProfile.locationOptOut,
   ]);
 
-  // Preload AdMob rewarded ad on mount
+  // Defer AdMob rewarded ad preload slightly so initial UI frame paints immediately
   useEffect(() => {
     rewardedAdService.setCallbacks({
       onAdFailedToLoad: (reason) => {
         showToast(reason, 2800);
       },
     });
-    void rewardedAdService.preloadRewardedAd();
+    const timerId = window.setTimeout(() => {
+      void rewardedAdService.preloadRewardedAd();
+    }, 250);
+    return () => window.clearTimeout(timerId);
   }, [showToast]);
 
   // Cleanup timers on unmount
   useEffect(() => {
+    const rewardTimers = floatingRewardTimersRef.current;
     return () => {
       if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
       if (summaryTimerRef.current) window.clearTimeout(summaryTimerRef.current);
@@ -700,31 +735,49 @@ export default function NativeWordvibeGame() {
       if (achievementTimerRef.current) window.clearTimeout(achievementTimerRef.current);
       if (confettiTimerRef.current) window.clearTimeout(confettiTimerRef.current);
       if (swipeAnimTimerRef.current) window.clearTimeout(swipeAnimTimerRef.current);
+      if (winBurstTimerRef.current) window.clearTimeout(winBurstTimerRef.current);
+      if (shakeTimerRef.current) window.clearTimeout(shakeTimerRef.current);
+      for (const timerId of rewardTimers) {
+        window.clearTimeout(timerId);
+      }
+      rewardTimers.clear();
     };
   }, []);
 
-  // Offline calendar entertainment spotlight + countdown timers
+  // Offline calendar entertainment spotlight + lightweight day/week rollover check (no root 1Hz ticker)
   useEffect(() => {
     setSpotlight(resolveDailyEntertainmentSpotlight(dateKey));
   }, [dateKey]);
 
+  const dateKeyRef = useRef(dateKey);
+  dateKeyRef.current = dateKey;
+
   useEffect(() => {
-    const interval = window.setInterval(() => {
+    const checkRollover = () => {
       const now = new Date();
       const nowMs = now.getTime();
-      setCountdown(formatCountdown(getTimeUntilMidnightMs(now)));
-      setWeeklyCountdown(formatWeeklyResetCountdown(getNextMondayUtcMs(nowMs) - nowMs));
       setWeeklyProgress((prev) => {
         const res = reconcileWeeklyRollover(prev, nowMs);
         return res.rolledOver ? res.state : prev;
       });
       const latestKey = getLocalDateKey(now);
-      if (latestKey !== dateKey) {
+      if (latestKey !== dateKeyRef.current) {
+        dateKeyRef.current = latestKey;
         setDateKey(latestKey);
       }
-    }, 1000);
-    return () => window.clearInterval(interval);
-  }, [dateKey]);
+    };
+    const interval = window.setInterval(checkRollover, 30_000);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        checkRollover();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
 
   // Hydrate offline user profile from IndexedDB if localStorage was cleared
   useEffect(() => {
@@ -988,10 +1041,13 @@ export default function NativeWordvibeGame() {
     };
   }, []);
 
-  // Automatically start a guest Firebase session for returning users when online and auth modal is dismissed
+  // Automatically start a guest Firebase session after first paint when online and auth modal is dismissed
   useEffect(() => {
     if (!isOnline || profileModalOpen || firebaseUser) return;
-    void ensureAnonymousSession().catch(() => {});
+    const timerId = window.setTimeout(() => {
+      void ensureAnonymousSession().catch(() => {});
+    }, 150);
+    return () => window.clearTimeout(timerId);
   }, [firebaseUser, isOnline, profileModalOpen]);
 
   // Flush buffered online XP on tab background/session finish if 5-min cooldown allows
@@ -1094,6 +1150,9 @@ export default function NativeWordvibeGame() {
     []
   );
 
+  const crosswordBoardRef = useRef(crosswordBoard);
+  crosswordBoardRef.current = crosswordBoard;
+
   useEffect(() => {
     if (isPuzzleTimerPaused) return;
     const id = window.setInterval(() => {
@@ -1104,7 +1163,7 @@ export default function NativeWordvibeGame() {
         setPuzzleTimedOut(true);
         soundService.playInvalidShake();
         // Do NOT auto-complete/auto-answer the board and award 0 XP
-        recordPuzzleBoardOutcome(crosswordBoard, false);
+        recordPuzzleBoardOutcome(crosswordBoardRef.current, false);
         setCrosswordClimb((prev) => advanceCrosswordLevelClimb(prev, false));
         showToast("Time's up! Unanswered · 0 XP — Advancing...", 2600);
         if (puzzleTimeoutAdvanceRef.current) {
@@ -1121,7 +1180,7 @@ export default function NativeWordvibeGame() {
       setPuzzleTimeLeftSec(nextVal);
     }, 1000);
     return () => window.clearInterval(id);
-  }, [crosswordBoard, isPuzzleTimerPaused, recordPuzzleBoardOutcome, showToast]);
+  }, [isPuzzleTimerPaused, recordPuzzleBoardOutcome, showToast]);
 
   const puzzleNumber = useMemo(() => getDailyPuzzleNumber(dateKey), [dateKey]);
   const isStreakRecoverable = useMemo(
@@ -1459,7 +1518,11 @@ export default function NativeWordvibeGame() {
       soundService.playWinFanfare();
       triggerConfetti();
       setShowWinBurst(true);
-      window.setTimeout(() => setShowWinBurst(false), 1200);
+      if (winBurstTimerRef.current) window.clearTimeout(winBurstTimerRef.current);
+      winBurstTimerRef.current = window.setTimeout(() => {
+        setShowWinBurst(false);
+        winBurstTimerRef.current = null;
+      }, 1200);
 
       const isFaithBoard = wonBoard.trackerMode === 'faith';
       const onlineNow =
@@ -1669,7 +1732,9 @@ export default function NativeWordvibeGame() {
       setShakeLine({ type, index });
       soundService.playInvalidShake();
       triggerHapticPulse([18, 25, 18], effectiveHapticsEnabled);
-      window.setTimeout(() => {
+      if (shakeTimerRef.current) window.clearTimeout(shakeTimerRef.current);
+      shakeTimerRef.current = window.setTimeout(() => {
+        shakeTimerRef.current = null;
         setShakeLine((prev) => (prev?.type === type && prev.index === index ? null : prev));
       }, 420);
     },
@@ -1725,31 +1790,52 @@ export default function NativeWordvibeGame() {
     [crosswordBoard.length, crosswordBoard.status]
   );
 
+  const isPuzzleModalBlocked =
+    Boolean(activeAdPlacement) ||
+    clueSlotModalOpen ||
+    summaryOpen ||
+    categoryExplorerOpen ||
+    weeklyRankOpen ||
+    personalizationOpen ||
+    settingsOpen ||
+    profileModalOpen ||
+    profileViewOpen;
+  const isPuzzleModalBlockedRef = useRef(isPuzzleModalBlocked);
+  isPuzzleModalBlockedRef.current = isPuzzleModalBlocked;
+  const typingDirectionRef = useRef(typingDirection);
+  typingDirectionRef.current = typingDirection;
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+  const profileModalModeRef = useRef(profileModalMode);
+  profileModalModeRef.current = profileModalMode;
+  const puzzleTimedOutRef = useRef(puzzleTimedOut);
+  puzzleTimedOutRef.current = puzzleTimedOut;
+  const puzzleSessionModeRef = useRef(modeConfig.puzzleSessionMode);
+  puzzleSessionModeRef.current = modeConfig.puzzleSessionMode;
+  const effectiveHapticsRef = useRef(effectiveHapticsEnabled);
+  effectiveHapticsRef.current = effectiveHapticsEnabled;
+  const recordBoardVictoryRef = useRef(recordBoardVictory);
+  recordBoardVictoryRef.current = recordBoardVictory;
+
   const handleCrosswordKey = useCallback(
     (key: string) => {
-      if (crosswordBoard.status !== 'playing') return;
-      if (modeConfig.puzzleSessionMode === 'level_climb' && puzzleTimedOut) return;
-      if (
-        activeAdPlacement ||
-        clueSlotModalOpen ||
-        summaryOpen ||
-        categoryExplorerOpen ||
-        weeklyRankOpen ||
-        personalizationOpen ||
-        settingsOpen ||
-        profileModalOpen ||
-        profileViewOpen
-      ) {
+      const board = crosswordBoardRef.current;
+      if (board.status !== 'playing') return;
+      if (puzzleSessionModeRef.current === 'level_climb' && puzzleTimedOutRef.current) return;
+      if (isPuzzleModalBlockedRef.current) {
         return;
       }
 
+      const currentDir = typingDirectionRef.current;
+      const hapticsOn = effectiveHapticsRef.current;
       const { row, col } = cursorRef.current;
-      const result = applyCrosswordKey(crosswordBoard, row, col, typingDirection, key);
+      const result = applyCrosswordKey(board, row, col, currentDir, key);
 
       cursorRef.current = { row: result.nextRow, col: result.nextCol };
       setActiveRow(result.nextRow);
       setActiveCol(result.nextCol);
-      if (result.nextDir !== typingDirection) {
+      if (result.nextDir !== currentDir) {
+        typingDirectionRef.current = result.nextDir;
         setTypingDirection(result.nextDir);
       }
 
@@ -1757,7 +1843,7 @@ export default function NativeWordvibeGame() {
 
       if (result.outcome === 'typed') {
         soundService.playKeyTap();
-        triggerHapticPulse(8, effectiveHapticsEnabled);
+        triggerHapticPulse(8, hapticsOn);
         setCrosswordBoard(result.board);
         return;
       }
@@ -1770,12 +1856,12 @@ export default function NativeWordvibeGame() {
 
       if (result.outcome === 'line_incomplete') {
         triggerLineShake(
-          typingDirection === 'down' ? 'col' : 'row',
-          typingDirection === 'down' ? col : row
+          currentDir === 'down' ? 'col' : 'row',
+          currentDir === 'down' ? col : row
         );
         showToast(
-          `Fill all ${crosswordBoard.length} letters in ${
-            typingDirection === 'down' ? `Col ${col + 1} Down` : `Row ${row + 1} Across`
+          `Fill all ${board.length} letters in ${
+            currentDir === 'down' ? `Col ${col + 1} Down` : `Row ${row + 1} Across`
           }`
         );
         return;
@@ -1784,8 +1870,8 @@ export default function NativeWordvibeGame() {
       if (result.outcome === 'not_in_dictionary' || result.outcome === 'wrong_word') {
         setCrosswordBoard(result.board);
         triggerLineShake(
-          typingDirection === 'down' ? 'col' : 'row',
-          typingDirection === 'down' ? col : row
+          currentDir === 'down' ? 'col' : 'row',
+          currentDir === 'down' ? col : row
         );
         showToast(
           result.outcome === 'not_in_dictionary'
@@ -1798,38 +1884,25 @@ export default function NativeWordvibeGame() {
       if (result.outcome === 'line_solved') {
         setCrosswordBoard(result.board);
         soundService.playTileFlip(2, true);
-        triggerHapticPulse([12, 20, 12], effectiveHapticsEnabled);
+        triggerHapticPulse([12, 20, 12], hapticsOn);
         showToast(`${result.solvedLineLabel} (${result.solvedWord}) solved!`, 2200);
         return;
       }
 
       if (result.outcome === 'board_won') {
         setCrosswordBoard(result.board);
-        recordBoardVictory(result.board);
+        recordBoardVictoryRef.current(result.board);
       }
     },
-    [
-      activeAdPlacement,
-      categoryExplorerOpen,
-      clueSlotModalOpen,
-      crosswordBoard,
-      effectiveHapticsEnabled,
-      modeConfig.puzzleSessionMode,
-      personalizationOpen,
-      puzzleTimedOut,
-      recordBoardVictory,
-      settingsOpen,
-      showToast,
-      summaryOpen,
-      triggerLineShake,
-      typingDirection,
-      profileModalOpen,
-      profileViewOpen,
-      weeklyRankOpen,
-    ]
+    [showToast, triggerLineShake]
   );
 
-  // Global physical keyboard listener (skips deviceKeyboard input to avoid duplicate events)
+  const handleMoveCursorRef = useRef(handleMoveCursor);
+  handleMoveCursorRef.current = handleMoveCursor;
+  const handleCrosswordKeyRef = useRef(handleCrosswordKey);
+  handleCrosswordKeyRef.current = handleCrosswordKey;
+
+  // Global physical keyboard listener (mounted once; reads fresh state via refs)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1842,7 +1915,7 @@ export default function NativeWordvibeGame() {
         setSettingsOpen(false);
         setClueSlotModalOpen(false);
         setProfileViewOpen(false);
-        if (profileModalMode === 'edit') {
+        if (profileModalModeRef.current === 'edit') {
           setProfileModalOpen(false);
         }
         return;
@@ -1859,35 +1932,25 @@ export default function NativeWordvibeGame() {
       ) {
         return;
       }
-      if (activeTab !== 'puzzle') return;
-      if (
-        activeAdPlacement ||
-        clueSlotModalOpen ||
-        summaryOpen ||
-        categoryExplorerOpen ||
-        weeklyRankOpen ||
-        personalizationOpen ||
-        settingsOpen ||
-        profileModalOpen ||
-        profileViewOpen
-      ) {
+      if (activeTabRef.current !== 'puzzle') return;
+      if (isPuzzleModalBlockedRef.current) {
         return;
       }
 
       if (e.key === 'Enter') {
         if (targetEl?.tagName === 'BUTTON') return;
         e.preventDefault();
-        handleCrosswordKey('ENTER');
+        handleCrosswordKeyRef.current('ENTER');
       } else if (e.key === 'Backspace') {
         e.preventDefault();
-        handleCrosswordKey('BACKSPACE');
+        handleCrosswordKeyRef.current('BACKSPACE');
       } else if (
         e.key === 'ArrowLeft' ||
         e.key === 'ArrowRight' ||
         e.key === 'ArrowUp' ||
         e.key === 'ArrowDown'
       ) {
-        if (crosswordBoard.status !== 'playing') return;
+        if (crosswordBoardRef.current.status !== 'playing') return;
         e.preventDefault();
         const dirMap: Record<string, CursorDirection> = {
           ArrowLeft: 'left',
@@ -1895,32 +1958,17 @@ export default function NativeWordvibeGame() {
           ArrowUp: 'up',
           ArrowDown: 'down',
         };
-        handleMoveCursor(dirMap[e.key]);
+        handleMoveCursorRef.current(dirMap[e.key]);
       } else if (/^[a-zA-Z]$/.test(e.key)) {
-        handleCrosswordKey(e.key.toUpperCase());
+        handleCrosswordKeyRef.current(e.key.toUpperCase());
       }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [
-    activeAdPlacement,
-    activeTab,
-    categoryExplorerOpen,
-    clueSlotModalOpen,
-    crosswordBoard.status,
-    handleCrosswordKey,
-    handleMoveCursor,
-    personalizationOpen,
-    profileModalMode,
-    profileModalOpen,
-    profileViewOpen,
-    settingsOpen,
-    summaryOpen,
-    weeklyRankOpen,
-  ]);
+  }, []);
 
-  // Shake-to-Refresh + Gyroscope 3D Tilt Device Sensor Listener
+  // Shake-to-Refresh + Gyroscope 3D Tilt Device Sensor Listener (deferred slightly past first paint)
   const onShakeCallbackRef = useRef<() => void>(() => {});
   onShakeCallbackRef.current = () => {
     triggerHapticPulse([20, 35, 20], effectiveHapticsEnabled);
@@ -1940,10 +1988,21 @@ export default function NativeWordvibeGame() {
   };
 
   useEffect(() => {
-    return attachDeviceSensorListeners({
-      enabled: appSettings.sensorsEnabled,
-      onShake: () => onShakeCallbackRef.current(),
-    });
+    if (!appSettings.sensorsEnabled) return;
+    let canceled = false;
+    let detach: (() => void) | undefined;
+    const timerId = window.setTimeout(() => {
+      if (canceled) return;
+      detach = attachDeviceSensorListeners({
+        enabled: true,
+        onShake: () => onShakeCallbackRef.current(),
+      });
+    }, 180);
+    return () => {
+      canceled = true;
+      window.clearTimeout(timerId);
+      detach?.();
+    };
   }, [appSettings.sensorsEnabled]);
 
   const effectivePlayerName =
@@ -2749,17 +2808,107 @@ export default function NativeWordvibeGame() {
     showToast('Local profiles, scores, and browser caches cleared.');
   }, [showToast]);
 
-  const anyModalBlockingSwipe =
-    isPrivacyRoute ||
-    Boolean(activeAdPlacement) ||
-    clueSlotModalOpen ||
-    summaryOpen ||
-    categoryExplorerOpen ||
-    weeklyRankOpen ||
-    personalizationOpen ||
-    settingsOpen ||
-    profileModalOpen ||
-    profileViewOpen;
+  const anyModalBlockingSwipe = isPrivacyRoute || isPuzzleModalBlocked;
+
+  const handleToggleSound = useCallback(() => {
+    const nextMode: SoundMode =
+      activeSoundMode === 'on' ? 'mute' : activeSoundMode === 'mute' ? 'off' : 'on';
+    handleUpdateSettings({ soundMode: nextMode, soundEnabled: nextMode === 'on' });
+    showToast(
+      nextMode === 'on'
+        ? 'Sound Effects On'
+        : nextMode === 'mute'
+        ? 'Sound Muted — Vibrate Only'
+        : 'Sound Effects & Vibration Off'
+    );
+  }, [activeSoundMode, handleUpdateSettings, showToast]);
+
+  const handleOpenStats = useCallback(() => setSummaryOpen(true), []);
+  const handleOpenSettings = useCallback(() => {
+    setSettingsOpenRequest(null);
+    setSettingsOpen(true);
+  }, []);
+  const handleOpenProfile = useCallback(() => setProfileViewOpen(true), []);
+  const handleNavigateHome = useCallback(() => {
+    closePrivacyPolicy();
+    setActiveTab('home');
+  }, [closePrivacyPolicy]);
+  const handleChangeTab = useCallback(
+    (tab: AppTab) => {
+      closePrivacyPolicy();
+      setActiveTab(tab);
+    },
+    [closePrivacyPolicy]
+  );
+  const handleOpenPersonalize = useCallback(() => setPersonalizationOpen(true), []);
+  const handleWatchAdSaveStreak = useCallback(() => setActiveAdPlacement('save_streak'), []);
+  const handleStartPuzzleTab = useCallback(() => {
+    setActiveTab('puzzle');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, []);
+  const handleStartFaithTab = useCallback(() => {
+    setActiveTab('faith');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, []);
+  const handleStartTriviaTab = useCallback(() => {
+    setActiveTab('trivia');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, []);
+  const handleOpenAllCategories = useCallback(() => {
+    setCategoryExplorerInitialTab('All');
+    setCategoryExplorerOpen(true);
+  }, []);
+  const handleOpenEntertainmentCategories = useCallback(() => {
+    setCategoryExplorerInitialTab('Entertainment');
+    setCategoryExplorerOpen(true);
+  }, []);
+  const handlePlayHomePersonalized = useCallback(() => {
+    handlePlayPersonalizedPuzzle();
+  }, [handlePlayPersonalizedPuzzle]);
+  const handlePlayModePersonalized = useCallback(() => {
+    handlePlayPersonalizedPuzzle(autoLengthMode ? undefined : crosswordBoard.length);
+  }, [autoLengthMode, crosswordBoard.length, handlePlayPersonalizedPuzzle]);
+  const handleChangeDirection = useCallback(
+    (dir: TypingDirection) => {
+      setTypingDirection(dir);
+      triggerHapticPulse(8, effectiveHapticsEnabled);
+    },
+    [effectiveHapticsEnabled]
+  );
+  const handleTriggerHint = useCallback(() => setActiveAdPlacement('hint'), []);
+  const handleTriggerWordClue = useCallback(() => setClueSlotModalOpen(true), []);
+  const handleUnlockActiveClue = useCallback((slotType: CrosswordSlotType, index: number) => {
+    const slot = { slotType, index };
+    pendingClueSlotRef.current = slot;
+    setPendingClueSlot(slot);
+    setActiveAdPlacement('puzzle_clue');
+  }, []);
+  const handleTriggerSkipBoard = useCallback(() => {
+    if (crosswordBoardRef.current.status === 'playing') {
+      recordPuzzleBoardOutcome(crosswordBoardRef.current, false);
+    }
+    dealNextSessionBoard();
+    showToast('Fresh crossword board dealt!');
+  }, [dealNextSessionBoard, recordPuzzleBoardOutcome, showToast]);
+  const handleToggleCluePanel = useCallback(() => setCluePanelOpen((prev) => !prev), []);
+  const handleWatchAdUnlockActiveCategory = useCallback(
+    () => promptUnlockCategory(activeCategory),
+    [activeCategory, promptUnlockCategory]
+  );
+  const handleNewBoardFromDock = useCallback(() => {
+    if (crosswordBoardRef.current.status === 'playing') {
+      recordPuzzleBoardOutcome(crosswordBoardRef.current, false);
+    }
+    dealNextSessionBoard();
+  }, [dealNextSessionBoard, recordPuzzleBoardOutcome]);
+  const handleShareResultFromDock = useCallback(
+    () => void handleSharePuzzleProgress(),
+    [handleSharePuzzleProgress]
+  );
+  const handleInviteFromDock = useCallback(
+    () => void handleInviteFriends(),
+    [handleInviteFriends]
+  );
 
   return (
     <div
@@ -2772,29 +2921,12 @@ export default function NativeWordvibeGame() {
         weeklyXp={weeklyProgress.weeklyXp}
         leaderboardRank={leaderboardSummary.rank}
         userAccount={userAccount}
-        onToggleSound={() => {
-          const nextMode: SoundMode =
-            activeSoundMode === 'on' ? 'mute' : activeSoundMode === 'mute' ? 'off' : 'on';
-          handleUpdateSettings({ soundMode: nextMode, soundEnabled: nextMode === 'on' });
-          showToast(
-            nextMode === 'on'
-              ? 'Sound Effects On'
-              : nextMode === 'mute'
-              ? 'Sound Muted — Vibrate Only'
-              : 'Sound Effects & Vibration Off'
-          );
-        }}
-        onOpenStats={() => setSummaryOpen(true)}
+        onToggleSound={handleToggleSound}
+        onOpenStats={handleOpenStats}
         onOpenWeeklyRank={handleOpenWeeklyRankModal}
-        onOpenSettings={() => {
-          setSettingsOpenRequest(null);
-          setSettingsOpen(true);
-        }}
-        onOpenProfile={() => setProfileViewOpen(true)}
-        onNavigateHome={() => {
-          closePrivacyPolicy();
-          setActiveTab('home');
-        }}
+        onOpenSettings={handleOpenSettings}
+        onOpenProfile={handleOpenProfile}
+        onNavigateHome={handleNavigateHome}
         showXp={activeTab !== 'home'}
       />
 
@@ -2813,7 +2945,7 @@ export default function NativeWordvibeGame() {
           data-testid="achievement-toast"
           role="status"
           aria-live="polite"
-          className="fixed top-16 right-4 z-50 flex max-w-xs items-center gap-3 rounded-xl border wv-border wv-card p-3 shadow-xl animate-toast-up"
+          className="fixed top-16 right-4 z-50 flex max-w-xs items-center gap-3 rounded-xl border wv-border wv-card p-3 shadow-md animate-toast-up"
         >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg wv-accent-btn">
             <Trophy className="h-4 w-4" aria-hidden="true" />
@@ -2961,46 +3093,35 @@ export default function NativeWordvibeGame() {
         }`}
       >
         {isPrivacyRoute ? (
-          <PrivacyPolicyView
-            onBack={closePrivacyPolicy}
-            onClearLocalData={handleClearAllLocalData}
-          />
+          <Suspense fallback={null}>
+            <PrivacyPolicyView
+              onBack={closePrivacyPolicy}
+              onClearLocalData={handleClearAllLocalData}
+            />
+          </Suspense>
         ) : activeTab === 'home' ? (
           <>
             <StreakHomeView
-            stats={stats}
-            dateKey={dateKey}
-            activeReligion={faithProgress.activeReligion}
-            puzzleNumber={puzzleNumber}
-            countdown={countdown}
-            weekDays={weekDays}
-            challenges={homeChallenges}
-            spotlight={spotlight}
-            playsRemaining={categoryProgress.playsRemaining}
-            canSaveStreak={isStreakRecoverable}
-            playerProfile={playerProfile}
-            onOpenPersonalize={() => setPersonalizationOpen(true)}
-            onPlayPersonalizedPuzzle={() => handlePlayPersonalizedPuzzle()}
-            onWatchAdSaveStreak={() => setActiveAdPlacement('save_streak')}
-            onStartPuzzle={() => {
-              setActiveTab('puzzle');
-              window.scrollTo({ top: 0, behavior: 'instant' });
-            }}
-            onStartFaith={() => {
-              setActiveTab('faith');
-              window.scrollTo({ top: 0, behavior: 'instant' });
-            }}
-            onStartTrivia={() => {
-              setActiveTab('trivia');
-              window.scrollTo({ top: 0, behavior: 'instant' });
-            }}
-            onSelectChallenge={handleSelectChallenge}
-            onPlayEntertainmentCategory={handlePlayEntertainmentCategory}
-            onBrowseEntertainment={() => {
-              setCategoryExplorerInitialTab('Entertainment');
-              setCategoryExplorerOpen(true);
-            }}
-          />
+              stats={stats}
+              dateKey={dateKey}
+              activeReligion={faithProgress.activeReligion}
+              puzzleNumber={puzzleNumber}
+              weekDays={weekDays}
+              challenges={homeChallenges}
+              spotlight={spotlight}
+              playsRemaining={categoryProgress.playsRemaining}
+              canSaveStreak={isStreakRecoverable}
+              playerProfile={playerProfile}
+              onOpenPersonalize={handleOpenPersonalize}
+              onPlayPersonalizedPuzzle={handlePlayHomePersonalized}
+              onWatchAdSaveStreak={handleWatchAdSaveStreak}
+              onStartPuzzle={handleStartPuzzleTab}
+              onStartFaith={handleStartFaithTab}
+              onStartTrivia={handleStartTriviaTab}
+              onSelectChallenge={handleSelectChallenge}
+              onPlayEntertainmentCategory={handlePlayEntertainmentCategory}
+              onBrowseEntertainment={handleOpenEntertainmentCategories}
+            />
             <footer className="mx-auto mb-6 w-full max-w-3xl lg:max-w-4xl px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm wv-text-muted">
               <span>On-Device Offline Ready</span>
               <a
@@ -3156,17 +3277,12 @@ export default function NativeWordvibeGame() {
               isPersonalizedRound={personalizedMeta?.isPersonalized}
               personalizedClue={personalizedMeta?.clue}
               personalizedReason={personalizedMeta?.reason}
-              onPlayPersonalizedPuzzle={() =>
-                handlePlayPersonalizedPuzzle(autoLengthMode ? undefined : crosswordBoard.length)
-              }
+              onPlayPersonalizedPuzzle={handlePlayModePersonalized}
               onChangeSessionMode={handleChangePuzzleSessionMode}
               onChangeLevelNumber={handleChangePuzzleLevelNumber}
               onChangeLength={handleChangeBoardLength}
               onToggleAutoLength={handleToggleAutoLength}
-              onOpenCategories={() => {
-                setCategoryExplorerInitialTab('All');
-                setCategoryExplorerOpen(true);
-              }}
+              onOpenCategories={handleOpenAllCategories}
             />
 
             <PuzzleGrid
@@ -3184,37 +3300,20 @@ export default function NativeWordvibeGame() {
               categoryPlaysRemainingMap={categoryProgress.playsRemaining}
               categoryUnlockAdProgress={categoryProgress.unlockAdProgress}
               currentXp={currentSpendableXp}
-              onChangeDirection={(dir) => {
-                setTypingDirection(dir);
-                triggerHapticPulse(8, effectiveHapticsEnabled);
-              }}
+              onChangeDirection={handleChangeDirection}
               onSelectCell={handleSelectCell}
               onSelectDictWord={setSelectedDictWord}
               onRetryTimedRound={handleRetryTimedRound}
               onSelectFeaturedTopic={handleSelectCategory}
-              onOpenTopicsExplorer={() => {
-                setCategoryExplorerInitialTab('All');
-                setCategoryExplorerOpen(true);
-              }}
+              onOpenTopicsExplorer={handleOpenAllCategories}
               onKey={handleCrosswordKey}
               onMoveCursor={handleMoveCursor}
-              onTriggerHint={() => setActiveAdPlacement('hint')}
+              onTriggerHint={handleTriggerHint}
               onSpendXpForHint={handleSpendXpForPuzzleHint}
-              onTriggerWordClue={() => setClueSlotModalOpen(true)}
-              onUnlockActiveClue={(slotType, index) => {
-                const slot = { slotType, index };
-                pendingClueSlotRef.current = slot;
-                setPendingClueSlot(slot);
-                setActiveAdPlacement('puzzle_clue');
-              }}
+              onTriggerWordClue={handleTriggerWordClue}
+              onUnlockActiveClue={handleUnlockActiveClue}
               onSpendXpForClue={handleSpendXpForPuzzleClue}
-              onTriggerSkipBoard={() => {
-                if (crosswordBoard.status === 'playing') {
-                  recordPuzzleBoardOutcome(crosswordBoard, false);
-                }
-                dealNextSessionBoard();
-                showToast('Fresh crossword board dealt!');
-              }}
+              onTriggerSkipBoard={handleTriggerSkipBoard}
             />
 
             {crosswordBoard.status === 'playing' &&
@@ -3225,8 +3324,8 @@ export default function NativeWordvibeGame() {
                   wordLength={crosswordBoard.length}
                   categoryName={boardCategory.name}
                   isOpen={cluePanelOpen}
-                  onToggleOpen={() => setCluePanelOpen((prev) => !prev)}
-                  onRequestAnotherLine={() => setClueSlotModalOpen(true)}
+                  onToggleOpen={handleToggleCluePanel}
+                  onRequestAnotherLine={handleTriggerWordClue}
                 />
               )}
 
@@ -3238,18 +3337,13 @@ export default function NativeWordvibeGame() {
               previousLostStreak={stats.previousLostStreak}
               isCategoryLockedForNext={isCategoryLockedForNext}
               categoryUnlockAdsWatched={activeCategoryUnlockAdsWatched}
-              onToggleCluePanel={() => setCluePanelOpen((prev) => !prev)}
-              onWatchAdSaveStreak={() => setActiveAdPlacement('save_streak')}
-              onWatchAdUnlockCategory={() => promptUnlockCategory(activeCategory)}
-              onNewBoard={() => {
-                if (crosswordBoard.status === 'playing') {
-                  recordPuzzleBoardOutcome(crosswordBoard, false);
-                }
-                dealNextSessionBoard();
-              }}
-              onShareResult={() => void handleSharePuzzleProgress()}
-              onInviteFriends={() => void handleInviteFriends()}
-              onOpenSummary={() => setSummaryOpen(true)}
+              onToggleCluePanel={handleToggleCluePanel}
+              onWatchAdSaveStreak={handleWatchAdSaveStreak}
+              onWatchAdUnlockCategory={handleWatchAdUnlockActiveCategory}
+              onNewBoard={handleNewBoardFromDock}
+              onShareResult={handleShareResultFromDock}
+              onInviteFriends={handleInviteFromDock}
+              onOpenSummary={handleOpenStats}
             />
 
             <EditorialGuideAndAdSlot
@@ -3268,7 +3362,7 @@ export default function NativeWordvibeGame() {
         {toast && (
           <div
             data-testid="toast-message"
-            className="max-w-sm sm:max-w-md truncate rounded-lg wv-accent-btn px-3.5 py-1.5 text-xs font-bold shadow-lg animate-toast-up"
+            className="max-w-sm sm:max-w-md truncate rounded-lg wv-accent-btn px-3.5 py-1.5 text-xs font-bold shadow-md animate-toast-up"
           >
             {toast}
           </div>
@@ -3277,135 +3371,140 @@ export default function NativeWordvibeGame() {
 
       <BottomNav
         activeTab={activeTab}
-        onChangeTab={(tab) => {
-          closePrivacyPolicy();
-          setActiveTab(tab);
-        }}
+        onChangeTab={handleChangeTab}
       />
 
-      <CategoryExplorerModal
-        open={categoryExplorerOpen}
-        initialTab={categoryExplorerInitialTab}
-        activeCategoryId={activeCategory.id}
-        playsRemaining={categoryProgress.playsRemaining}
-        unlockAdProgress={categoryProgress.unlockAdProgress}
-        solvedByCategory={categoryProgress.solvedByCategory}
-        exploredCategories={categoryProgress.exploredCategories}
-        spotlight={spotlight}
-        onClose={() => setCategoryExplorerOpen(false)}
-        onSelectCategory={handleSelectCategory}
-      />
+      <Suspense fallback={null}>
+        {categoryExplorerOpen && (
+          <CategoryExplorerModal
+            open={categoryExplorerOpen}
+            initialTab={categoryExplorerInitialTab}
+            activeCategoryId={activeCategory.id}
+            playsRemaining={categoryProgress.playsRemaining}
+            unlockAdProgress={categoryProgress.unlockAdProgress}
+            solvedByCategory={categoryProgress.solvedByCategory}
+            exploredCategories={categoryProgress.exploredCategories}
+            spotlight={spotlight}
+            onClose={() => setCategoryExplorerOpen(false)}
+            onSelectCategory={handleSelectCategory}
+          />
+        )}
 
-      <SummaryModal
-        open={summaryOpen}
-        sessionMode={modeConfig.puzzleSessionMode}
-        board={crosswordBoard}
-        climbState={crosswordClimb}
-        categoryName={personalizedMeta?.isPersonalized ? 'For You Pick' : boardCategory.name}
-        isPremiumCategory={!personalizedMeta?.isPersonalized && activeCategory.isPremium}
-        categoryPlaysRemaining={categoryPlaysRemaining}
-        categoryUnlockAdsWatched={activeCategoryUnlockAdsWatched}
-        countdown={countdown}
-        stats={stats}
-        canSaveStreak={isStreakRecoverable}
-        canDoubleXp={!puzzleDoubleXpClaimed && rewardedAdService.canShowOptionalPrompt()}
-        lastPuzzleXpEarned={lastPuzzleXpEarned}
-        weeklyRank={leaderboardSummary.rank}
-        activeWeeklyPlayersCount={leaderboardSummary.activeThisWeekCount}
-        weeklyXp={weeklyProgress.weeklyXp}
-        personalizedReason={personalizedMeta?.reason}
-        personalizedCulturalNote={personalizedMeta?.culturalNote}
-        funFact={solveFunFact}
-        onClose={() => setSummaryOpen(false)}
-        onShare={() => handleSharePuzzleProgress(true)}
-        onInviteFriends={() => handleInviteFriends(undefined, undefined, true)}
-        onWatchAdSaveStreak={() => {
-          setSummaryOpen(false);
-          setActiveAdPlacement('save_streak');
-        }}
-        onWatchAdDoubleXp={() => {
-          setSummaryOpen(false);
-          setActiveAdPlacement('double_xp');
-        }}
-        onWatchAdUnlockCategory={() => promptUnlockCategory(activeCategory)}
-        onNextBoard={() => {
-          if (personalizedMeta?.faithReligion) {
-            handlePlayFaithPuzzle(personalizedMeta.faithReligion);
-          } else if (personalizedMeta?.isPersonalized) {
-            handlePlayPersonalizedPuzzle(crosswordBoard.length);
-          } else {
-            dealNextSessionBoard();
-          }
-        }}
-      />
+        {summaryOpen && (
+          <SummaryModal
+            open={summaryOpen}
+            sessionMode={modeConfig.puzzleSessionMode}
+            board={crosswordBoard}
+            climbState={crosswordClimb}
+            categoryName={personalizedMeta?.isPersonalized ? 'For You Pick' : boardCategory.name}
+            isPremiumCategory={!personalizedMeta?.isPersonalized && activeCategory.isPremium}
+            categoryPlaysRemaining={categoryPlaysRemaining}
+            categoryUnlockAdsWatched={activeCategoryUnlockAdsWatched}
+            stats={stats}
+            canSaveStreak={isStreakRecoverable}
+            canDoubleXp={!puzzleDoubleXpClaimed && rewardedAdService.canShowOptionalPrompt()}
+            lastPuzzleXpEarned={lastPuzzleXpEarned}
+            weeklyRank={leaderboardSummary.rank}
+            activeWeeklyPlayersCount={leaderboardSummary.activeThisWeekCount}
+            weeklyXp={weeklyProgress.weeklyXp}
+            personalizedReason={personalizedMeta?.reason}
+            personalizedCulturalNote={personalizedMeta?.culturalNote}
+            funFact={solveFunFact}
+            onClose={() => setSummaryOpen(false)}
+            onShare={() => handleSharePuzzleProgress(true)}
+            onInviteFriends={() => handleInviteFriends(undefined, undefined, true)}
+            onWatchAdSaveStreak={() => {
+              setSummaryOpen(false);
+              setActiveAdPlacement('save_streak');
+            }}
+            onWatchAdDoubleXp={() => {
+              setSummaryOpen(false);
+              setActiveAdPlacement('double_xp');
+            }}
+            onWatchAdUnlockCategory={() => promptUnlockCategory(activeCategory)}
+            onNextBoard={() => {
+              if (personalizedMeta?.faithReligion) {
+                handlePlayFaithPuzzle(personalizedMeta.faithReligion);
+              } else if (personalizedMeta?.isPersonalized) {
+                handlePlayPersonalizedPuzzle(crosswordBoard.length);
+              } else {
+                dealNextSessionBoard();
+              }
+            }}
+          />
+        )}
 
-      <PersonalizationModal
-        open={personalizationOpen}
-        profile={playerProfile}
-        stats={stats}
-        localHeadlines={[]}
-        onClose={() => setPersonalizationOpen(false)}
-        onUpdateProfile={(next) => {
-          setPlayerProfile(next);
-          if (next.locationOptOut === appSettings.autoDetectLocation) {
-            setAppSettings((prev) => ({
-              ...prev,
-              autoDetectLocation: !next.locationOptOut,
-            }));
-          }
-        }}
-        onResetStudyStats={() => {
-          const fresh = createDefaultPlayerProfile();
-          setPlayerProfile((prev) => ({
-            ...fresh,
-            locationEnabled: prev.locationEnabled,
-            locationOptOut: prev.locationOptOut,
-            location: prev.location,
-            displayName: prev.displayName,
-            focusField: prev.focusField,
-            environmentSnapshot: prev.environmentSnapshot,
-            selectedInterests: prev.selectedInterests,
-            challengePace: prev.challengePace,
-          }));
-          showToast('Learned profile stats reset.');
-        }}
-      />
+        {personalizationOpen && (
+          <PersonalizationModal
+            open={personalizationOpen}
+            profile={playerProfile}
+            stats={stats}
+            localHeadlines={[]}
+            onClose={() => setPersonalizationOpen(false)}
+            onUpdateProfile={(next) => {
+              setPlayerProfile(next);
+              if (next.locationOptOut === appSettings.autoDetectLocation) {
+                setAppSettings((prev) => ({
+                  ...prev,
+                  autoDetectLocation: !next.locationOptOut,
+                }));
+              }
+            }}
+            onResetStudyStats={() => {
+              const fresh = createDefaultPlayerProfile();
+              setPlayerProfile((prev) => ({
+                ...fresh,
+                locationEnabled: prev.locationEnabled,
+                locationOptOut: prev.locationOptOut,
+                location: prev.location,
+                displayName: prev.displayName,
+                focusField: prev.focusField,
+                environmentSnapshot: prev.environmentSnapshot,
+                selectedInterests: prev.selectedInterests,
+                challengePace: prev.challengePace,
+              }));
+              showToast('Learned profile stats reset.');
+            }}
+          />
+        )}
 
-      <SettingsModal
-        open={settingsOpen}
-        settings={appSettings}
-        playerProfile={playerProfile}
-        userAccount={userAccount}
-        openRequest={settingsOpenRequest}
-        onClose={() => setSettingsOpen(false)}
-        onUpdateSettings={handleUpdateSettings}
-        onOpenPersonalize={() => {
-          setSettingsOpen(false);
-          setPersonalizationOpen(true);
-        }}
-        onOpenEditProfile={() => {
-          setAuthModalError(null);
-          setProfileModalMode(userAccount ? 'edit' : 'signin');
-          setProfileModalOpen(true);
-        }}
-        onShareApp={() => void handleInviteFriends()}
-        onResetTutorial={() => {
-          handleUpdateSettings({ tutorialCompleted: false });
-          setSettingsOpenRequest({
-            section: 'about',
-            aboutTab: 'rules',
-            nonce: Date.now(),
-          });
-          showToast('Tutorial guide opened in Settings → About.');
-        }}
-        onOpenPrivacyPolicy={openPrivacyPolicy}
-      />
+        {settingsOpen && (
+          <SettingsModal
+            open={settingsOpen}
+            settings={appSettings}
+            playerProfile={playerProfile}
+            userAccount={userAccount}
+            openRequest={settingsOpenRequest}
+            onClose={() => setSettingsOpen(false)}
+            onUpdateSettings={handleUpdateSettings}
+            onOpenPersonalize={() => {
+              setSettingsOpen(false);
+              setPersonalizationOpen(true);
+            }}
+            onOpenEditProfile={() => {
+              setAuthModalError(null);
+              setProfileModalMode(userAccount ? 'edit' : 'signin');
+              setProfileModalOpen(true);
+            }}
+            onShareApp={() => void handleInviteFriends()}
+            onResetTutorial={() => {
+              handleUpdateSettings({ tutorialCompleted: false });
+              setSettingsOpenRequest({
+                section: 'about',
+                aboutTab: 'rules',
+                nonce: Date.now(),
+              });
+              showToast('Tutorial guide opened in Settings → About.');
+            }}
+            onOpenPrivacyPolicy={openPrivacyPolicy}
+          />
+        )}
 
-      <WeeklyRankModal
-        open={weeklyRankOpen}
-        weeklyProgress={weeklyProgress}
-        weeklyCountdown={weeklyCountdown}
-        playerId={verifiedState.uid || userAccount?.id || leaderboardPlayerId}
+        {weeklyRankOpen && (
+          <WeeklyRankModal
+            open={weeklyRankOpen}
+            weeklyProgress={weeklyProgress}
+            playerId={verifiedState.uid || userAccount?.id || leaderboardPlayerId}
         playerName={effectivePlayerName}
         userAccount={userAccount}
         playerPuzzlesSolved={stats.gamesWon}
@@ -3486,42 +3585,46 @@ export default function NativeWordvibeGame() {
         }
         onInviteFriends={(rank, activeCount) => handleInviteFriends(rank, activeCount, true)}
         onClose={() => setWeeklyRankOpen(false)}
-      />
+          />
+        )}
 
-      <ProfileViewModal
-        open={profileViewOpen}
-        userAccount={userAccount}
-        playerProfile={playerProfile}
-        stats={stats}
-        weeklyProgress={weeklyProgress}
-        verifiedXp={verifiedState.verifiedRewardXp}
-        weeklyRank={leaderboardSummary.rank}
-        gradeLabel={weeklyGradeInfo.current.tierName}
-        faithTraditionName={getFaithTradition(faithProgress.activeReligion).name}
-        faithSessionsCount={faithProgress.faithTriviaCorrect}
-        firebaseSignedIn={Boolean(firebaseUser)}
-        firebaseEmail={firebaseUser?.email || null}
-        isOnline={isOnline}
-        isSyncing={isSyncingScore}
-        lastSyncAtMs={verifiedState.lastSyncAtMs}
-        syncStatusMessage={syncStatusMessage}
-        onClose={() => setProfileViewOpen(false)}
-        onEditProfile={() => {
-          setProfileViewOpen(false);
-          setAuthModalError(null);
-          setProfileModalMode(userAccount ? 'edit' : 'signin');
-          setProfileModalOpen(true);
-        }}
-        onSyncProgress={() => performVerifiedFlush(false)}
-        onSignOut={handleSignOutUnified}
-      />
+        {profileViewOpen && (
+          <ProfileViewModal
+            open={profileViewOpen}
+            userAccount={userAccount}
+            playerProfile={playerProfile}
+            stats={stats}
+            weeklyProgress={weeklyProgress}
+            verifiedXp={verifiedState.verifiedRewardXp}
+            weeklyRank={leaderboardSummary.rank}
+            gradeLabel={weeklyGradeInfo.current.tierName}
+            faithTraditionName={getFaithTradition(faithProgress.activeReligion).name}
+            faithSessionsCount={faithProgress.faithTriviaCorrect}
+            firebaseSignedIn={Boolean(firebaseUser)}
+            firebaseEmail={firebaseUser?.email || null}
+            isOnline={isOnline}
+            isSyncing={isSyncingScore}
+            lastSyncAtMs={verifiedState.lastSyncAtMs}
+            syncStatusMessage={syncStatusMessage}
+            onClose={() => setProfileViewOpen(false)}
+            onEditProfile={() => {
+              setProfileViewOpen(false);
+              setAuthModalError(null);
+              setProfileModalMode(userAccount ? 'edit' : 'signin');
+              setProfileModalOpen(true);
+            }}
+            onSyncProgress={() => performVerifiedFlush(false)}
+            onSignOut={handleSignOutUnified}
+          />
+        )}
 
-      <ProfileAuthModal
-        open={profileModalOpen}
-        mode={profileModalMode}
-        existingAccount={userAccount}
-        authError={authModalError}
-        authBusy={authBusy}
+        {profileModalOpen && (
+          <ProfileAuthModal
+            open={profileModalOpen}
+            mode={profileModalMode}
+            existingAccount={userAccount}
+            authError={authModalError}
+            authBusy={authBusy}
         onSaveAccount={async (acct, passwordPlain) => {
           setAuthModalError(null);
           setAuthBusy(true);
@@ -3706,25 +3809,29 @@ export default function NativeWordvibeGame() {
           showToast('Playing as Guest');
         }}
         onClose={() => {
-          if (profileModalMode === 'edit') {
-            setProfileModalOpen(false);
-          }
-        }}
-      />
+              if (profileModalMode === 'edit') {
+                setProfileModalOpen(false);
+              }
+            }}
+          />
+        )}
 
-      <WeeklyRolloverModal
-        summary={weeklyProgress.pendingWeekSummary}
-        onDismiss={() =>
-          setWeeklyProgress((prev) => ({
-            ...prev,
-            pendingWeekSummary: null,
-          }))
-        }
-      />
+        {Boolean(weeklyProgress.pendingWeekSummary) && (
+          <WeeklyRolloverModal
+            summary={weeklyProgress.pendingWeekSummary}
+            onDismiss={() =>
+              setWeeklyProgress((prev) => ({
+                ...prev,
+                pendingWeekSummary: null,
+              }))
+            }
+          />
+        )}
 
-      <WordTriviaRowModal
-        open={clueSlotModalOpen}
-        board={crosswordBoard}
+        {clueSlotModalOpen && (
+          <WordTriviaRowModal
+            open={clueSlotModalOpen}
+            board={crosswordBoard}
         activeRow={activeRow}
         activeCol={activeCol}
         typingDirection={typingDirection}
@@ -3777,10 +3884,12 @@ export default function NativeWordvibeGame() {
           }
           handleSpendXpForPuzzleClue(slotType, index);
         }}
-      />
+          />
+        )}
 
-      <RewardedAdModal
-        placement={activeAdPlacement}
+        {Boolean(activeAdPlacement) && (
+          <RewardedAdModal
+            placement={activeAdPlacement}
         contextLabel={
           (activeAdPlacement === 'puzzle_clue' || activeAdPlacement === 'puzzle_word_trivia') &&
           pendingClueSlot
@@ -3851,7 +3960,9 @@ export default function NativeWordvibeGame() {
           adRewardCallbackRef.current = null;
         }}
         onRewardEarned={handleRewardEarned}
-      />
+          />
+        )}
+      </Suspense>
 
       <OfflineBanner />
     </div>

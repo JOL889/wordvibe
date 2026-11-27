@@ -50,7 +50,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ compact = fa
             aria-modal="true"
             aria-labelledby="ios-install-title"
           >
-            <div className="w-full max-w-sm rounded-2xl border-2 wv-border wv-card p-6 shadow-2xl">
+            <div className="w-full max-w-sm rounded-2xl border-2 wv-border wv-card p-6 shadow-lg">
               <h3 id="ios-install-title" className="font-display text-lg font-bold wv-text">
                 Install on iPhone or iPad
               </h3>

@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'wordvibe-pwa-v2';
+const CACHE_VERSION = 'wordvibe-pwa-v3';
 const CORE_ASSETS = [
   '/',
   '/index.html',

@@ -109,7 +109,7 @@ const TRIVIA_CATEGORY_IDS: readonly string[] = TRIVIA_CATEGORIES.map((c) => c.id
 const pendingTriviaByKey = new Map<string, TriviaQuestion>();
 let lastHandledRefreshSignal = 0;
 
-export const TriviaView: React.FC<TriviaViewProps> = ({
+export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
   selectedCategoryId,
   sessionMode,
   levelNumber,
@@ -845,7 +845,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
               <div className="flex items-center justify-between gap-3 mb-2.5">
                 <span className="inline-flex items-center gap-2 text-sm sm:text-base font-extrabold uppercase tracking-wider wv-text">
                   <Clock
-                    className={`h-5 w-5 ${isLowTime ? 'text-amber-500 animate-pulse' : 'wv-accent-text'}`}
+                    className={`h-5 w-5 ${isLowTime ? 'text-amber-500' : 'wv-accent-text'}`}
                     aria-hidden="true"
                   />
                   <span>Time Remaining</span>
@@ -854,7 +854,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                   data-testid="trivia-climb-timer"
                   className={`inline-flex items-center gap-1.5 rounded-xl border-2 px-4 py-1 font-mono-tabular text-xl sm:text-2xl font-black shadow-xs ${
                     isLowTime
-                      ? 'border-amber-500 bg-amber-500 text-slate-950 animate-pulse'
+                      ? 'border-amber-500 bg-amber-500 text-slate-950'
                       : 'border-transparent wv-accent-btn'
                   }`}
                 >
@@ -864,11 +864,11 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
 
               <div className="h-3.5 w-full overflow-hidden rounded-full wv-card-muted border wv-border">
                 <div
-                  className={`h-full rounded-full transition-all duration-300 ${
+                  className={`h-full w-full origin-left rounded-full transition-transform duration-300 ${
                     isLowTime ? 'bg-amber-500' : 'wv-accent-btn'
                   }`}
                   style={{
-                    width: `${Math.max(0, Math.min(100, (questionTimeLeft / TRIVIA_QUESTION_TIME_LIMIT_SEC) * 100))}%`,
+                    transform: `scaleX(${Math.max(0, Math.min(1, questionTimeLeft / TRIVIA_QUESTION_TIME_LIMIT_SEC))})`,
                   }}
                 />
               </div>
@@ -982,7 +982,7 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
                   data-testid={`trivia-option-${idx}`}
                   disabled={isAnswered || timedOut}
                   onClick={() => handleSelectOption(idx)}
-                  className={`flex min-h-14 sm:min-h-[60px] items-center justify-between gap-3.5 rounded-2xl border px-5 py-3.5 text-left text-base sm:text-lg font-semibold transition-all active:scale-[0.985] cursor-pointer disabled:cursor-default ${styleClass} ${
+                  className={`flex min-h-14 sm:min-h-[60px] items-center justify-between gap-3.5 rounded-2xl border px-5 py-3.5 text-left text-base sm:text-lg font-semibold transition-[transform,opacity] active:scale-[0.985] cursor-pointer disabled:cursor-default ${styleClass} ${
                     isAnswered && isCorrectOpt
                       ? 'animate-tile-pop'
                       : isAnswered && isPicked && !isCorrectOpt
@@ -1089,4 +1089,4 @@ export const TriviaView: React.FC<TriviaViewProps> = ({
       ) : null}
     </section>
   );
-};
+});

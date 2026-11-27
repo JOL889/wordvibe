@@ -111,27 +111,70 @@ export function attachDeviceSensorListeners(options: SensorListenersOptions): ()
   let currentShiftY = 0;
   let rafId = 0;
 
+  let lastWrittenTiltX = '';
+  let lastWrittenTiltY = '';
+  let lastWrittenShiftX = '';
+  let lastWrittenShiftY = '';
+  let lastShakeCheckAt = 0;
+
+  const isMotionPaused = () => {
+    if (typeof document === 'undefined') return true;
+    return (
+      document.visibilityState === 'hidden' ||
+      document.documentElement.dataset.anim === 'reduced'
+    );
+  };
+
   const scheduleSmoothFrame = () => {
-    if (rafId) return;
+    if (rafId || isMotionPaused()) return;
     const step = () => {
-      const ease = 0.14;
+      if (isMotionPaused()) {
+        rafId = 0;
+        return;
+      }
+
+      const ease = 0.16;
       currentTiltX += (targetTiltX - currentTiltX) * ease;
       currentTiltY += (targetTiltY - currentTiltY) * ease;
       currentShiftX += (targetShiftX - currentShiftX) * ease;
       currentShiftY += (targetShiftY - currentShiftY) * ease;
 
+      const nextTiltX = `${currentTiltX.toFixed(1)}deg`;
+      const nextTiltY = `${currentTiltY.toFixed(1)}deg`;
+      const nextShiftX = `${currentShiftX.toFixed(1)}px`;
+      const nextShiftY = `${currentShiftY.toFixed(1)}px`;
+
       const rootStyle = document.documentElement.style;
-      rootStyle.setProperty('--tilt-x', `${currentTiltX.toFixed(2)}deg`);
-      rootStyle.setProperty('--tilt-y', `${currentTiltY.toFixed(2)}deg`);
-      rootStyle.setProperty('--shift-x', `${currentShiftX.toFixed(2)}px`);
-      rootStyle.setProperty('--shift-y', `${currentShiftY.toFixed(2)}px`);
-      options.onTiltChange?.(Number(currentTiltX.toFixed(2)), Number(currentTiltY.toFixed(2)));
+      let changed = false;
+      if (nextTiltX !== lastWrittenTiltX) {
+        lastWrittenTiltX = nextTiltX;
+        rootStyle.setProperty('--tilt-x', nextTiltX);
+        changed = true;
+      }
+      if (nextTiltY !== lastWrittenTiltY) {
+        lastWrittenTiltY = nextTiltY;
+        rootStyle.setProperty('--tilt-y', nextTiltY);
+        changed = true;
+      }
+      if (nextShiftX !== lastWrittenShiftX) {
+        lastWrittenShiftX = nextShiftX;
+        rootStyle.setProperty('--shift-x', nextShiftX);
+        changed = true;
+      }
+      if (nextShiftY !== lastWrittenShiftY) {
+        lastWrittenShiftY = nextShiftY;
+        rootStyle.setProperty('--shift-y', nextShiftY);
+        changed = true;
+      }
+      if (changed && options.onTiltChange) {
+        options.onTiltChange(Number(currentTiltX.toFixed(1)), Number(currentTiltY.toFixed(1)));
+      }
 
       const settled =
-        Math.abs(targetTiltX - currentTiltX) < 0.02 &&
-        Math.abs(targetTiltY - currentTiltY) < 0.02 &&
-        Math.abs(targetShiftX - currentShiftX) < 0.03 &&
-        Math.abs(targetShiftY - currentShiftY) < 0.03;
+        Math.abs(targetTiltX - currentTiltX) < 0.04 &&
+        Math.abs(targetTiltY - currentTiltY) < 0.04 &&
+        Math.abs(targetShiftX - currentShiftX) < 0.05 &&
+        Math.abs(targetShiftY - currentShiftY) < 0.05;
 
       if (!settled) {
         rafId = window.requestAnimationFrame(step);
@@ -145,7 +188,7 @@ export function attachDeviceSensorListeners(options: SensorListenersOptions): ()
   const clamp = (val: number, maxAbs: number) => Math.max(-maxAbs, Math.min(maxAbs, val));
 
   const handleOrientation = (ev: DeviceOrientationEvent) => {
-    if (ev.beta === null && ev.gamma === null) return;
+    if (isMotionPaused() || (ev.beta === null && ev.gamma === null)) return;
     const rawBeta = ev.beta ?? 0;
     const rawGamma = ev.gamma ?? 0;
 
@@ -180,6 +223,11 @@ export function attachDeviceSensorListeners(options: SensorListenersOptions): ()
   };
 
   const handleMotion = (ev: DeviceMotionEvent) => {
+    const now = Date.now();
+    if (now - lastShakeCheckAt < 50 || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) {
+      return;
+    }
+    lastShakeCheckAt = now;
     const acc = ev.accelerationIncludingGravity || ev.acceleration;
     if (!acc) return;
     const x = acc.x ?? 0;
@@ -189,7 +237,6 @@ export function attachDeviceSensorListeners(options: SensorListenersOptions): ()
     const delta = Math.abs(mag - lastMag);
     lastMag = mag;
 
-    const now = Date.now();
     // Higher threshold so normal movement/tilting never triggers a false shuffle
     if (delta > 29 && now - lastShakeAt > 2000) {
       lastShakeAt = now;
@@ -198,7 +245,7 @@ export function attachDeviceSensorListeners(options: SensorListenersOptions): ()
   };
 
   const handlePointerParallax = (ev: PointerEvent) => {
-    if (ev.pointerType !== 'mouse') return;
+    if (ev.pointerType !== 'mouse' || isMotionPaused()) return;
     const w = window.innerWidth || 1;
     const h = window.innerHeight || 1;
     const nx = (ev.clientX / w - 0.5) * 2;
@@ -210,14 +257,23 @@ export function attachDeviceSensorListeners(options: SensorListenersOptions): ()
     scheduleSmoothFrame();
   };
 
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'hidden' && rafId) {
+      window.cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+  };
+
   window.addEventListener('deviceorientation', handleOrientation, { passive: true });
   window.addEventListener('devicemotion', handleMotion, { passive: true });
   window.addEventListener('pointermove', handlePointerParallax, { passive: true });
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 
   return () => {
     window.removeEventListener('deviceorientation', handleOrientation);
     window.removeEventListener('devicemotion', handleMotion);
     window.removeEventListener('pointermove', handlePointerParallax);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
     if (rafId) {
       window.cancelAnimationFrame(rafId);
       rafId = 0;

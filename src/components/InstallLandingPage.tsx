@@ -127,7 +127,7 @@ export const InstallLandingPage: React.FC<InstallLandingPageProps> = ({
       className="min-h-screen flex flex-col wv-app-shell"
     >
       {/* Top Bar: strict 3-zone layout (Brand — Concise Nav — Single Primary Action) */}
-      <header className="sticky top-0 z-30 w-full border-b wv-border wv-card backdrop-blur-md">
+      <header className="sticky top-0 z-30 w-full border-b wv-border wv-card">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-8 px-4 sm:px-6 lg:px-8 py-3.5">
           <a
             href="/"

@@ -454,11 +454,8 @@
 /* Tactile Phone-Motion Surface — Strictly follows exact calibrated gyro/pointer motion, zero random drift */
 .wv-tilt-surface {
   transform: translate3d(var(--shift-x, 0px), var(--shift-y, 0px), 0)
-    perspective(950px)
     rotateX(var(--tilt-x, 0deg))
     rotateY(var(--tilt-y, 0deg));
-  transition: transform 90ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: transform;
 }
 
 html[data-anim='reduced'] .wv-tilt-surface {
@@ -469,7 +466,7 @@ html[data-anim='reduced'] .wv-tilt-surface {
 .wv-hero-arcade {
   background: linear-gradient(135deg, var(--wv-hero-from) 0%, var(--wv-hero-mid) 52%, var(--wv-hero-to) 100%);
   color: #FFFFFF;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 /* Highlight Pill — Integrated Bright Tonal Shade of Chosen Accent */

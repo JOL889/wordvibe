@@ -33,7 +33,7 @@ export class ErrorBoundary extends React.Component<
           role="alert"
           className="min-h-screen flex items-center justify-center p-6 wv-app-shell"
         >
-          <div className="w-full max-w-md rounded-2xl border-2 wv-border wv-card p-6 shadow-xl space-y-4 text-center">
+          <div className="w-full max-w-md rounded-2xl border-2 wv-border wv-card p-6 shadow-md space-y-4 text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl wv-gold-pill">
               <AlertTriangle className="h-6 w-6" aria-hidden="true" />
             </div>

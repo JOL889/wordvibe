@@ -110,9 +110,9 @@ export const ProfileViewModal: React.FC<ProfileViewModalProps> = ({
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
-      className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/70 sm:p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/70 sm:p-4"
     >
-      <div className="flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl border-2 wv-border wv-card shadow-2xl animate-modal-pop">
+      <div className="flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl border-2 wv-border wv-card shadow-lg animate-modal-pop">
         {/* Header */}
         <div className="flex items-center justify-between gap-3 border-b wv-border px-5 py-4">
           <h2 id="profile-view-title" className="font-display text-2xl font-bold wv-text">

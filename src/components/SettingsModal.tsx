@@ -361,7 +361,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }}
       className="fixed inset-0 z-[65] flex items-end sm:items-center justify-center bg-black/60 sm:p-4"
     >
-      <div className="flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl border-2 wv-border wv-card shadow-2xl animate-modal-pop amoled-surface">
+      <div className="flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl border-2 wv-border wv-card shadow-lg animate-modal-pop amoled-surface">
         {/* Header */}
         <div className="flex items-center justify-between gap-3 border-b wv-border px-5 py-4">
           <div className="flex items-center gap-2">

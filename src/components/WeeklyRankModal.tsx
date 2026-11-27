@@ -53,6 +53,7 @@ import {
   type WeeklyRolloverSummary,
 } from '../game/weeklyLogic';
 import { useHorizontalSwitch } from '../hooks/useHorizontalSwitch';
+import { WeeklyResetCountdown } from './LiveCountdowns';
 import { UserAvatar } from './UserAvatar';
 
 type WeeklyRankModalTab = 'leaderboard' | 'rewards' | 'tiers';
@@ -63,7 +64,7 @@ interface WeeklyRankModalProps {
   open: boolean;
   initialTab?: 'leaderboard' | 'rewards' | 'tiers';
   weeklyProgress: WeeklyActivityState;
-  weeklyCountdown: string;
+  weeklyCountdown?: string;
   playerId?: string;
   playerName?: string;
   userAccount?: LocalUserAccount | null;
@@ -157,11 +158,12 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
     }
   }, [initialTab, open]);
 
+  const cooldownRemainingSnapshot = getSyncCooldownRemainingMs(verifiedState.lastSyncAtMs, nowTick);
   useEffect(() => {
-    if (!open) return;
+    if (!open || activeTab !== 'leaderboard' || cooldownRemainingSnapshot <= 0) return;
     const id = window.setInterval(() => setNowTick(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, [open]);
+  }, [open, activeTab, cooldownRemainingSnapshot]);
 
   const effectiveName = userAccount?.username || verifiedState.displayName || playerName;
 
@@ -334,7 +336,7 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
       aria-labelledby="weekly-rank-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 overflow-y-auto"
     >
-      <div className="my-auto flex max-h-[92vh] w-full max-w-lg flex-col rounded-2xl border-2 wv-border wv-card shadow-2xl overflow-hidden">
+      <div className="my-auto flex max-h-[92vh] w-full max-w-lg flex-col rounded-2xl border-2 wv-border wv-card shadow-lg overflow-hidden">
         {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b wv-border px-5 py-4">
           <div>
@@ -725,7 +727,7 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                 <div className="flex items-center gap-2 text-xs wv-text-muted">
                   <span className="inline-flex items-center gap-1 font-mono-tabular">
                     <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span>{weeklyCountdown}</span>
+                    <span>{weeklyCountdown ?? <WeeklyResetCountdown />}</span>
                   </span>
                   {onRefreshLeaderboardCache && (
                     <button
@@ -840,8 +842,8 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
 
                 <div className="h-2.5 w-full overflow-hidden rounded-full bg-black/15 dark:bg-white/15">
                   <div
-                    className="h-full rounded-full wv-accent-btn transition-all duration-300"
-                    style={{ width: `${milestonePct}%` }}
+                    className="h-full w-full origin-left rounded-full wv-accent-btn transition-transform duration-300"
+                    style={{ transform: `scaleX(${Math.max(0, Math.min(1, milestonePct / 100))})` }}
                   />
                 </div>
 
@@ -1045,15 +1047,17 @@ export const WeeklyRankModal: React.FC<WeeklyRankModalProps> = ({
                       data-testid="weekly-reset-countdown"
                       className="mt-0.5 font-mono-tabular text-sm font-semibold wv-text"
                     >
-                      {weeklyCountdown}
+                      {weeklyCountdown ?? <WeeklyResetCountdown />}
                     </p>
                   </div>
                 </div>
 
                 <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-black/15 dark:bg-white/15">
                   <div
-                    className="h-full rounded-full wv-accent-btn transition-all duration-300"
-                    style={{ width: `${gradeInfo.progressPercent}%` }}
+                    className="h-full w-full origin-left rounded-full wv-accent-btn transition-transform duration-300"
+                    style={{
+                      transform: `scaleX(${Math.max(0, Math.min(1, gradeInfo.progressPercent / 100))})`,
+                    }}
                   />
                 </div>
 
@@ -1200,7 +1204,7 @@ export const WeeklyRolloverModal: React.FC<WeeklyRolloverModalProps> = ({
       aria-labelledby="weekly-rollover-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
     >
-      <div className="w-full max-w-md rounded-2xl border-2 wv-border wv-card p-6 shadow-2xl">
+      <div className="w-full max-w-md rounded-2xl border-2 wv-border wv-card p-6 shadow-lg">
         <div className="flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-wider wv-accent-text">
           <Award className="h-4 w-4" aria-hidden="true" />
           <span>Weekly Reset · Final Grade Report</span>

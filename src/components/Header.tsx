@@ -40,7 +40,7 @@ const SOUND_SHORT_LABEL: Record<SoundMode, string> = {
   off: 'Off',
 };
 
-export const Header: React.FC<HeaderProps> = ({
+export const Header: React.FC<HeaderProps> = React.memo(({
   soundMode,
   weeklyGradeId,
   weeklyXp,
@@ -55,7 +55,7 @@ export const Header: React.FC<HeaderProps> = ({
   showXp = true,
 }) => {
   return (
-    <header className="sticky top-0 z-30 w-full border-b wv-border wv-card backdrop-blur-md">
+    <header className="sticky top-0 z-30 w-full border-b wv-border wv-card">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-1 sm:gap-1.5 px-2.5 py-2 sm:py-2.5 sm:px-6">
         <a
           href="#top"
@@ -197,4 +197,4 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
     </header>
   );
-};
+});

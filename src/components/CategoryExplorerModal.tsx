@@ -44,7 +44,7 @@ interface CategoryExplorerModalProps {
   onSelectCategory: (category: PuzzleCategory) => void;
 }
 
-export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
+export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = React.memo(({
   open,
   initialTab = 'All',
   activeCategoryId,
@@ -284,7 +284,7 @@ export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
       aria-labelledby="category-explorer-title"
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-3 sm:p-4"
     >
-      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border-2 wv-border wv-card shadow-2xl">
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border-2 wv-border wv-card shadow-lg">
         {/* Header + Completion Progress */}
         <div className="border-b wv-border px-5 py-4">
           <div className="flex items-start justify-between gap-4">
@@ -504,4 +504,4 @@ export const CategoryExplorerModal: React.FC<CategoryExplorerModalProps> = ({
       </div>
     </div>
   );
-};
+});

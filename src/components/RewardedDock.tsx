@@ -27,7 +27,7 @@ interface RewardedDockProps {
   onOpenSummary: () => void;
 }
 
-export const RewardedDock: React.FC<RewardedDockProps> = ({
+export const RewardedDock: React.FC<RewardedDockProps> = React.memo(({
   sessionMode,
   board,
   cluePanelOpen,
@@ -159,4 +159,4 @@ export const RewardedDock: React.FC<RewardedDockProps> = ({
       )}
     </div>
   );
-};
+});

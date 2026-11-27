@@ -82,9 +82,9 @@ export const WordTriviaRowModal: React.FC<WordTriviaRowModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="word-trivia-row-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
     >
-      <div className="w-full max-w-md rounded-2xl border-2 wv-border wv-card p-5 sm:p-6 shadow-2xl animate-modal-pop">
+      <div className="w-full max-w-md rounded-2xl border-2 wv-border wv-card p-5 sm:p-6 shadow-lg animate-modal-pop">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-2.5">
             <BookOpen className="mt-0.5 h-5 w-5 shrink-0 wv-accent-text" aria-hidden="true" />

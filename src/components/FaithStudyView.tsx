@@ -40,7 +40,7 @@ const OPTION_LETTERS = ['A', 'B', 'C', 'D'] as const;
 const pendingFaithByKey = new Map<string, TriviaQuestion>();
 let lastHandledFaithRefresh = 0;
 
-export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
+export const FaithStudyView: React.FC<FaithStudyViewProps> = React.memo(({
   dateKey,
   activeReligion,
   showScriptureReferences,
@@ -312,7 +312,7 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
                   data-testid={`faith-option-${idx}`}
                   disabled={isAnswered}
                   onClick={() => handleAnswer(idx)}
-                  className={`flex min-h-14 sm:min-h-[60px] items-center justify-between gap-3.5 rounded-2xl border px-5 py-3.5 text-left text-base sm:text-lg font-semibold transition-all active:scale-[0.985] cursor-pointer disabled:cursor-default ${styleClass} ${
+                  className={`flex min-h-14 sm:min-h-[60px] items-center justify-between gap-3.5 rounded-2xl border px-5 py-3.5 text-left text-base sm:text-lg font-semibold transition-[transform,opacity] active:scale-[0.985] cursor-pointer disabled:cursor-default ${styleClass} ${
                     isAnswered && isCorrectOpt
                       ? 'animate-tile-pop'
                       : isAnswered && isPicked && !isCorrectOpt
@@ -381,4 +381,4 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = ({
       )}
     </section>
   );
-};
+});

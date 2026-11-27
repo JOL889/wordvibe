@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowRight,
@@ -111,7 +111,7 @@ function getCornerBonusMarker(
   return null;
 }
 
-export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
+export const PuzzleGrid: React.FC<PuzzleGridProps> = React.memo(({
   board,
   activeRow,
   activeCol,
@@ -160,7 +160,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
   const L = board.length;
   const unlockedClueCount = Object.keys(board.unlockedClues).length;
 
-  const category = getCategoryById(board.categoryId);
+  const category = useMemo(() => getCategoryById(board.categoryId), [board.categoryId]);
   const safeRow = Math.min(L - 1, Math.max(0, activeRow));
   const safeCol = Math.min(L - 1, Math.max(0, activeCol));
   const activeSlotType: CrosswordSlotType = typingDirection === 'down' ? 'col' : 'row';
@@ -1011,4 +1011,4 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({
       )}
     </div>
   );
-};
+});

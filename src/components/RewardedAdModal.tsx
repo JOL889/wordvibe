@@ -133,9 +133,9 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="rewarded-ad-title"
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 p-4"
     >
-      <div className="w-full max-w-md rounded-2xl border-2 wv-border wv-card p-5 sm:p-6 shadow-2xl animate-modal-pop">
+      <div className="w-full max-w-md rounded-2xl border-2 wv-border wv-card p-5 sm:p-6 shadow-lg animate-modal-pop">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider wv-accent-text">
@@ -218,8 +218,8 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
                     )}
                     <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-black/15 dark:bg-white/15">
                       <div
-                        className="h-full wv-accent-btn transition-[width] duration-300 ease-out"
-                        style={{ width: `${progressPct}%` }}
+                        className="h-full w-full origin-left wv-accent-btn transition-transform duration-300 ease-out"
+                        style={{ transform: `scaleX(${Math.max(0, Math.min(1, progressPct / 100))})` }}
                       />
                     </div>
                     <p className="mt-1.5 font-mono-tabular text-xs font-semibold wv-text-muted">
@@ -250,8 +250,8 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
               <div className="mt-4 w-full">
                 <div className="h-2.5 w-full overflow-hidden rounded-full bg-black/15 dark:bg-white/15">
                   <div
-                    className="h-full wv-accent-btn transition-[width] duration-300 ease-out"
-                    style={{ width: `${progressPct}%` }}
+                    className="h-full w-full origin-left wv-accent-btn transition-transform duration-300 ease-out"
+                    style={{ transform: `scaleX(${Math.max(0, Math.min(1, progressPct / 100))})` }}
                   />
                 </div>
                 <p className="mt-2 font-mono-tabular text-xs font-semibold wv-text-muted">

@@ -6,7 +6,7 @@ interface EditorialGuideAndAdSlotProps {
   onOpenPrivacyPolicy?: () => void;
 }
 
-export const EditorialGuideAndAdSlot: React.FC<EditorialGuideAndAdSlotProps> = ({
+export const EditorialGuideAndAdSlot: React.FC<EditorialGuideAndAdSlotProps> = React.memo(({
   isActivelyTyping,
   onOpenPrivacyPolicy,
 }) => {
@@ -55,4 +55,4 @@ export const EditorialGuideAndAdSlot: React.FC<EditorialGuideAndAdSlotProps> = (
       </footer>
     </div>
   );
-};
+});

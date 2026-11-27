@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Brain,
   Check,
@@ -59,6 +59,14 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [customCity, setCustomCity] = useState(profile.location?.city || '');
   const [customCc, setCustomCc] = useState(profile.location?.countryCode || 'US');
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const paceSwitch = useHorizontalSwitch({
     items: PACE_IDS,
@@ -129,6 +137,7 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
     if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          if (!isMountedRef.current) return;
           resolveOfflineLocation({
             lat: pos.coords.latitude,
             lon: pos.coords.longitude,
@@ -136,6 +145,7 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
           setDetecting(false);
         },
         () => {
+          if (!isMountedRef.current) return;
           resolveOfflineLocation();
           setDetecting(false);
         },
@@ -215,7 +225,7 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
       aria-labelledby="personalize-modal-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 overflow-y-auto"
     >
-      <div className="my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border-2 wv-border wv-card shadow-2xl">
+      <div className="my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border-2 wv-border wv-card shadow-lg">
         <div className="flex items-start justify-between gap-3 border-b wv-border px-5 py-4">
           <div>
             <div className="flex items-center gap-1.5 text-xs font-semibold wv-accent-text">

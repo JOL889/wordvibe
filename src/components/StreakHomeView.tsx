@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   ArrowRight,
   Brain,
@@ -32,6 +32,7 @@ import {
   getFaithTradition,
   type ReligionId,
 } from '../game/faithStudyLogic';
+import { DailyResetCountdown } from './LiveCountdowns';
 import { ReligionIcon } from './ReligionIcons';
 
 interface StreakHomeViewProps {
@@ -39,7 +40,7 @@ interface StreakHomeViewProps {
   dateKey: string;
   activeReligion: ReligionId;
   puzzleNumber: number;
-  countdown: string;
+  countdown?: string;
   weekDays: WeekStreakDay[];
   challenges: HomeChallenge[];
   spotlight: DailyEntertainmentSpotlight;
@@ -57,7 +58,7 @@ interface StreakHomeViewProps {
   onBrowseEntertainment: () => void;
 }
 
-export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
+export const StreakHomeView: React.FC<StreakHomeViewProps> = React.memo(({
   stats,
   dateKey,
   activeReligion,
@@ -78,17 +79,23 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
   onPlayEntertainmentCategory,
   onBrowseEntertainment,
 }) => {
-  const faithTradition = getFaithTradition(activeReligion);
-  const dailyFaithPassage = getDailyFaithPassage(activeReligion, dateKey);
+  const faithTradition = useMemo(() => getFaithTradition(activeReligion), [activeReligion]);
+  const dailyFaithPassage = useMemo(
+    () => getDailyFaithPassage(activeReligion, dateKey),
+    [activeReligion, dateKey]
+  );
   const winRate =
     stats.gamesPlayed > 0 ? Math.round((stats.gamesWon / stats.gamesPlayed) * 100) : 0;
   const completedChallenges = challenges.filter((c) => c.completed).length;
   const completedThisWeek = weekDays.filter((d) => d.state === 'completed').length;
 
-  const heroCategory = getCategoryById(spotlight.heroCategoryId);
+  const heroCategory = useMemo(
+    () => getCategoryById(spotlight.heroCategoryId),
+    [spotlight.heroCategoryId]
+  );
   const heroPlays = getCategoryRemainingPlays(heroCategory, playsRemaining);
   const heroLocked = heroCategory.isPremium && heroPlays <= 0;
-  const insights = summarizePlayerProfile(playerProfile);
+  const insights = useMemo(() => summarizePlayerProfile(playerProfile), [playerProfile]);
   const locationLabel = playerProfile.locationEnabled
     ? formatLocationLabel(playerProfile.location)
     : 'Global Mix';
@@ -151,7 +158,9 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                 </span>
                 <span>
                   Reset in:{' '}
-                  <strong className="font-mono-tabular font-extrabold text-white">{countdown}</strong>
+                  <strong className="font-mono-tabular font-extrabold text-white">
+                    {countdown ?? <DailyResetCountdown />}
+                  </strong>
                 </span>
               </div>
             </div>
@@ -268,14 +277,16 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
 
             <div className="mt-3 h-2.5 sm:h-3 w-full overflow-hidden rounded-full wv-card-muted">
               <div
-                className="h-full rounded-full wv-accent-btn transition-all duration-300"
-                style={{ width: `${Math.round((completedChallenges / challenges.length) * 100)}%` }}
+                className="h-full w-full origin-left rounded-full wv-accent-btn transition-transform duration-300"
+                style={{
+                  transform: `scaleX(${Math.max(0, Math.min(1, challenges.length > 0 ? completedChallenges / challenges.length : 0))})`,
+                }}
               />
             </div>
 
             <div data-testid="challenges-list" className="mt-4 divide-y wv-border">
               {challenges.slice(0, 4).map((ch) => {
-                const pct = Math.min(100, Math.round((ch.current / ch.target) * 100));
+                const ratio = Math.max(0, Math.min(1, ch.target > 0 ? ch.current / ch.target : 0));
                 return (
                   <div
                     key={ch.id}
@@ -302,10 +313,10 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
                       </div>
                       <div className="mt-2 h-2 max-w-sm overflow-hidden rounded-full wv-card-muted">
                         <div
-                          className={`h-full rounded-full transition-all duration-300 ${
+                          className={`h-full w-full origin-left rounded-full transition-transform duration-300 ${
                             ch.completed ? 'wv-accent-btn' : 'bg-[var(--wv-text-muted)]/45'
                           }`}
-                          style={{ width: `${pct}%` }}
+                          style={{ transform: `scaleX(${ratio})` }}
                         />
                       </div>
                     </div>
@@ -432,4 +443,4 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = ({
       </div>
     </section>
   );
-};
+});

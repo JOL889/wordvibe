@@ -17,7 +17,7 @@ function formatSlotTitle(key: string): string {
   return slotType === 'col' ? `Col ${num} Down` : `Row ${num} Across`;
 }
 
-export const WordTriviaHintPanel: React.FC<WordTriviaHintPanelProps> = ({
+export const WordTriviaHintPanel: React.FC<WordTriviaHintPanelProps> = React.memo(({
   panelRef,
   unlockedClues,
   wordLength,
@@ -95,4 +95,4 @@ export const WordTriviaHintPanel: React.FC<WordTriviaHintPanelProps> = ({
       </div>
     </section>
   );
-};
+});

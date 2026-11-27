@@ -45,7 +45,8 @@ export const RewardedDock: React.FC<RewardedDockProps> = React.memo(({
 }) => {
   const unlockedCount = Object.keys(board.unlockedClues).length;
   const showCluesBtn = board.status === 'playing' && unlockedCount > 0;
-  const showDock = board.status !== 'playing' || canSaveStreak || showCluesBtn;
+  const showDock =
+    board.status !== 'playing' || canSaveStreak || showCluesBtn || Boolean(onInviteFriends);
 
   if (!showDock) {
     return null;
@@ -56,6 +57,20 @@ export const RewardedDock: React.FC<RewardedDockProps> = React.memo(({
       data-testid="rewarded-dock"
       className="mx-auto flex w-full max-w-2xl lg:max-w-3xl flex-wrap items-center justify-center gap-2.5 px-3 sm:px-6 py-1.5"
     >
+      {board.status === 'playing' && onInviteFriends && (
+        <button
+          type="button"
+          data-testid="dock-invite-friends-btn"
+          onClick={(e) => {
+            e.currentTarget.blur();
+            onInviteFriends();
+          }}
+          className="inline-flex min-h-11 items-center gap-2 rounded-2xl border wv-border wv-card px-4 py-2 text-xs sm:text-sm font-bold wv-text transition-colors hover:opacity-85 whitespace-nowrap shrink-0 cursor-pointer"
+        >
+          <UserPlus className="h-4 w-4 wv-accent-text" aria-hidden="true" />
+          <span>Invite Friends</span>
+        </button>
+      )}
       {showCluesBtn && (
         <button
           type="button"

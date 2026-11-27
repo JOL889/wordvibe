@@ -4,6 +4,7 @@ import {
   BookOpen,
   CheckCircle2,
   Grid3X3,
+  Share2,
   XCircle,
   Zap,
 } from 'lucide-react';
@@ -32,6 +33,12 @@ interface FaithStudyViewProps {
   onChangeReligion: (religion: ReligionId) => void;
   onPlayFaithPuzzle: (religion: ReligionId) => void;
   onFaithAnswerRecorded: (correct: boolean, religion: ReligionId) => void;
+  onShareFaith?: (params: {
+    traditionName: string;
+    sacredTextLabel: string;
+    correctCount: number;
+    answeredCount: number;
+  }) => void;
 }
 
 const OPTION_LETTERS = ['A', 'B', 'C', 'D'] as const;
@@ -50,6 +57,7 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = React.memo(({
   onChangeReligion,
   onPlayFaithPuzzle,
   onFaithAnswerRecorded,
+  onShareFaith,
 }) => {
   const [currentQ, setCurrentQ] = useState<TriviaQuestion | null>(null);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
@@ -251,15 +259,35 @@ export const FaithStudyView: React.FC<FaithStudyViewProps> = React.memo(({
             <p className="mt-0.5 text-sm sm:text-base wv-text-muted line-clamp-1">{dailyWord.clue}</p>
           </div>
 
-          <button
-            type="button"
-            data-testid="play-faith-puzzle-btn"
-            onClick={() => onPlayFaithPuzzle(activeReligion)}
-            className="inline-flex min-h-12 sm:min-h-[52px] shrink-0 items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm sm:text-base font-bold wv-accent-btn cursor-pointer whitespace-nowrap"
-          >
-            <span>Play Crossword</span>
-            <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
-          </button>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {onShareFaith && (
+              <button
+                type="button"
+                data-testid="faith-share-btn"
+                onClick={() =>
+                  onShareFaith({
+                    traditionName: tradition.name,
+                    sacredTextLabel: tradition.sacredTextLabel,
+                    correctCount,
+                    answeredCount,
+                  })
+                }
+                className="inline-flex min-h-12 sm:min-h-[52px] shrink-0 items-center justify-center gap-2 rounded-2xl border wv-border wv-card-muted px-4 py-3 text-sm sm:text-base font-bold wv-text hover:opacity-90 cursor-pointer whitespace-nowrap"
+              >
+                <Share2 className="h-4 w-4 wv-accent-text" aria-hidden="true" />
+                <span>Share</span>
+              </button>
+            )}
+            <button
+              type="button"
+              data-testid="play-faith-puzzle-btn"
+              onClick={() => onPlayFaithPuzzle(activeReligion)}
+              className="inline-flex min-h-12 sm:min-h-[52px] shrink-0 items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm sm:text-base font-bold wv-accent-btn cursor-pointer whitespace-nowrap"
+            >
+              <span>Play Crossword</span>
+              <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </div>
 

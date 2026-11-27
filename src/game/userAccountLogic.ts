@@ -292,7 +292,7 @@ export function buildPuzzleSharePayload(params: {
       `🧩 ${baseGridText}`,
       '',
       `${who} hit ${params.weeklyXp.toLocaleString()} Weekly XP · Rank #${params.rank} of ${params.totalActivePlayers} active players this week (🔥 ${params.streak}-day streak)!`,
-      '📲 Play with me — Download Android APK:',
+      '📲 Play with me on Wordvibe:',
     ].join('\n'),
     url: shareUrl,
   };
@@ -315,7 +315,7 @@ export function buildLeaderboardSharePayload(params: {
       `🏆 Wordvibe Weekly Rank #${params.rank}`,
       `${handle} is Rank #${params.rank} of ${params.totalActivePlayers} active players this week!`,
       `⚡ ${params.weeklyXp.toLocaleString()} Weekly XP · ${params.gradeLabel} · 🔥 ${params.streak}-day streak`,
-      '📲 Download Wordvibe Android APK to join:',
+      '📲 Get Wordvibe for Android to join:',
     ].join('\n'),
     url: shareUrl,
   };
@@ -342,7 +342,57 @@ export function buildInviteFriendsPayload(params: {
       '🟩🟩🟩🟩 Daily 4×4–6×6 Linked Crosswords · ⚡ Brain Trivia · 📖 Faith Study',
       '',
       `${inviter} invited you — Rank #${params.rank} of ${params.totalActivePlayers} active players this week (${params.weeklyXp.toLocaleString()} XP${streakLine}).`,
-      '📲 Download the Android APK to play:',
+      '📲 Get Wordvibe for Android to play:',
+    ].join('\n'),
+    url: shareUrl,
+  };
+}
+
+export function buildTriviaSharePayload(params: {
+  username?: string;
+  streak: number;
+  bestStreak: number;
+  weeklyXp: number;
+  rank: number;
+  totalActivePlayers: number;
+  categoryName?: string;
+  appUrl?: string;
+}): SocialSharePayload {
+  const who = params.username ? `@${params.username}` : 'I';
+  const shareUrl = params.appUrl || resolveShareAppUrl();
+  const topicNote = params.categoryName ? ` in ${params.categoryName}` : '';
+  return {
+    title: 'Wordvibe Brain Trivia Streak!',
+    text: [
+      `⚡ Wordvibe Brain Trivia${topicNote}`,
+      `${who} hit a ${params.streak}-question streak (Best: ${params.bestStreak})!`,
+      `🏆 Rank #${params.rank} of ${params.totalActivePlayers} active players · ${params.weeklyXp.toLocaleString()} Weekly XP`,
+      '📲 Test your speed on Wordvibe:',
+    ].join('\n'),
+    url: shareUrl,
+  };
+}
+
+export function buildFaithSharePayload(params: {
+  username?: string;
+  traditionName: string;
+  sacredTextLabel: string;
+  correctCount: number;
+  answeredCount: number;
+  appUrl?: string;
+}): SocialSharePayload {
+  const who = params.username ? `@${params.username}` : 'I';
+  const shareUrl = params.appUrl || resolveShareAppUrl();
+  const scoreLine =
+    params.answeredCount > 0
+      ? `${params.correctCount}/${params.answeredCount} reflections answered`
+      : `studying ${params.sacredTextLabel}`;
+  return {
+    title: `Wordvibe Faith Study · ${params.traditionName}`,
+    text: [
+      `📖 Wordvibe Faith Study · ${params.traditionName} (${params.sacredTextLabel})`,
+      `${who} is ${scoreLine} offline on Wordvibe!`,
+      '📲 Join me on Wordvibe:',
     ].join('\n'),
     url: shareUrl,
   };

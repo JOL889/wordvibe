@@ -8,6 +8,7 @@ import {
   Flame,
   Lock,
   Minus,
+  Share2,
   ShieldCheck,
   Sparkles,
   Target,
@@ -56,6 +57,7 @@ interface StreakHomeViewProps {
   onSelectChallenge: (challenge: HomeChallenge) => void;
   onPlayEntertainmentCategory: (categoryId: string) => void;
   onBrowseEntertainment: () => void;
+  onInviteFriends?: () => void;
 }
 
 export const StreakHomeView: React.FC<StreakHomeViewProps> = React.memo(({
@@ -78,6 +80,7 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = React.memo(({
   onSelectChallenge,
   onPlayEntertainmentCategory,
   onBrowseEntertainment,
+  onInviteFriends,
 }) => {
   const faithTradition = useMemo(() => getFaithTradition(activeReligion), [activeReligion]);
   const dailyFaithPassage = useMemo(
@@ -439,6 +442,31 @@ export const StreakHomeView: React.FC<StreakHomeViewProps> = React.memo(({
               </button>
             </div>
           </div>
+
+          {onInviteFriends && (
+            <div
+              data-testid="home-share-card"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border wv-border wv-card p-5 sm:p-6 shadow-xs"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold uppercase tracking-wider wv-accent-text">
+                  Challenge Friends
+                </p>
+                <p className="mt-0.5 text-sm sm:text-base font-semibold wv-text">
+                  Share Wordvibe &amp; compare weekly streaks
+                </p>
+              </div>
+              <button
+                type="button"
+                data-testid="home-share-invite-btn"
+                onClick={onInviteFriends}
+                className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-xl wv-accent-btn px-4 py-2.5 text-sm sm:text-base font-bold cursor-pointer whitespace-nowrap"
+              >
+                <Share2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>Share &amp; Invite</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </section>

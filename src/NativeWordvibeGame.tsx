@@ -52,6 +52,11 @@ const SettingsModal = lazy(() =>
     default: m.SettingsModal,
   }))
 );
+const SocialShareModal = lazy(() =>
+  import('./components/SocialShareModal').then((m) => ({
+    default: m.SocialShareModal,
+  }))
+);
 const SummaryModal = lazy(() =>
   import('./components/SummaryModal').then((m) => ({
     default: m.SummaryModal,
@@ -163,13 +168,16 @@ import {
 } from './game/weeklyLogic';
 import { getPlayerLeaderboardSummary } from './game/leaderboardLogic';
 import {
+  buildFaithSharePayload,
   buildInviteFriendsPayload,
   buildLeaderboardSharePayload,
   buildPuzzleSharePayload,
+  buildTriviaSharePayload,
   normalizeEmailKey,
   resolveShareAppUrl,
   verifyPasswordLocal,
   type LocalUserAccount,
+  type SocialSharePayload,
 } from './game/userAccountLogic';
 import { buildCuratedWordFunFact } from './game/wordTriviaLogic';
 import {
@@ -216,7 +224,6 @@ import {
   loadLocalUserAccount,
   saveEmailProgressBundle,
   saveLocalUserAccount,
-  shareOrCopyMessage,
   type EmailProgressBundle,
 } from './services/accountStorageService';
 import {
@@ -476,6 +483,7 @@ export default function NativeWordvibeGame() {
     resolveDailyEntertainmentSpotlight(getLocalDateKey())
   );
   const [activeAdPlacement, setActiveAdPlacement] = useState<RewardPlacement | null>(null);
+  const [activeSharePayload, setActiveSharePayload] = useState<SocialSharePayload | null>(null);
   const [pendingCategoryForAd, setPendingCategoryForAd] = useState<PuzzleCategory | null>(null);
   const adRewardCallbackRef = useRef<(() => void) | null>(null);
   const achievementTimerRef = useRef<number | null>(null);
@@ -1792,6 +1800,7 @@ export default function NativeWordvibeGame() {
 
   const isPuzzleModalBlocked =
     Boolean(activeAdPlacement) ||
+    Boolean(activeSharePayload) ||
     clueSlotModalOpen ||
     summaryOpen ||
     categoryExplorerOpen ||
@@ -1908,6 +1917,7 @@ export default function NativeWordvibeGame() {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const targetEl = e.target as HTMLElement | null;
       if (e.key === 'Escape') {
+        setActiveSharePayload(null);
         setSummaryOpen(false);
         setCategoryExplorerOpen(false);
         setWeeklyRankOpen(false);
@@ -2342,40 +2352,30 @@ export default function NativeWordvibeGame() {
     }
   }, [performVerifiedFlush]);
 
-  const handleSharePuzzleProgress = useCallback(
-    async (suppressToast = false) => {
-      const payload = buildPuzzleSharePayload({
-        username: userAccount?.username || playerProfile.displayName,
-        board: crosswordBoard,
-        weeklyXp: weeklyProgress.weeklyXp,
-        rank: leaderboardSummary.rank,
-        totalActivePlayers: leaderboardSummary.activeThisWeekCount,
-        streak: stats.currentStreak,
-        appUrl: getShareAppUrl(),
-      });
-      const status = await shareOrCopyMessage(payload);
-      if (!suppressToast) {
-        if (status === 'shared') showToast('Progress shared!');
-        else if (status === 'copied') showToast('Message copied to clipboard!');
-        else if (status === 'failed') showToast('Unable to access clipboard');
-      }
-      return status;
-    },
-    [
-      crosswordBoard,
-      getShareAppUrl,
-      leaderboardSummary.activeThisWeekCount,
-      leaderboardSummary.rank,
-      playerProfile.displayName,
-      showToast,
-      stats.currentStreak,
-      userAccount?.username,
-      weeklyProgress.weeklyXp,
-    ]
-  );
+  const handleSharePuzzleProgress = useCallback(() => {
+    const payload = buildPuzzleSharePayload({
+      username: userAccount?.username || playerProfile.displayName,
+      board: crosswordBoard,
+      weeklyXp: weeklyProgress.weeklyXp,
+      rank: leaderboardSummary.rank,
+      totalActivePlayers: leaderboardSummary.activeThisWeekCount,
+      streak: stats.currentStreak,
+      appUrl: getShareAppUrl(),
+    });
+    setActiveSharePayload(payload);
+  }, [
+    crosswordBoard,
+    getShareAppUrl,
+    leaderboardSummary.activeThisWeekCount,
+    leaderboardSummary.rank,
+    playerProfile.displayName,
+    stats.currentStreak,
+    userAccount?.username,
+    weeklyProgress.weeklyXp,
+  ]);
 
   const handleShareLeaderboardProgress = useCallback(
-    async (rank: number, activeCount: number, gradeLabel: string, suppressToast = true) => {
+    (rank: number, activeCount: number, gradeLabel: string) => {
       const payload = buildLeaderboardSharePayload({
         username: userAccount?.username || playerProfile.displayName,
         weeklyXp: weeklyProgress.weeklyXp,
@@ -2385,18 +2385,11 @@ export default function NativeWordvibeGame() {
         streak: stats.currentStreak,
         appUrl: getShareAppUrl(),
       });
-      const status = await shareOrCopyMessage(payload);
-      if (!suppressToast) {
-        if (status === 'shared') showToast('Weekly rank shared!');
-        else if (status === 'copied') showToast('Message copied to clipboard!');
-        else if (status === 'failed') showToast('Unable to access clipboard');
-      }
-      return status;
+      setActiveSharePayload(payload);
     },
     [
       getShareAppUrl,
       playerProfile.displayName,
-      showToast,
       stats.currentStreak,
       userAccount?.username,
       weeklyProgress.weeklyXp,
@@ -2404,7 +2397,7 @@ export default function NativeWordvibeGame() {
   );
 
   const handleInviteFriends = useCallback(
-    async (rank?: number, activeCount?: number, suppressToast = false) => {
+    (rank?: number, activeCount?: number) => {
       const payload = buildInviteFriendsPayload({
         username: userAccount?.username || playerProfile.displayName,
         weeklyXp: weeklyProgress.weeklyXp,
@@ -2413,24 +2406,63 @@ export default function NativeWordvibeGame() {
         streak: stats.currentStreak,
         appUrl: getShareAppUrl(),
       });
-      const status = await shareOrCopyMessage(payload);
-      if (!suppressToast) {
-        if (status === 'shared') showToast('Invite sent!');
-        else if (status === 'copied') showToast('Invite message copied to clipboard!');
-        else if (status === 'failed') showToast('Unable to access clipboard');
-      }
-      return status;
+      setActiveSharePayload(payload);
     },
     [
       getShareAppUrl,
       leaderboardSummary.activeThisWeekCount,
       leaderboardSummary.rank,
       playerProfile.displayName,
-      showToast,
       stats.currentStreak,
       userAccount?.username,
       weeklyProgress.weeklyXp,
     ]
+  );
+
+  const handleShareTrivia = useCallback(
+    (categoryName: string) => {
+      const payload = buildTriviaSharePayload({
+        username: userAccount?.username || playerProfile.displayName,
+        streak: triviaState.streak,
+        bestStreak: triviaState.bestStreak,
+        weeklyXp: weeklyProgress.weeklyXp,
+        rank: leaderboardSummary.rank,
+        totalActivePlayers: leaderboardSummary.activeThisWeekCount,
+        categoryName,
+        appUrl: getShareAppUrl(),
+      });
+      setActiveSharePayload(payload);
+    },
+    [
+      getShareAppUrl,
+      leaderboardSummary.activeThisWeekCount,
+      leaderboardSummary.rank,
+      playerProfile.displayName,
+      triviaState.bestStreak,
+      triviaState.streak,
+      userAccount?.username,
+      weeklyProgress.weeklyXp,
+    ]
+  );
+
+  const handleShareFaith = useCallback(
+    (params: {
+      traditionName: string;
+      sacredTextLabel: string;
+      correctCount: number;
+      answeredCount: number;
+    }) => {
+      const payload = buildFaithSharePayload({
+        username: userAccount?.username || playerProfile.displayName,
+        traditionName: params.traditionName,
+        sacredTextLabel: params.sacredTextLabel,
+        correctCount: params.correctCount,
+        answeredCount: params.answeredCount,
+        appUrl: getShareAppUrl(),
+      });
+      setActiveSharePayload(payload);
+    },
+    [getShareAppUrl, playerProfile.displayName, userAccount?.username]
   );
 
   const featuredTopics = useMemo(() => {
@@ -3121,6 +3153,7 @@ export default function NativeWordvibeGame() {
               onSelectChallenge={handleSelectChallenge}
               onPlayEntertainmentCategory={handlePlayEntertainmentCategory}
               onBrowseEntertainment={handleOpenEntertainmentCategories}
+              onInviteFriends={handleInviteFromDock}
             />
             <footer className="mx-auto mb-6 w-full max-w-3xl lg:max-w-4xl px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm wv-text-muted">
               <span>On-Device Offline Ready</span>
@@ -3149,6 +3182,7 @@ export default function NativeWordvibeGame() {
               onChangeReligion={handleChangeFaithReligion}
               onPlayFaithPuzzle={handlePlayFaithPuzzle}
               onFaithAnswerRecorded={handleFaithAnswerRecorded}
+              onShareFaith={handleShareFaith}
             />
             <footer className="mx-auto mb-6 w-full max-w-3xl lg:max-w-4xl px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm wv-text-muted">
               <span>On-Device Offline Ready</span>
@@ -3184,6 +3218,7 @@ export default function NativeWordvibeGame() {
             isOnline={isOnline}
             isPaused={
               Boolean(activeAdPlacement) ||
+              Boolean(activeSharePayload) ||
               categoryExplorerOpen ||
               weeklyRankOpen ||
               personalizationOpen ||
@@ -3234,6 +3269,7 @@ export default function NativeWordvibeGame() {
             onAnswerRecorded={handleTriviaAnswerRecorded}
             onRoundCompleted={handleTriviaRoundCompleted}
             onDoubleXpClaimed={handleTriviaDoubleXpClaimed}
+            onShareTrivia={handleShareTrivia}
           />
             <footer className="mx-auto mb-6 w-full max-w-3xl lg:max-w-4xl px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm wv-text-muted">
               <span>On-Device Offline Ready</span>
@@ -3411,8 +3447,8 @@ export default function NativeWordvibeGame() {
             personalizedCulturalNote={personalizedMeta?.culturalNote}
             funFact={solveFunFact}
             onClose={() => setSummaryOpen(false)}
-            onShare={() => handleSharePuzzleProgress(true)}
-            onInviteFriends={() => handleInviteFriends(undefined, undefined, true)}
+            onShare={() => handleSharePuzzleProgress()}
+            onInviteFriends={() => handleInviteFriends()}
             onWatchAdSaveStreak={() => {
               setSummaryOpen(false);
               setActiveAdPlacement('save_streak');
@@ -3581,9 +3617,9 @@ export default function NativeWordvibeGame() {
           setProfileModalOpen(true);
         }}
         onShareProgress={(rank, activeCount, gradeLabel) =>
-          handleShareLeaderboardProgress(rank, activeCount, gradeLabel, true)
+          handleShareLeaderboardProgress(rank, activeCount, gradeLabel)
         }
-        onInviteFriends={(rank, activeCount) => handleInviteFriends(rank, activeCount, true)}
+        onInviteFriends={(rank, activeCount) => handleInviteFriends(rank, activeCount)}
         onClose={() => setWeeklyRankOpen(false)}
           />
         )}
@@ -3614,6 +3650,7 @@ export default function NativeWordvibeGame() {
               setProfileModalOpen(true);
             }}
             onSyncProgress={() => performVerifiedFlush(false)}
+            onShareProfile={handleInviteFromDock}
             onSignOut={handleSignOutUnified}
           />
         )}
@@ -3960,6 +3997,23 @@ export default function NativeWordvibeGame() {
           adRewardCallbackRef.current = null;
         }}
         onRewardEarned={handleRewardEarned}
+          />
+        )}
+
+        {activeSharePayload && (
+          <SocialShareModal
+            open={Boolean(activeSharePayload)}
+            payload={activeSharePayload}
+            onClose={() => setActiveSharePayload(null)}
+            onShared={(status, platform) => {
+              if (status === 'shared') {
+                showToast(platform ? `Shared via ${platform}!` : 'Shared!', 2200);
+              } else if (status === 'copied') {
+                showToast('Share message copied to clipboard!', 2200);
+              } else if (status === 'failed') {
+                showToast('Unable to access clipboard', 2200);
+              }
+            }}
           />
         )}
       </Suspense>

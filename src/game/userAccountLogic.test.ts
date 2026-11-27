@@ -83,19 +83,20 @@ test('sanitizeAvatarDataUrl only accepts raster data URIs and rejects SVG or JS'
   assert.equal(getBuiltinAvatarOption('nonexistent').id, 'crown');
 });
 
-test('social share and invite payload builders include rank, XP, active players, and direct APK URL', async () => {
+test('social share and invite payload builders include rank, XP, active players, and wordvibe.pages.dev share URL', async () => {
   const {
+    buildFaithSharePayload,
     buildLandingAppSharePayload,
+    buildTriviaSharePayload,
     resolveShareAppUrl,
   } = await import('./userAccountLogic');
-  const { formatShareClipboardMessage } = await import('./shareServiceLogic');
+  const { buildSocialShareTargets, formatShareClipboardMessage } = await import(
+    './shareServiceLogic'
+  );
   const board = createCrosswordBoard({ length: 5, level: 1, categoryId: 'general-classic' });
   const appUrl = resolveShareAppUrl();
 
-  assert.equal(
-    appUrl,
-    'https://github.com/JOL889/wordvibe/releases/latest/download/WordVibe-release.apk'
-  );
+  assert.equal(appUrl, 'https://wordvibe.pages.dev');
 
   const puzzlePayload = buildPuzzleSharePayload({
     username: 'Amara_Word',
@@ -111,8 +112,8 @@ test('social share and invite payload builders include rank, XP, active players,
   assert.ok(puzzlePayload.text.includes('1,420 Weekly XP'));
   assert.ok(puzzlePayload.text.includes('Rows '));
   assert.ok(puzzlePayload.text.includes('Cols '));
-  assert.equal(puzzlePayload.url, appUrl);
-  assert.ok(formatShareClipboardMessage(puzzlePayload).includes(`\n${appUrl}`));
+  assert.equal(puzzlePayload.url, 'https://wordvibe.pages.dev');
+  assert.ok(formatShareClipboardMessage(puzzlePayload).includes(`\nhttps://wordvibe.pages.dev`));
 
   const lbPayload = buildLeaderboardSharePayload({
     username: 'Amara_Word',
@@ -125,7 +126,7 @@ test('social share and invite payload builders include rank, XP, active players,
   });
   assert.ok(lbPayload.title.includes('#8'));
   assert.ok(lbPayload.text.includes('Rank #8 of 64 active players this week'));
-  assert.equal(lbPayload.url, appUrl);
+  assert.equal(lbPayload.url, 'https://wordvibe.pages.dev');
 
   const invitePayload = buildInviteFriendsPayload({
     username: 'Amara_Word',
@@ -138,9 +139,52 @@ test('social share and invite payload builders include rank, XP, active players,
   assert.ok(invitePayload.text.includes('@Amara_Word'));
   assert.ok(invitePayload.text.includes('Rank #8 of 64 active players this week'));
   assert.ok(invitePayload.text.includes('5-day streak'));
-  assert.equal(invitePayload.url, appUrl);
+  assert.equal(invitePayload.url, 'https://wordvibe.pages.dev');
+
+  const triviaPayload = buildTriviaSharePayload({
+    username: 'Amara_Word',
+    streak: 7,
+    bestStreak: 12,
+    weeklyXp: 1420,
+    rank: 8,
+    totalActivePlayers: 64,
+    categoryName: 'Science & Tech',
+    appUrl,
+  });
+  assert.ok(triviaPayload.text.includes('7-question streak'));
+  assert.equal(triviaPayload.url, 'https://wordvibe.pages.dev');
+
+  const faithPayload = buildFaithSharePayload({
+    username: 'Amara_Word',
+    traditionName: 'Christianity',
+    sacredTextLabel: 'Bible',
+    correctCount: 4,
+    answeredCount: 5,
+    appUrl,
+  });
+  assert.ok(faithPayload.text.includes('Christianity'));
+  assert.equal(faithPayload.url, 'https://wordvibe.pages.dev');
+
+  const targets = buildSocialShareTargets(invitePayload);
+  const platformIds = targets.map((t) => t.id);
+  assert.deepEqual(platformIds, [
+    'whatsapp',
+    'x',
+    'facebook',
+    'telegram',
+    'linkedin',
+    'reddit',
+    'sms',
+    'email',
+  ]);
+  for (const target of targets) {
+    assert.ok(
+      target.href.includes(encodeURIComponent('https://wordvibe.pages.dev')),
+      `Expected ${target.id} href to encode https://wordvibe.pages.dev`
+    );
+  }
 
   const landingPayload = buildLandingAppSharePayload();
-  assert.equal(landingPayload.url, appUrl);
+  assert.equal(landingPayload.url, 'https://wordvibe.pages.dev');
   assert.ok(landingPayload.text.includes('Wordvibe'));
 });

@@ -4,6 +4,7 @@ export const WORDVIBE_APK_FILENAME = 'WordVibe-release.apk';
 export const WORDVIBE_APK_DOWNLOAD_URL =
   'https://github.com/JOL889/wordvibe/releases/latest/download/WordVibe-release.apk';
 export const WORDVIBE_APK_RELEASES_URL = 'https://github.com/JOL889/wordvibe/releases/latest';
+export const WORDVIBE_WEB_SHARE_URL = 'https://wordvibe.pages.dev';
 
 export type AppEntryExperience = 'game' | 'install_landing' | 'privacy' | 'terms';
 

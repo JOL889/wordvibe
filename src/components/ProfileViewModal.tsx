@@ -10,6 +10,7 @@ import {
   Mail,
   MapPin,
   RefreshCw,
+  Share2,
   ShieldCheck,
   Trophy,
   X,
@@ -41,6 +42,7 @@ interface ProfileViewModalProps {
   onClose: () => void;
   onEditProfile: () => void;
   onSyncProgress?: () => Promise<void> | void;
+  onShareProfile?: () => void;
   onSignOut: () => Promise<void> | void;
 }
 
@@ -64,6 +66,7 @@ export const ProfileViewModal: React.FC<ProfileViewModalProps> = ({
   onClose,
   onEditProfile,
   onSyncProgress,
+  onShareProfile,
   onSignOut,
 }) => {
   const [nowMs, setNowMs] = React.useState(() => Date.now());
@@ -308,6 +311,17 @@ export const ProfileViewModal: React.FC<ProfileViewModalProps> = ({
               </span>
             </button>
           </div>
+          {onShareProfile && (
+            <button
+              type="button"
+              data-testid="profile-view-share-btn"
+              onClick={onShareProfile}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border wv-border wv-card-muted px-4 py-2 text-sm font-bold wv-text hover:opacity-90 cursor-pointer"
+            >
+              <Share2 className="h-4 w-4 wv-accent-text" aria-hidden="true" />
+              <span>Share Rank &amp; Invite Friends</span>
+            </button>
+          )}
           <button
             type="button"
             data-testid="profile-view-signout-btn"

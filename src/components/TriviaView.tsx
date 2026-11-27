@@ -10,6 +10,7 @@ import {
   Minus,
   Plus,
   RefreshCw,
+  Share2,
   ShieldCheck,
   Sparkles,
   Trophy,
@@ -99,6 +100,7 @@ interface TriviaViewProps {
     categoryId: string;
   }) => void;
   onDoubleXpClaimed: (bonusXp: number) => void;
+  onShareTrivia?: (categoryName: string) => void;
 }
 
 const OPTION_LETTERS = ['A', 'B', 'C', 'D'] as const;
@@ -138,6 +140,7 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
   onAnswerRecorded,
   onRoundCompleted,
   onDoubleXpClaimed,
+  onShareTrivia,
 }) => {
   const safeLevel = normalizeLevelNumber(levelNumber, 1);
   const safeMaxUnlocked = Math.max(1, normalizeLevelNumber(maxUnlockedLevel, 1));
@@ -748,14 +751,27 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
                 : 'Offline Questions Ready'}
             </span>
           </div>
-          <button
-            type="button"
-            data-testid="trivia-personalize-btn"
-            onClick={onOpenPersonalize}
-            className="font-bold wv-accent-text hover:underline underline-offset-4 cursor-pointer"
-          >
-            Personalize Taste
-          </button>
+          <div className="flex items-center gap-3">
+            {onShareTrivia && (
+              <button
+                type="button"
+                data-testid="trivia-share-btn"
+                onClick={() => onShareTrivia(activeCategory.name)}
+                className="inline-flex items-center gap-1 font-bold wv-accent-text hover:underline underline-offset-4 cursor-pointer"
+              >
+                <Share2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span>Share Streak</span>
+              </button>
+            )}
+            <button
+              type="button"
+              data-testid="trivia-personalize-btn"
+              onClick={onOpenPersonalize}
+              className="font-bold wv-accent-text hover:underline underline-offset-4 cursor-pointer"
+            >
+              Personalize Taste
+            </button>
+          </div>
         </div>
       </div>
 
@@ -828,6 +844,17 @@ export const TriviaView: React.FC<TriviaViewProps> = React.memo(({
                   : 'Play 5 Timed Questions'}
               </span>
             </button>
+            {onShareTrivia && (
+              <button
+                type="button"
+                data-testid="trivia-summary-share-btn"
+                onClick={() => onShareTrivia(activeCategory.name)}
+                className="flex min-h-12 sm:min-h-[52px] items-center justify-center gap-2 rounded-2xl border wv-border wv-card-muted px-5 py-3 text-sm sm:text-base font-bold wv-text hover:opacity-90 cursor-pointer"
+              >
+                <Share2 className="h-4 w-4 wv-accent-text" aria-hidden="true" />
+                <span>Share</span>
+              </button>
+            )}
           </div>
         </div>
       ) : question ? (

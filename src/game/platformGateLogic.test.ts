@@ -4,19 +4,21 @@ import {
   WORDVIBE_APK_DOWNLOAD_URL,
   WORDVIBE_APK_FILENAME,
   WORDVIBE_APK_RELEASES_URL,
+  WORDVIBE_WEB_SHARE_URL,
   isBlockedGameUrlOnWeb,
   isNativeAndroidRuntime,
   isTermsPath,
   resolveAppEntryExperience,
 } from './platformGateLogic';
 
-test('WORDVIBE_APK_DOWNLOAD_URL points directly to latest WordVibe-release.apk asset', () => {
+test('WORDVIBE_APK_DOWNLOAD_URL points directly to latest WordVibe-release.apk asset and share URL uses wordvibe.pages.dev', () => {
   assert.equal(WORDVIBE_APK_FILENAME, 'WordVibe-release.apk');
   assert.equal(
     WORDVIBE_APK_DOWNLOAD_URL,
     'https://github.com/JOL889/wordvibe/releases/latest/download/WordVibe-release.apk'
   );
   assert.equal(WORDVIBE_APK_RELEASES_URL, 'https://github.com/JOL889/wordvibe/releases/latest');
+  assert.equal(WORDVIBE_WEB_SHARE_URL, 'https://wordvibe.pages.dev');
 });
 
 test('native Capacitor runtime and Android WebView indicators always enter playable WordVibe game', () => {

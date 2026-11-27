@@ -115,7 +115,7 @@ export const InstallLandingPage: React.FC<InstallLandingPageProps> = ({
     if (status === 'shared') {
       setShareNote('Shared Wordvibe invite!');
     } else if (status === 'copied') {
-      setShareNote('Invite & APK link copied!');
+      setShareNote('Invite link copied!');
     } else if (status === 'failed') {
       setShareNote('Unable to copy link in this browser.');
     }

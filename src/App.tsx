@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { Trophy } from 'lucide-react';
 import { BottomNav, type AppTab } from './components/BottomNav';
 import {
@@ -25,6 +26,7 @@ import { SummaryModal } from './components/SummaryModal';
 import { TriviaView } from './components/TriviaView';
 import { WeeklyRankModal, WeeklyRolloverModal } from './components/WeeklyRankModal';
 import { WordTriviaHintPanel } from './components/WordTriviaHintPanel';
+import { WebInstallExperience } from './components/WebInstallExperience';
 import { WordTriviaRowModal } from './components/WordTriviaRowModal';
 import { getCategoryById, type PuzzleCategory } from './data/categories';
 import type { WordLength } from './data/words';
@@ -223,6 +225,13 @@ interface PersonalizedMeta {
 }
 
 export default function App() {
+  if (!Capacitor.isNativePlatform()) {
+    return <WebInstallExperience />;
+  }
+  return <NativeWordvibeGame />;
+}
+
+function NativeWordvibeGame() {
   const [appSettings, setAppSettings] = useState<AppSettings>(() => loadAppSettings());
   const [modeConfig, setModeConfig] = useState<ModeConfigState>(() => loadModeConfig());
 

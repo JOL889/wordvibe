@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "1001699672232",
+    "project_id": "mindspark-c417d",
+    "storage_bucket": "mindspark-c417d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1001699672232:android:8fe8f9a60a08c1ebad029d",
+        "android_client_info": {
+          "package_name": "com.jol889.wordvibe"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1001699672232-ej8e2n2te3e32556vcu8q6ocagap35im.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.jol889.wordvibe",
+            "certificate_hash": "27eeb043a5900b1b4b8a7388466a0fc261d2e30a"
+          }
+        },
+        {
+          "client_id": "1001699672232-tf73muliufu5itjn900qri6bk21v2c08.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBIZOyehgw7qGVW9SE1G4vxZT8w4JwPU0Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1001699672232-tf73muliufu5itjn900qri6bk21v2c08.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -3,6 +3,7 @@ import {
   Bell,
   ChevronDown,
   ChevronUp,
+  Download,
   Info,
   MapPin,
   Music,
@@ -917,6 +918,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       )}
                       <PWAInstallButton />
                     </div>
+                  </div>
+                  <div
+                    data-testid="settings-about-apk-card"
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border wv-border wv-card p-3.5"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs sm:text-sm font-bold wv-text">
+                        Get WordVibe on Android
+                      </p>
+                      <p className="text-xs leading-relaxed wv-text-muted">
+                        Install the web app directly from Chrome, or download the Android APK
+                        package.
+                      </p>
+                    </div>
+                    <a
+                      href="https://github.com/JOL889/Mind-spark/releases/latest"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="settings-about-apk-link"
+                      className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl wv-accent-btn px-3.5 py-2 text-xs font-bold shadow-xs hover:opacity-95 cursor-pointer"
+                    >
+                      <Download className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <span>Download Android APK</span>
+                    </a>
                   </div>
                 </div>
               )}

@@ -4,6 +4,7 @@ import {
   type LocalUserAccount,
   type SocialSharePayload,
 } from '../game/userAccountLogic';
+import { shareOrCopyPayload } from '../game/shareServiceLogic';
 import type { CrosswordLevelClimbState } from '../game/crosswordLogic';
 import type { PlayerProfileState } from '../game/playerProfileLogic';
 import type { StatsData } from '../game/puzzleLogic';
@@ -328,24 +329,5 @@ export async function copyMessageText(message: string): Promise<boolean> {
 export async function shareOrCopyMessage(
   payload: SocialSharePayload
 ): Promise<'shared' | 'copied' | 'cancelled' | 'failed'> {
-  const fullMessage = payload.url ? `${payload.text} ${payload.url}` : payload.text;
-
-  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-    try {
-      await navigator.share({
-        title: payload.title,
-        text: payload.text,
-        url: payload.url,
-      });
-      return 'shared';
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        return 'cancelled';
-      }
-      // Native share rejected (e.g. desktop / iframe permissions) -> fall back to clipboard copy
-    }
-  }
-
-  const copied = await copyMessageText(fullMessage);
-  return copied ? 'copied' : 'failed';
+  return shareOrCopyPayload(payload);
 }

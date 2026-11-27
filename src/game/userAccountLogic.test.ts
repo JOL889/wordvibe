@@ -83,9 +83,19 @@ test('sanitizeAvatarDataUrl only accepts raster data URIs and rejects SVG or JS'
   assert.equal(getBuiltinAvatarOption('nonexistent').id, 'crown');
 });
 
-test('social share and invite payload builders include rank, XP, active players, and URL', () => {
+test('social share and invite payload builders include rank, XP, active players, and direct APK URL', async () => {
+  const {
+    buildLandingAppSharePayload,
+    resolveShareAppUrl,
+  } = await import('./userAccountLogic');
+  const { formatShareClipboardMessage } = await import('./shareServiceLogic');
   const board = createCrosswordBoard({ length: 5, level: 1, categoryId: 'general-classic' });
-  const appUrl = 'https://wordvibe.example.com/?ref=Amara_Word';
+  const appUrl = resolveShareAppUrl();
+
+  assert.equal(
+    appUrl,
+    'https://github.com/JOL889/wordvibe/releases/latest/download/WordVibe-release.apk'
+  );
 
   const puzzlePayload = buildPuzzleSharePayload({
     username: 'Amara_Word',
@@ -99,7 +109,10 @@ test('social share and invite payload builders include rank, XP, active players,
   assert.ok(puzzlePayload.text.includes('@Amara_Word'));
   assert.ok(puzzlePayload.text.includes('Rank #8 of 64 active players this week'));
   assert.ok(puzzlePayload.text.includes('1,420 Weekly XP'));
+  assert.ok(puzzlePayload.text.includes('Rows '));
+  assert.ok(puzzlePayload.text.includes('Cols '));
   assert.equal(puzzlePayload.url, appUrl);
+  assert.ok(formatShareClipboardMessage(puzzlePayload).includes(`\n${appUrl}`));
 
   const lbPayload = buildLeaderboardSharePayload({
     username: 'Amara_Word',
@@ -112,15 +125,22 @@ test('social share and invite payload builders include rank, XP, active players,
   });
   assert.ok(lbPayload.title.includes('#8'));
   assert.ok(lbPayload.text.includes('Rank #8 of 64 active players this week'));
+  assert.equal(lbPayload.url, appUrl);
 
   const invitePayload = buildInviteFriendsPayload({
     username: 'Amara_Word',
     weeklyXp: 1420,
     rank: 8,
     totalActivePlayers: 64,
+    streak: 5,
     appUrl,
   });
   assert.ok(invitePayload.text.includes('@Amara_Word'));
   assert.ok(invitePayload.text.includes('Rank #8 of 64 active players this week'));
+  assert.ok(invitePayload.text.includes('5-day streak'));
   assert.equal(invitePayload.url, appUrl);
+
+  const landingPayload = buildLandingAppSharePayload();
+  assert.equal(landingPayload.url, appUrl);
+  assert.ok(landingPayload.text.includes('Wordvibe'));
 });

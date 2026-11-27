@@ -5,6 +5,8 @@ const config: CapacitorConfig = {
   appName: 'Wordvibe',
   webDir: 'dist',
   server: {
+    url: 'https://wordvibe.pages.dev',
+    cleartext: false,
     androidScheme: 'https',
   },
 };

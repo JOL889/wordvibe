@@ -26,6 +26,10 @@ import {
   requestMotionSensorPermission,
 } from '../services/deviceSensorService';
 import { FAITH_TRADITIONS, RELIGION_IDS } from '../game/faithStudyLogic';
+import {
+  WORDVIBE_APK_DOWNLOAD_URL,
+  WORDVIBE_APK_FILENAME,
+} from '../game/platformGateLogic';
 import { formatLocationLabel, type PlayerProfileState } from '../game/playerProfileLogic';
 import type {
   AccentColor,
@@ -933,9 +937,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </p>
                     </div>
                     <a
-                      href="https://github.com/JOL889/wordvibe/releases/latest"
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      href={WORDVIBE_APK_DOWNLOAD_URL}
+                      download={WORDVIBE_APK_FILENAME}
                       data-testid="settings-about-apk-link"
                       className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl wv-accent-btn px-3.5 py-2 text-xs font-bold shadow-xs hover:opacity-95 cursor-pointer"
                     >

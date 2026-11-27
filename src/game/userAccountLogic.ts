@@ -1,4 +1,11 @@
 import { formatCrosswordShareText, type CrosswordBoardState } from './crosswordLogic';
+import {
+  buildLandingAppSharePayload,
+  resolveShareAppUrl,
+  type SocialSharePayload,
+} from './shareServiceLogic';
+
+export { buildLandingAppSharePayload, resolveShareAppUrl, type SocialSharePayload };
 
 export type BuiltInAvatarId =
   | 'crown'
@@ -267,12 +274,6 @@ export function getBuiltinAvatarOption(id?: string): BuiltInAvatarOption {
   return BUILTIN_AVATARS.find((item) => item.id === id) || BUILTIN_AVATARS[0];
 }
 
-export interface SocialSharePayload {
-  title: string;
-  text: string;
-  url: string;
-}
-
 export function buildPuzzleSharePayload(params: {
   username?: string;
   board: CrosswordBoardState;
@@ -280,14 +281,20 @@ export function buildPuzzleSharePayload(params: {
   rank: number;
   totalActivePlayers: number;
   streak: number;
-  appUrl: string;
+  appUrl?: string;
 }): SocialSharePayload {
   const baseGridText = formatCrosswordShareText(params.board);
   const who = params.username ? `@${params.username}` : 'I';
+  const shareUrl = params.appUrl || resolveShareAppUrl();
   return {
     title: 'Wordvibe Crossword Solved!',
-    text: `${baseGridText}\n\n${who} hit ${params.weeklyXp.toLocaleString()} Weekly XP · Rank #${params.rank} of ${params.totalActivePlayers} active players this week (🔥 ${params.streak} streak)!\nPlay with me:`,
-    url: params.appUrl,
+    text: [
+      `🧩 ${baseGridText}`,
+      '',
+      `${who} hit ${params.weeklyXp.toLocaleString()} Weekly XP · Rank #${params.rank} of ${params.totalActivePlayers} active players this week (🔥 ${params.streak}-day streak)!`,
+      '📲 Play with me — Download Android APK:',
+    ].join('\n'),
+    url: shareUrl,
   };
 }
 
@@ -298,13 +305,19 @@ export function buildLeaderboardSharePayload(params: {
   totalActivePlayers: number;
   gradeLabel: string;
   streak: number;
-  appUrl: string;
+  appUrl?: string;
 }): SocialSharePayload {
   const handle = params.username ? `@${params.username}` : 'Player';
+  const shareUrl = params.appUrl || resolveShareAppUrl();
   return {
     title: `Wordvibe Weekly Rank #${params.rank}`,
-    text: `${handle} is Rank #${params.rank} of ${params.totalActivePlayers} active players this week on Wordvibe! (${params.weeklyXp.toLocaleString()} Weekly XP · ${params.gradeLabel} · ${params.streak}-day streak)\nJoin this week's challenge:`,
-    url: params.appUrl,
+    text: [
+      `🏆 Wordvibe Weekly Rank #${params.rank}`,
+      `${handle} is Rank #${params.rank} of ${params.totalActivePlayers} active players this week!`,
+      `⚡ ${params.weeklyXp.toLocaleString()} Weekly XP · ${params.gradeLabel} · 🔥 ${params.streak}-day streak`,
+      '📲 Download Wordvibe Android APK to join:',
+    ].join('\n'),
+    url: shareUrl,
   };
 }
 
@@ -313,12 +326,24 @@ export function buildInviteFriendsPayload(params: {
   weeklyXp: number;
   rank: number;
   totalActivePlayers: number;
-  appUrl: string;
+  streak?: number;
+  appUrl?: string;
 }): SocialSharePayload {
   const inviter = params.username ? `@${params.username}` : 'Your friend';
+  const shareUrl = params.appUrl || resolveShareAppUrl();
+  const streakLine =
+    typeof params.streak === 'number' && params.streak > 0
+      ? ` · 🔥 ${params.streak}-day streak`
+      : '';
   return {
     title: 'Challenge me on Wordvibe!',
-    text: `${inviter} invited you to Wordvibe — daily linked crosswords, brain trivia & faith study! I'm currently Rank #${params.rank} of ${params.totalActivePlayers} active players this week (${params.weeklyXp.toLocaleString()} XP). Tap to play:`,
-    url: params.appUrl,
+    text: [
+      '🧩 Play Wordvibe with me!',
+      '🟩🟩🟩🟩 Daily 4×4–6×6 Linked Crosswords · ⚡ Brain Trivia · 📖 Faith Study',
+      '',
+      `${inviter} invited you — Rank #${params.rank} of ${params.totalActivePlayers} active players this week (${params.weeklyXp.toLocaleString()} XP${streakLine}).`,
+      '📲 Download the Android APK to play:',
+    ].join('\n'),
+    url: shareUrl,
   };
 }

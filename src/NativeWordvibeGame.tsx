@@ -125,6 +125,7 @@ import {
   buildLeaderboardSharePayload,
   buildPuzzleSharePayload,
   normalizeEmailKey,
+  resolveShareAppUrl,
   verifyPasswordLocal,
   type LocalUserAccount,
 } from './game/userAccountLogic';
@@ -1949,13 +1950,8 @@ export default function NativeWordvibeGame() {
     userAccount?.username || playerProfile.displayName || 'You';
 
   const getShareAppUrl = useCallback(() => {
-    if (typeof window === 'undefined') return 'https://wordvibe.app';
-    const base = window.location.origin;
-    if (userAccount?.username) {
-      return `${base}/?ref=${encodeURIComponent(userAccount.username)}`;
-    }
-    return base;
-  }, [userAccount?.username]);
+    return resolveShareAppUrl();
+  }, []);
 
   const handleRewardEarned = useCallback(
     (placement: RewardPlacement) => {
@@ -2355,6 +2351,7 @@ export default function NativeWordvibeGame() {
         weeklyXp: weeklyProgress.weeklyXp,
         rank: rank ?? leaderboardSummary.rank,
         totalActivePlayers: activeCount ?? leaderboardSummary.activeThisWeekCount,
+        streak: stats.currentStreak,
         appUrl: getShareAppUrl(),
       });
       const status = await shareOrCopyMessage(payload);
@@ -2371,6 +2368,7 @@ export default function NativeWordvibeGame() {
       leaderboardSummary.rank,
       playerProfile.displayName,
       showToast,
+      stats.currentStreak,
       userAccount?.username,
       weeklyProgress.weeklyXp,
     ]

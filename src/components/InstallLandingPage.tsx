@@ -2,14 +2,22 @@ import React, { useState } from 'react';
 import {
   Cloud,
   Download,
-  ExternalLink,
   Flame,
+  Share2,
   Smartphone,
   Sparkles,
   Trophy,
   WifiOff,
 } from 'lucide-react';
-import { WORDVIBE_APK_DOWNLOAD_URL } from '../game/platformGateLogic';
+import {
+  WORDVIBE_APK_DOWNLOAD_URL,
+  WORDVIBE_APK_FILENAME,
+  WORDVIBE_APK_RELEASES_URL,
+} from '../game/platformGateLogic';
+import {
+  buildLandingAppSharePayload,
+  shareOrCopyPayload,
+} from '../game/shareServiceLogic';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 
 interface InstallLandingPageProps {
@@ -96,9 +104,21 @@ export const InstallLandingPage: React.FC<InstallLandingPageProps> = ({
 }) => {
   const { isInstallable, isInstalled, install } = usePWAInstall();
   const [iconFailed, setIconFailed] = useState(false);
+  const [shareNote, setShareNote] = useState<string | null>(null);
 
   const handleInstallPwa = async () => {
     await install();
+  };
+
+  const handleShareApp = async () => {
+    const status = await shareOrCopyPayload(buildLandingAppSharePayload());
+    if (status === 'shared') {
+      setShareNote('Shared Wordvibe invite!');
+    } else if (status === 'copied') {
+      setShareNote('Invite & APK link copied!');
+    } else if (status === 'failed') {
+      setShareNote('Unable to copy link in this browser.');
+    }
   };
 
   return (
@@ -155,8 +175,7 @@ export const InstallLandingPage: React.FC<InstallLandingPageProps> = ({
           <div className="flex items-center shrink-0">
             <a
               href={WORDVIBE_APK_DOWNLOAD_URL}
-              target="_blank"
-              rel="noopener noreferrer"
+              download={WORDVIBE_APK_FILENAME}
               className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl wv-accent-btn px-4 py-2 text-xs sm:text-sm font-bold whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Download className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -212,14 +231,12 @@ export const InstallLandingPage: React.FC<InstallLandingPageProps> = ({
               <div className="flex flex-wrap items-center gap-3.5 pt-1">
                 <a
                   href={WORDVIBE_APK_DOWNLOAD_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  download={WORDVIBE_APK_FILENAME}
                   data-testid="landing-download-apk-btn"
                   className="inline-flex min-h-12 items-center justify-center gap-2.5 rounded-xl wv-accent-btn px-6 py-3 text-sm sm:text-base font-bold whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   <Download className="h-5 w-5 shrink-0" aria-hidden="true" />
                   <span>Download Android APK</span>
-                  <ExternalLink className="h-4 w-4 shrink-0 opacity-85" aria-hidden="true" />
                 </a>
 
                 {isInstallable && !isInstalled && (
@@ -233,7 +250,27 @@ export const InstallLandingPage: React.FC<InstallLandingPageProps> = ({
                     <span>Install Web App (PWA)</span>
                   </button>
                 )}
+
+                <button
+                  type="button"
+                  data-testid="landing-share-app-btn"
+                  onClick={() => void handleShareApp()}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border-2 wv-border wv-card px-5 py-3 text-sm sm:text-base font-bold wv-text transition-opacity hover:opacity-85 whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  <Share2 className="h-4 w-4 wv-accent-text shrink-0" aria-hidden="true" />
+                  <span>Share App</span>
+                </button>
               </div>
+
+              {shareNote && (
+                <p
+                  role="status"
+                  data-testid="landing-share-status"
+                  className="text-xs sm:text-sm font-semibold wv-accent-text"
+                >
+                  {shareNote}
+                </p>
+              )}
 
               <p className="text-xs sm:text-sm wv-text-muted">
                 Official GitHub Release <span aria-hidden="true">·</span> Direct Android APK
@@ -378,8 +415,7 @@ export const InstallLandingPage: React.FC<InstallLandingPageProps> = ({
               </div>
               <a
                 href={WORDVIBE_APK_DOWNLOAD_URL}
-                target="_blank"
-                rel="noopener noreferrer"
+                download={WORDVIBE_APK_FILENAME}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl wv-accent-btn px-5 py-2.5 text-sm font-bold whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <Download className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -441,7 +477,7 @@ export const InstallLandingPage: React.FC<InstallLandingPageProps> = ({
               Terms of Service
             </a>
             <a
-              href={WORDVIBE_APK_DOWNLOAD_URL}
+              href={WORDVIBE_APK_RELEASES_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="hover:underline underline-offset-4 wv-accent-text cursor-pointer whitespace-nowrap shrink-0"

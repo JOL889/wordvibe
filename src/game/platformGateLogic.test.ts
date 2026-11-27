@@ -2,17 +2,24 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   WORDVIBE_APK_DOWNLOAD_URL,
+  WORDVIBE_APK_FILENAME,
+  WORDVIBE_APK_RELEASES_URL,
   isBlockedGameUrlOnWeb,
   isNativeAndroidRuntime,
   isTermsPath,
   resolveAppEntryExperience,
 } from './platformGateLogic';
 
-test('WORDVIBE_APK_DOWNLOAD_URL points to wordvibe latest GitHub release', () => {
-  assert.equal(WORDVIBE_APK_DOWNLOAD_URL, 'https://github.com/JOL889/wordvibe/releases/latest');
+test('WORDVIBE_APK_DOWNLOAD_URL points directly to latest WordVibe-release.apk asset', () => {
+  assert.equal(WORDVIBE_APK_FILENAME, 'WordVibe-release.apk');
+  assert.equal(
+    WORDVIBE_APK_DOWNLOAD_URL,
+    'https://github.com/JOL889/wordvibe/releases/latest/download/WordVibe-release.apk'
+  );
+  assert.equal(WORDVIBE_APK_RELEASES_URL, 'https://github.com/JOL889/wordvibe/releases/latest');
 });
 
-test('native Capacitor runtime always enters playable WordVibe game', () => {
+test('native Capacitor runtime and Android WebView indicators always enter playable WordVibe game', () => {
   assert.equal(
     resolveAppEntryExperience({ isNativePlatform: true, pathname: '/', search: '' }),
     'game'
@@ -21,9 +28,21 @@ test('native Capacitor runtime always enters playable WordVibe game', () => {
     resolveAppEntryExperience({ isNativePlatform: true, pathname: '/puzzle', search: '?tab=trivia' }),
     'game'
   );
-  assert.equal(isNativeAndroidRuntime({ isNativePlatform: () => true }), true);
-  assert.equal(isNativeAndroidRuntime({ isNativePlatform: () => false }), false);
-  assert.equal(isNativeAndroidRuntime(null), false);
+  assert.equal(isNativeAndroidRuntime({ isNativePlatform: () => true }, null), true);
+  assert.equal(isNativeAndroidRuntime({ getPlatform: () => 'android' }, null), true);
+  assert.equal(
+    isNativeAndroidRuntime(
+      { isNativePlatform: () => false },
+      { Capacitor: { getPlatform: () => 'android' } }
+    ),
+    true
+  );
+  assert.equal(
+    isNativeAndroidRuntime({ isNativePlatform: () => false }, { androidBridge: {} }),
+    true
+  );
+  assert.equal(isNativeAndroidRuntime({ isNativePlatform: () => false }, null), false);
+  assert.equal(isNativeAndroidRuntime(null, null), false);
 });
 
 test('regular web browser is gated to install_landing and blocks direct game routes', () => {

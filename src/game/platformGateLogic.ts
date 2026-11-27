@@ -1,8 +1,22 @@
 import { isPrivacyPath } from './navigationLogic';
 
-export const WORDVIBE_APK_DOWNLOAD_URL = 'https://github.com/JOL889/wordvibe/releases/latest';
+export const WORDVIBE_APK_FILENAME = 'WordVibe-release.apk';
+export const WORDVIBE_APK_DOWNLOAD_URL =
+  'https://github.com/JOL889/wordvibe/releases/latest/download/WordVibe-release.apk';
+export const WORDVIBE_APK_RELEASES_URL = 'https://github.com/JOL889/wordvibe/releases/latest';
 
 export type AppEntryExperience = 'game' | 'install_landing' | 'privacy' | 'terms';
+
+export interface CapacitorLike {
+  isNativePlatform?: () => boolean;
+  getPlatform?: () => string;
+  platform?: string;
+}
+
+export interface NativeRuntimeWindowLike {
+  Capacitor?: CapacitorLike;
+  androidBridge?: unknown;
+}
 
 const ALLOWED_WEB_PUBLIC_PATHS = new Set(['/', '/privacy', '/terms']);
 
@@ -29,18 +43,55 @@ export function isBlockedGameUrlOnWeb(pathname: string, search = ''): boolean {
   return BLOCKED_GAME_QUERY_PARAMS.some((key) => params.has(key));
 }
 
-export function isNativeAndroidRuntime(
-  capacitorInstance?: { isNativePlatform?: () => boolean } | null
-): boolean {
+function hasNativeCapacitorBridge(cap?: CapacitorLike | null): boolean {
+  if (!cap) return false;
   try {
-    return Boolean(
-      capacitorInstance &&
-        typeof capacitorInstance.isNativePlatform === 'function' &&
-        capacitorInstance.isNativePlatform()
-    );
+    if (typeof cap.isNativePlatform === 'function' && cap.isNativePlatform()) {
+      return true;
+    }
+    if (typeof cap.getPlatform === 'function') {
+      const platform = cap.getPlatform();
+      if (platform === 'android' || platform === 'ios') {
+        return true;
+      }
+    }
+    if (cap.platform === 'android' || cap.platform === 'ios') {
+      return true;
+    }
   } catch {
     return false;
   }
+  return false;
+}
+
+export function isNativeAndroidRuntime(
+  capacitorInstance?: CapacitorLike | null,
+  runtimeWindow?: NativeRuntimeWindowLike | null
+): boolean {
+  // 1. Check imported Capacitor runtime first
+  if (hasNativeCapacitorBridge(capacitorInstance)) {
+    return true;
+  }
+
+  // 2. Check injected Capacitor Android WebView bridge indicators (for live server.url loads)
+  const win =
+    runtimeWindow !== undefined
+      ? runtimeWindow
+      : typeof window !== 'undefined'
+      ? (window as unknown as NativeRuntimeWindowLike)
+      : null;
+
+  if (!win) return false;
+
+  if (hasNativeCapacitorBridge(win.Capacitor)) {
+    return true;
+  }
+
+  if (win.androidBridge && typeof win.androidBridge === 'object') {
+    return true;
+  }
+
+  return false;
 }
 
 export function resolveAppEntryExperience(input: {

@@ -268,7 +268,6 @@ async function fetchNativeCapacitorGoogleIdToken(): Promise<string> {
     const response = await SocialLogin.login({
       provider: 'google',
       options: {
-        scopes: ['email', 'profile'],
         style: 'standard',
         filterByAuthorizedAccounts: false,
       },

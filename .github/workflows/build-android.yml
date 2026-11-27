@@ -42,7 +42,7 @@ jobs:
 
       - name: Initialize and sync Capacitor Android project
         run: |
-          if [ ! -d "android" ]; then
+          if [ ! -f "android/app/build.gradle" ]; then
             npx cap add android
           fi
           npx cap sync android
@@ -91,12 +91,6 @@ jobs:
 
             fs.writeFileSync(path, gradle, "utf8");
           '
-      - name: Print Keystore SHA-1 for Firebase
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: |
-          keytool -list -v -keystore android/app/release.jks -alias "$KEY_ALIAS" -storepass "$KEYSTORE_PASSWORD" | grep -i "SHA1:"
 
       - name: Build signed release APK and AAB
         env:

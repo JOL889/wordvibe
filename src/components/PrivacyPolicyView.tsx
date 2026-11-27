@@ -210,10 +210,10 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({
         <p className="text-sm sm:text-base leading-relaxed wv-text-muted">
           For privacy questions, data deletion requests, or compliance inquiries, email{' '}
           <a
-            href="mailto:support@yourdomain.com"
+            href="mailto:lawaljustice12@gmail.com"
             className="font-bold underline wv-accent-text hover:opacity-85"
           >
-            support@yourdomain.com
+            lawaljustice12@gmail.com
           </a>
           .
         </p>

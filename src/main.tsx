@@ -7,9 +7,12 @@ import './index.css';
 // Register service worker on window load for offline caching & PWA installability
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {
-      // Ignore registration failure in unsupported/private browsing contexts
-    });
+    navigator.serviceWorker
+      .register('/sw.js', { scope: '/', updateViaCache: 'none' })
+      .then((registration) => registration.update())
+      .catch(() => {
+        // Ignore registration failure in unsupported/private browsing contexts
+      });
   });
 }
 

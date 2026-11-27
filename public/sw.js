@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'wordvibe-pwa-v1';
+const CACHE_VERSION = 'wordvibe-pwa-v2';
 const CORE_ASSETS = [
   '/',
   '/index.html',
@@ -41,18 +41,24 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
-  // Never cache dynamic backend endpoints or third-party auth/database/ad requests
+  // Never cache dynamic backend endpoints, service worker script, or third-party requests
   if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith('/api/') || url.pathname === '/healthz') return;
+  if (url.pathname === '/sw.js' || url.pathname.startsWith('/api/') || url.pathname === '/healthz') {
+    return;
+  }
 
-  // Navigation requests (SPA routes like /, /privacy): network-first with cached shell fallback
-  if (request.mode === 'navigate') {
+  // Navigation requests & root HTML: network-first so domain deploys always show the latest landing page
+  if (request.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html') {
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: 'no-cache' })
         .then((response) => {
           if (response && response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE_VERSION).then((cache) => cache.put('/index.html', copy));
+            const copyForRoot = response.clone();
+            const copyForIndex = response.clone();
+            caches.open(CACHE_VERSION).then((cache) => {
+              cache.put('/', copyForRoot);
+              cache.put('/index.html', copyForIndex);
+            });
           }
           return response;
         })
@@ -73,20 +79,32 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Same-origin static assets: stale-while-revalidate for fast offline & fresh builds
-  event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      const networkFetch = fetch(request)
-        .then((networkResponse) => {
+  // Hashed Vite assets: cache-first with background refresh; unhashed assets: network-first
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      caches.match(request).then((cachedResponse) => {
+        if (cachedResponse) return cachedResponse;
+        return fetch(request).then((networkResponse) => {
           if (networkResponse && networkResponse.ok && networkResponse.type === 'basic') {
             const copy = networkResponse.clone();
             caches.open(CACHE_VERSION).then((cache) => cache.put(request, copy));
           }
           return networkResponse;
-        })
-        .catch(() => cachedResponse);
+        });
+      })
+    );
+    return;
+  }
 
-      return cachedResponse || networkFetch;
-    })
+  event.respondWith(
+    fetch(request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.ok && networkResponse.type === 'basic') {
+          const copy = networkResponse.clone();
+          caches.open(CACHE_VERSION).then((cache) => cache.put(request, copy));
+        }
+        return networkResponse;
+      })
+      .catch(() => caches.match(request))
   );
 });

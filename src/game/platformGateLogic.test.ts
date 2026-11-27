@@ -33,11 +33,14 @@ test('regular web browser is gated to install_landing and blocks direct game rou
     { pathname: '/', search: '?autostart=1' },
     { pathname: '/', search: '?tab=trivia' },
     { pathname: '/', search: '?tab=faith' },
+    { pathname: '/', search: '?category=animals' },
+    { pathname: '/index.html', search: '' },
     { pathname: '/puzzle', search: '' },
     { pathname: '/trivia', search: '' },
     { pathname: '/faith', search: '' },
     { pathname: '/home', search: '' },
     { pathname: '/play', search: '' },
+    { pathname: '/daily', search: '' },
   ];
 
   for (const url of blockedUrls) {
@@ -52,8 +55,12 @@ test('regular web browser is gated to install_landing and blocks direct game rou
   }
 
   assert.equal(isBlockedGameUrlOnWeb('/puzzle', ''), true);
+  assert.equal(isBlockedGameUrlOnWeb('/daily', ''), true);
+  assert.equal(isBlockedGameUrlOnWeb('/index.html', ''), true);
   assert.equal(isBlockedGameUrlOnWeb('/', '?tab=puzzle'), true);
   assert.equal(isBlockedGameUrlOnWeb('/', '?autostart=1'), true);
+  assert.equal(isBlockedGameUrlOnWeb('/privacy', ''), false);
+  assert.equal(isBlockedGameUrlOnWeb('/terms', ''), false);
   assert.equal(isBlockedGameUrlOnWeb('/', ''), false);
 });
 

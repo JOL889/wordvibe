@@ -4,18 +4,16 @@ export const WORDVIBE_APK_DOWNLOAD_URL = 'https://github.com/JOL889/wordvibe/rel
 
 export type AppEntryExperience = 'game' | 'install_landing' | 'privacy' | 'terms';
 
-const BLOCKED_WEB_GAME_PATHS = new Set([
-  '/puzzle',
-  '/puzzles',
-  '/trivia',
-  '/faith',
-  '/home',
-  '/leaderboard',
-  '/profile',
-  '/settings',
-  '/game',
-  '/play',
-]);
+const ALLOWED_WEB_PUBLIC_PATHS = new Set(['/', '/privacy', '/terms']);
+
+const BLOCKED_GAME_QUERY_PARAMS = [
+  'tab',
+  'autostart',
+  'mode',
+  'category',
+  'level',
+  'play',
+];
 
 export function isTermsPath(pathname: string): boolean {
   const normalized = pathname.replace(/\/+$/, '').toLowerCase() || '/';
@@ -24,18 +22,22 @@ export function isTermsPath(pathname: string): boolean {
 
 export function isBlockedGameUrlOnWeb(pathname: string, search = ''): boolean {
   const normalizedPath = pathname.replace(/\/+$/, '').toLowerCase() || '/';
-  if (BLOCKED_WEB_GAME_PATHS.has(normalizedPath)) {
+  if (!ALLOWED_WEB_PUBLIC_PATHS.has(normalizedPath)) {
     return true;
   }
   const params = new URLSearchParams(search || '');
-  return params.has('tab') || params.has('autostart') || params.has('mode');
+  return BLOCKED_GAME_QUERY_PARAMS.some((key) => params.has(key));
 }
 
 export function isNativeAndroidRuntime(
   capacitorInstance?: { isNativePlatform?: () => boolean } | null
 ): boolean {
   try {
-    return Boolean(capacitorInstance && typeof capacitorInstance.isNativePlatform === 'function' && capacitorInstance.isNativePlatform());
+    return Boolean(
+      capacitorInstance &&
+        typeof capacitorInstance.isNativePlatform === 'function' &&
+        capacitorInstance.isNativePlatform()
+    );
   } catch {
     return false;
   }

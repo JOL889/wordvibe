@@ -64,12 +64,31 @@ async function startServer() {
 
   if (IS_PRODUCTION) {
     const distDir = path.resolve(__dirname, 'dist');
-    app.use(express.static(distDir, { maxAge: '1d' }));
+    app.use(
+      '/assets',
+      express.static(path.join(distDir, 'assets'), {
+        maxAge: '365d',
+        immutable: true,
+      })
+    );
+    app.use(
+      express.static(distDir, {
+        index: false,
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.html') || filePath.endsWith(`${path.sep}sw.js`)) {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          } else {
+            res.setHeader('Cache-Control', 'public, max-age=3600');
+          }
+        },
+      })
+    );
 
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/assets/')) return next();
       const indexHtml = path.join(distDir, 'index.html');
       if (fs.existsSync(indexHtml)) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         return res.sendFile(indexHtml);
       }
       return res.status(404).send('Build output not found');

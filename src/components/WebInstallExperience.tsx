@@ -3,13 +3,30 @@ import {
   isBlockedGameUrlOnWeb,
   resolveAppEntryExperience,
 } from '../game/platformGateLogic';
-import { resolveDocumentThemeState } from '../game/settingsLogic';
-import { loadAppSettings } from '../services/storageService';
+import {
+  DEFAULT_APP_SETTINGS,
+  resolveDocumentThemeState,
+  type AppSettings,
+} from '../game/settingsLogic';
 import { InstallLandingPage } from './InstallLandingPage';
 import { PrivacyPolicyView } from './PrivacyPolicyView';
 import { TermsOfServiceView } from './TermsOfServiceView';
 
 type WebRoute = 'install_landing' | 'privacy' | 'terms';
+
+function loadLightweightWebSettings(): AppSettings {
+  if (typeof window === 'undefined') return DEFAULT_APP_SETTINGS;
+  try {
+    const raw = window.localStorage.getItem('wordvibe_app_settings_v1');
+    if (!raw) return DEFAULT_APP_SETTINGS;
+    return {
+      ...DEFAULT_APP_SETTINGS,
+      ...(JSON.parse(raw) as Partial<AppSettings>),
+    };
+  } catch {
+    return DEFAULT_APP_SETTINGS;
+  }
+}
 
 function resolveCurrentWebRoute(): WebRoute {
   if (typeof window === 'undefined') return 'install_landing';
@@ -26,7 +43,7 @@ export const WebInstallExperience: React.FC = () => {
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
-      const settings = loadAppSettings();
+      const settings = loadLightweightWebSettings();
       const docState = resolveDocumentThemeState(settings);
       const html = document.documentElement;
       html.setAttribute('data-theme', docState.dataTheme);

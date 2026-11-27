@@ -1,6 +1,12 @@
 import { initializeApp } from 'firebase/app';
 import { getAnalytics, type Analytics } from 'firebase/analytics';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import {
+  browserLocalPersistence,
+  getAuth,
+  GoogleAuthProvider,
+  inMemoryPersistence,
+  setPersistence,
+} from 'firebase/auth';
 import {
   doc,
   getDocFromServer,
@@ -39,6 +45,11 @@ function createFirestoreInstance(): Firestore {
 
 export const db = createFirestoreInstance();
 export const auth = getAuth(app);
+if (typeof window !== 'undefined') {
+  void setPersistence(auth, browserLocalPersistence).catch(() =>
+    setPersistence(auth, inMemoryPersistence).catch(() => {})
+  );
+}
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 

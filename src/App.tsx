@@ -150,6 +150,7 @@ import {
 } from './game/verifiedRewardsLogic';
 import type { User } from 'firebase/auth';
 import {
+  consumeGoogleRedirectResult,
   ensureAnonymousSession,
   fetchWeeklyLeaderboardSingleDoc,
   flushVerifiedBatchToFirestore,
@@ -897,6 +898,40 @@ export default function App() {
   // Subscribe to Firebase Auth, bind UID immediately, and hydrate remote user profile + leaderboard cache
   useEffect(() => {
     let active = true;
+
+    void consumeGoogleRedirectResult().then(async (redirectUser) => {
+      if (!active || !redirectUser || redirectUser.isAnonymous) return;
+      const googleEmail = normalizeEmailKey(redirectUser.email || '');
+      if (!googleEmail) return;
+      const existingBundle = await loadEmailProgressBundle(googleEmail);
+      if (!active) return;
+      if (existingBundle) {
+        applyEmailProgressBundle(existingBundle);
+        await saveLocalUserAccount(existingBundle.account);
+      } else {
+        const display = redirectUser.displayName || googleEmail.split('@')[0] || 'Player';
+        const handle = display.replace(/[^a-zA-Z0-9._]/g, '_').slice(0, 24) || 'Player';
+        const now = Date.now();
+        const acct: LocalUserAccount = {
+          id: `user:${handle.toLowerCase()}`,
+          realName: display,
+          username: handle,
+          email: googleEmail,
+          passwordHash: '',
+          passwordSalt: '',
+          avatarType: 'builtin',
+          builtinAvatarId: 'crown',
+          createdAt: now,
+          updatedAt: now,
+        };
+        await saveLocalUserAccount(acct);
+        setUserAccount(acct);
+        setPlayerProfile((prev) => ({ ...prev, displayName: acct.username }));
+        setVerifiedState((prev) => ({ ...prev, displayName: acct.username }));
+        await saveEmailProgressBundle(buildEmailProgressBundle(acct));
+      }
+      setProfileModalOpen(false);
+    });
 
     const unsub = subscribeFirebaseAuth((user) => {
       if (!active) return;
@@ -3615,6 +3650,9 @@ export default function App() {
           setAuthBusy(true);
           try {
             const res = await signInOrLinkGoogle();
+            if (res.redirectPending) {
+              return null;
+            }
             if (res.domainUnauthorized) {
               return 'Google sign-in is unavailable on this preview URL. Use Email or Continue as Guest.';
             }

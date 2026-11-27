@@ -933,7 +933,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </p>
                     </div>
                     <a
-                      href="https://github.com/JOL889/Mind-spark/releases/latest"
+                      href="https://github.com/JOL889/wordvibe/releases/latest"
                       target="_blank"
                       rel="noopener noreferrer"
                       data-testid="settings-about-apk-link"

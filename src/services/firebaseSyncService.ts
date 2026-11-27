@@ -1,12 +1,21 @@
+import { Capacitor } from '@capacitor/core';
 import {
+  browserLocalPersistence,
   createUserWithEmailAndPassword,
   EmailAuthProvider,
+  getRedirectResult,
+  GoogleAuthProvider,
+  inMemoryPersistence,
   linkWithCredential,
   linkWithPopup,
+  linkWithRedirect,
   onAuthStateChanged,
+  setPersistence,
   signInAnonymously,
+  signInWithCredential,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
   updateProfile,
   type User,
@@ -45,8 +54,19 @@ import {
   WEEKLY_PRIZE_POOL_LABEL,
   type WeeklyLeaderboardCache,
 } from '../game/verifiedRewardsLogic';
+import {
+  ensureAuthPersistenceWithFallback,
+  executeGoogleSignInFlow,
+  type AuthPersistenceMode,
+} from '../game/googleAuthFlowLogic';
 import { getUtcWeekKey } from '../game/weeklyLogic';
-import { auth, db, googleProvider, handleFirestoreError, OperationType } from './firebase';
+import {
+  auth,
+  db,
+  googleProvider,
+  handleFirestoreError,
+  OperationType,
+} from './firebase';
 
 const VERIFIED_REWARDS_KEY = 'wordvibe_verified_rewards_v1';
 const LEADERBOARD_CACHE_KEY = 'wordvibe_weekly_leaderboard_cache_v1';
@@ -176,6 +196,72 @@ export interface AuthActionResult {
   error?: string;
   providerDisabled?: boolean;
   domainUnauthorized?: boolean;
+  redirectPending?: boolean;
+}
+
+export async function ensureAuthPersistence(): Promise<AuthPersistenceMode> {
+  return ensureAuthPersistenceWithFallback(
+    () => setPersistence(auth, browserLocalPersistence),
+    () => setPersistence(auth, inMemoryPersistence)
+  );
+}
+
+interface CapacitorPluginsBridge {
+  FirebaseAuthentication?: {
+    signInWithGoogle?: () => Promise<{
+      credential?: { idToken?: string | null };
+      user?: { idToken?: string | null };
+    }>;
+  };
+  GoogleAuth?: {
+    initialize?: (opts?: Record<string, unknown>) => Promise<void>;
+    signIn?: () => Promise<{
+      authentication?: { idToken?: string | null };
+      idToken?: string | null;
+    }>;
+  };
+}
+
+function getCapacitorPlugins(): CapacitorPluginsBridge {
+  if (typeof window === 'undefined') return {};
+  const win = window as unknown as { Capacitor?: { Plugins?: CapacitorPluginsBridge } };
+  return win.Capacitor?.Plugins || {};
+}
+
+function hasNativeCapacitorGooglePlugin(): boolean {
+  if (!Capacitor.isNativePlatform()) return false;
+  const plugins = getCapacitorPlugins();
+  const hasCapawesome =
+    Capacitor.isPluginAvailable('FirebaseAuthentication') &&
+    typeof plugins.FirebaseAuthentication?.signInWithGoogle === 'function';
+  const hasCodetrix =
+    Capacitor.isPluginAvailable('GoogleAuth') &&
+    typeof plugins.GoogleAuth?.signIn === 'function';
+  return hasCapawesome || hasCodetrix;
+}
+
+async function fetchNativeCapacitorGoogleIdToken(): Promise<string> {
+  const plugins = getCapacitorPlugins();
+  if (
+    Capacitor.isPluginAvailable('FirebaseAuthentication') &&
+    typeof plugins.FirebaseAuthentication?.signInWithGoogle === 'function'
+  ) {
+    const result = await plugins.FirebaseAuthentication.signInWithGoogle();
+    const idToken = result?.credential?.idToken || result?.user?.idToken;
+    if (idToken) return idToken;
+  }
+  if (
+    Capacitor.isPluginAvailable('GoogleAuth') &&
+    typeof plugins.GoogleAuth?.signIn === 'function'
+  ) {
+    if (typeof plugins.GoogleAuth.initialize === 'function') {
+      await plugins.GoogleAuth.initialize();
+    }
+    const result = await plugins.GoogleAuth.signIn();
+    const idToken = result?.authentication?.idToken || result?.idToken;
+    if (idToken) return idToken;
+  }
+  throw new Error('Native Google Sign-In did not return an ID token.');
 }
 
 function formatFriendlyAuthError(error: unknown, fallbackMessage: string): {
@@ -206,7 +292,10 @@ function formatFriendlyAuthError(error: unknown, fallbackMessage: string): {
     return { error: 'Sign-in window closed before completion.' };
   }
   if (code === 'auth/popup-blocked') {
-    return { error: 'Pop-ups are blocked — sign in with email or continue as guest.' };
+    return { error: 'Pop-ups are blocked — retrying Google sign-in via redirect or use email.' };
+  }
+  if (code === 'auth/missing-initial-state') {
+    return { error: 'Browser storage blocked redirect state — tap Continue with Google again.' };
   }
   if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
     return { error: 'Incorrect email or password.' };
@@ -224,6 +313,7 @@ function formatFriendlyAuthError(error: unknown, fallbackMessage: string): {
 }
 
 export async function ensureAnonymousSession(): Promise<AuthActionResult> {
+  await ensureAuthPersistence();
   if (auth.currentUser) {
     return { user: auth.currentUser };
   }
@@ -239,27 +329,71 @@ export async function ensureAnonymousSession(): Promise<AuthActionResult> {
   }
 }
 
-export async function signInOrLinkGoogle(): Promise<AuthActionResult> {
-  try {
-    if (auth.currentUser && auth.currentUser.isAnonymous) {
-      try {
-        const linked = await linkWithPopup(auth.currentUser, googleProvider);
-        return { user: linked.user };
-      } catch (linkErr) {
-        const code = (linkErr as { code?: string })?.code || '';
-        if (code === 'auth/credential-already-in-use' || code === 'auth/email-already-in-use') {
-          const signedIn = await signInWithPopup(auth, googleProvider);
-          return { user: signedIn.user };
-        }
-        throw linkErr;
-      }
-    }
-    const res = await signInWithPopup(auth, googleProvider);
-    return { user: res.user };
-  } catch (error) {
-    const formatted = formatFriendlyAuthError(error, 'Google sign-in could not be completed.');
-    return { user: null, ...formatted };
+export async function consumeGoogleRedirectResult(): Promise<User | null> {
+  if (typeof window === 'undefined' || Capacitor.isNativePlatform()) {
+    return null;
   }
+  try {
+    await ensureAuthPersistence();
+    const res = await getRedirectResult(auth);
+    return res?.user || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function signInOrLinkGoogle(): Promise<AuthActionResult> {
+  const flowResult = await executeGoogleSignInFlow<User>({
+    isNativePlatform: Capacitor.isNativePlatform(),
+    getCurrentUser: () => auth.currentUser,
+    ensurePersistence: ensureAuthPersistence,
+    signInWithPopup: async () => {
+      const res = await signInWithPopup(auth, googleProvider);
+      return res.user;
+    },
+    linkWithPopup: async (currentUser) => {
+      const linked = await linkWithPopup(currentUser, googleProvider);
+      return linked.user;
+    },
+    signInWithRedirect: async () => {
+      await signInWithRedirect(auth, googleProvider);
+    },
+    linkWithRedirect: async (currentUser) => {
+      await linkWithRedirect(currentUser, googleProvider);
+    },
+    hasNativeGooglePlugin: hasNativeCapacitorGooglePlugin,
+    signInWithNativeGoogle: async () => {
+      const idToken = await fetchNativeCapacitorGoogleIdToken();
+      const credential = GoogleAuthProvider.credential(idToken);
+      const res = await signInWithCredential(auth, credential);
+      return res.user;
+    },
+    linkWithNativeGoogle: async (currentUser) => {
+      const idToken = await fetchNativeCapacitorGoogleIdToken();
+      const credential = GoogleAuthProvider.credential(idToken);
+      const linked = await linkWithCredential(currentUser, credential);
+      return linked.user;
+    },
+  });
+
+  if (flowResult.user) {
+    return { user: flowResult.user };
+  }
+  if (flowResult.redirectPending) {
+    return { user: null, redirectPending: true };
+  }
+  if (flowResult.nativePluginMissing) {
+    return {
+      user: null,
+      providerDisabled: true,
+      error: flowResult.errorMessage,
+    };
+  }
+  const formatted = formatFriendlyAuthError(
+    { code: flowResult.errorCode, message: flowResult.errorMessage },
+    flowResult.errorMessage || 'Google sign-in could not be completed.'
+  );
+  return { user: null, ...formatted };
 }
 
 export async function signInOrLinkEmail(
@@ -271,6 +405,7 @@ export async function signInOrLinkEmail(
   if (!cleanEmail || password.length < 6) {
     return { user: null, error: 'Enter a valid email and at least 6 characters for password.' };
   }
+  await ensureAuthPersistence();
   try {
     if (isCreate && auth.currentUser && auth.currentUser.isAnonymous) {
       try {

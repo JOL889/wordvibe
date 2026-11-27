@@ -15,7 +15,6 @@ export interface GoogleSignInFlowDeps<TUser extends MinimalAuthUser = MinimalAut
   linkWithPopup: (currentUser: TUser) => Promise<TUser>;
   signInWithRedirect: () => Promise<void>;
   linkWithRedirect: (currentUser: TUser) => Promise<void>;
-  hasNativeGooglePlugin: () => boolean;
   signInWithNativeGoogle: () => Promise<TUser>;
   linkWithNativeGoogle: (currentUser: TUser) => Promise<TUser>;
 }
@@ -24,13 +23,10 @@ export interface GoogleSignInFlowResult<TUser extends MinimalAuthUser = MinimalA
   user: TUser | null;
   persistenceMode: AuthPersistenceMode;
   redirectPending?: boolean;
-  nativePluginMissing?: boolean;
+  cancelled?: boolean;
   errorCode?: string;
   errorMessage?: string;
 }
-
-export const NATIVE_ANDROID_GOOGLE_UNAVAILABLE_MESSAGE =
-  'Google Sign-In is unavailable in this Android build — please sign in or create an account with Email & Password below, or continue as Guest.';
 
 export async function ensureAuthPersistenceWithFallback(
   setBrowserLocal: () => Promise<void>,
@@ -57,24 +53,29 @@ function getAuthErrorCode(err: unknown): string {
   return '';
 }
 
+function isNativeCancelError(err: unknown, code: string): boolean {
+  if (code === 'USER_CANCELLED' || code === 'auth/cancelled-popup-request') {
+    return true;
+  }
+  const msg = err instanceof Error ? err.message.toLowerCase() : '';
+  return (
+    msg.includes('user_cancelled') ||
+    msg.includes('user cancelled') ||
+    msg.includes('canceled by user') ||
+    msg.includes('cancelled by user') ||
+    msg.includes('getcredentialcancellationexception')
+  );
+}
+
 export async function executeGoogleSignInFlow<TUser extends MinimalAuthUser = MinimalAuthUser>(
   deps: GoogleSignInFlowDeps<TUser>
 ): Promise<GoogleSignInFlowResult<TUser>> {
   const persistenceMode = await deps.ensurePersistence();
   const currentUser = deps.getCurrentUser();
 
-  // Capacitor native Android: never navigate the WebView to firebaseapp.com/__/auth/handler
+  // Capacitor native Android: use native Google Sign-In (Credential Manager + google-services.json)
+  // and never navigate the WebView to firebaseapp.com/__/auth/handler
   if (deps.isNativePlatform) {
-    if (!deps.hasNativeGooglePlugin()) {
-      return {
-        user: null,
-        persistenceMode,
-        nativePluginMissing: true,
-        errorCode: 'auth/native-google-unavailable',
-        errorMessage: NATIVE_ANDROID_GOOGLE_UNAVAILABLE_MESSAGE,
-      };
-    }
-
     try {
       if (currentUser && currentUser.isAnonymous) {
         try {
@@ -82,7 +83,11 @@ export async function executeGoogleSignInFlow<TUser extends MinimalAuthUser = Mi
           return { user: linkedUser, persistenceMode };
         } catch (linkErr) {
           const code = getAuthErrorCode(linkErr);
-          if (code === 'auth/credential-already-in-use' || code === 'auth/email-already-in-use') {
+          if (
+            code === 'auth/credential-already-in-use' ||
+            code === 'auth/email-already-in-use' ||
+            code === 'auth/provider-already-linked'
+          ) {
             const signedInUser = await deps.signInWithNativeGoogle();
             return { user: signedInUser, persistenceMode };
           }
@@ -92,11 +97,21 @@ export async function executeGoogleSignInFlow<TUser extends MinimalAuthUser = Mi
       const user = await deps.signInWithNativeGoogle();
       return { user, persistenceMode };
     } catch (err) {
+      const code = getAuthErrorCode(err);
+      if (isNativeCancelError(err, code)) {
+        return {
+          user: null,
+          persistenceMode,
+          cancelled: true,
+          errorCode: code || 'USER_CANCELLED',
+          errorMessage: 'Google sign-in was cancelled.',
+        };
+      }
       return {
         user: null,
         persistenceMode,
-        errorCode: getAuthErrorCode(err) || 'auth/native-google-failed',
-        errorMessage: err instanceof Error ? err.message : NATIVE_ANDROID_GOOGLE_UNAVAILABLE_MESSAGE,
+        errorCode: code || 'auth/native-google-failed',
+        errorMessage: err instanceof Error ? err.message : 'Google sign-in could not be completed.',
       };
     }
   }

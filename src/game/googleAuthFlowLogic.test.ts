@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {
   ensureAuthPersistenceWithFallback,
   executeGoogleSignInFlow,
-  NATIVE_ANDROID_GOOGLE_UNAVAILABLE_MESSAGE,
   type MinimalAuthUser,
 } from './googleAuthFlowLogic';
 
@@ -67,7 +66,6 @@ test('web Google sign-in sets persistence first and uses signInWithPopup without
     linkWithRedirect: async () => {
       calls.push('linkWithRedirect');
     },
-    hasNativeGooglePlugin: () => false,
     signInWithNativeGoogle: async () => sampleUser,
     linkWithNativeGoogle: async () => sampleUser,
   });
@@ -95,7 +93,6 @@ test('web Google sign-in falls back to signInWithRedirect ONLY when auth/popup-b
       calls.push('signInWithRedirect');
     },
     linkWithRedirect: async () => {},
-    hasNativeGooglePlugin: () => false,
     signInWithNativeGoogle: async () => sampleUser,
     linkWithNativeGoogle: async () => sampleUser,
   });
@@ -122,7 +119,6 @@ test('web Google sign-in falls back to signInWithRedirect ONLY when auth/popup-b
       noRedirectCalls.push('signInWithRedirect');
     },
     linkWithRedirect: async () => {},
-    hasNativeGooglePlugin: () => false,
     signInWithNativeGoogle: async () => sampleUser,
     linkWithNativeGoogle: async () => sampleUser,
   });
@@ -132,41 +128,46 @@ test('web Google sign-in falls back to signInWithRedirect ONLY when auth/popup-b
   assert.equal(closedRes.errorCode, 'auth/popup-closed-by-user');
 });
 
-test('Capacitor native Android never opens firebaseapp.com popup/redirect and uses native Google or graceful fallback', async () => {
-  const calls: string[] = [];
+test('Capacitor native Android links anonymous user and falls back to native sign-in on credential-already-in-use without touching popup/redirect', async () => {
+  const webCalls: string[] = [];
+  const nativeLinkCalls: string[] = [];
 
-  // Case 1: Native plugin absent -> graceful fallback error without touching popup/redirect
-  const noPluginRes = await executeGoogleSignInFlow({
+  // Case 1: Anonymous user links cleanly via native Google credential
+  const linkRes = await executeGoogleSignInFlow({
     isNativePlatform: true,
     getCurrentUser: () => anonUser,
     ensurePersistence: async () => 'local',
     signInWithPopup: async () => {
-      calls.push('popup');
+      webCalls.push('popup');
       return sampleUser;
     },
     linkWithPopup: async () => {
-      calls.push('linkPopup');
+      webCalls.push('linkPopup');
       return sampleUser;
     },
     signInWithRedirect: async () => {
-      calls.push('redirect');
+      webCalls.push('redirect');
     },
     linkWithRedirect: async () => {
-      calls.push('linkRedirect');
+      webCalls.push('linkRedirect');
     },
-    hasNativeGooglePlugin: () => false,
-    signInWithNativeGoogle: async () => sampleUser,
-    linkWithNativeGoogle: async () => sampleUser,
+    signInWithNativeGoogle: async () => {
+      nativeLinkCalls.push('nativeSignIn');
+      return sampleUser;
+    },
+    linkWithNativeGoogle: async () => {
+      nativeLinkCalls.push('nativeLink');
+      return sampleUser;
+    },
   });
 
-  assert.deepEqual(calls, []);
-  assert.equal(noPluginRes.user, null);
-  assert.equal(noPluginRes.nativePluginMissing, true);
-  assert.equal(noPluginRes.errorMessage, NATIVE_ANDROID_GOOGLE_UNAVAILABLE_MESSAGE);
+  assert.deepEqual(webCalls, []);
+  assert.deepEqual(nativeLinkCalls, ['nativeLink']);
+  assert.equal(linkRes.user?.uid, 'google-uid-1');
 
-  // Case 2: Native Google plugin installed -> links anonymous user cleanly via native credential
-  const withPluginCalls: string[] = [];
-  const nativeRes = await executeGoogleSignInFlow({
+  // Case 2: Existing Google account (credential-already-in-use) falls back to nativeSignIn
+  const existingCalls: string[] = [];
+  const existingRes = await executeGoogleSignInFlow({
     isNativePlatform: true,
     getCurrentUser: () => anonUser,
     ensurePersistence: async () => 'local',
@@ -174,17 +175,40 @@ test('Capacitor native Android never opens firebaseapp.com popup/redirect and us
     linkWithPopup: async () => sampleUser,
     signInWithRedirect: async () => {},
     linkWithRedirect: async () => {},
-    hasNativeGooglePlugin: () => true,
     signInWithNativeGoogle: async () => {
-      withPluginCalls.push('nativeSignIn');
+      existingCalls.push('nativeSignIn');
       return sampleUser;
     },
     linkWithNativeGoogle: async () => {
-      withPluginCalls.push('nativeLink');
-      return sampleUser;
+      existingCalls.push('nativeLink');
+      const err = new Error('Credential already in use') as Error & { code: string };
+      err.code = 'auth/credential-already-in-use';
+      throw err;
     },
   });
 
-  assert.deepEqual(withPluginCalls, ['nativeLink']);
-  assert.equal(nativeRes.user?.uid, 'google-uid-1');
+  assert.deepEqual(existingCalls, ['nativeLink', 'nativeSignIn']);
+  assert.equal(existingRes.user?.uid, 'google-uid-1');
+
+  // Case 3: User cancellation returns clean cancelled result without popup/redirect
+  const cancelRes = await executeGoogleSignInFlow({
+    isNativePlatform: true,
+    getCurrentUser: () => null,
+    ensurePersistence: async () => 'local',
+    signInWithPopup: async () => sampleUser,
+    linkWithPopup: async () => sampleUser,
+    signInWithRedirect: async () => {},
+    linkWithRedirect: async () => {},
+    signInWithNativeGoogle: async () => {
+      const err = new Error('User cancelled Google login') as Error & { code: string };
+      err.code = 'USER_CANCELLED';
+      throw err;
+    },
+    linkWithNativeGoogle: async () => sampleUser,
+  });
+
+  assert.equal(cancelRes.user, null);
+  assert.equal(cancelRes.cancelled, true);
+  assert.equal(cancelRes.errorCode, 'USER_CANCELLED');
+  assert.equal(cancelRes.errorMessage, 'Google sign-in was cancelled.');
 });

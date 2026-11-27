@@ -59,6 +59,7 @@ import {
   executeGoogleSignInFlow,
   type AuthPersistenceMode,
 } from '../game/googleAuthFlowLogic';
+import { isNativeAndroidRuntime } from '../game/platformGateLogic';
 import { getUtcWeekKey } from '../game/weeklyLogic';
 import {
   auth,
@@ -206,6 +207,36 @@ export async function ensureAuthPersistence(): Promise<AuthPersistenceMode> {
   );
 }
 
+// Web OAuth Client ID (client_type: 3) from android/app/google-services.json for project mindspark-c417d
+const DEFAULT_ANDROID_GOOGLE_WEB_CLIENT_ID =
+  '1001699672232-tf73muliufu5itjn900qri6bk21v2c08.apps.googleusercontent.com';
+
+function resolveAndroidGoogleWebClientId(): string {
+  const env = (import.meta as { env?: Record<string, string | undefined> }).env;
+  const fromEnv = env?.VITE_GOOGLE_WEB_CLIENT_ID?.trim();
+  return fromEnv || DEFAULT_ANDROID_GOOGLE_WEB_CLIENT_ID;
+}
+
+let socialLoginInitPromise: Promise<void> | null = null;
+
+async function ensureNativeSocialLoginInitialized(): Promise<typeof import('@capgo/capacitor-social-login').SocialLogin> {
+  const { SocialLogin } = await import('@capgo/capacitor-social-login');
+  if (!socialLoginInitPromise) {
+    socialLoginInitPromise = SocialLogin.initialize({
+      google: {
+        webClientId: resolveAndroidGoogleWebClientId(),
+        mode: 'online',
+        skipAuthOnlyAuthorizationAfterSignIn: true,
+      },
+    }).catch((err) => {
+      socialLoginInitPromise = null;
+      throw err;
+    });
+  }
+  await socialLoginInitPromise;
+  return SocialLogin;
+}
+
 interface CapacitorPluginsBridge {
   FirebaseAuthentication?: {
     signInWithGoogle?: () => Promise<{
@@ -228,20 +259,27 @@ function getCapacitorPlugins(): CapacitorPluginsBridge {
   return win.Capacitor?.Plugins || {};
 }
 
-function hasNativeCapacitorGooglePlugin(): boolean {
-  if (!Capacitor.isNativePlatform()) return false;
-  const plugins = getCapacitorPlugins();
-  const hasCapawesome =
-    Capacitor.isPluginAvailable('FirebaseAuthentication') &&
-    typeof plugins.FirebaseAuthentication?.signInWithGoogle === 'function';
-  const hasCodetrix =
-    Capacitor.isPluginAvailable('GoogleAuth') &&
-    typeof plugins.GoogleAuth?.signIn === 'function';
-  return hasCapawesome || hasCodetrix;
-}
-
 async function fetchNativeCapacitorGoogleIdToken(): Promise<string> {
   const plugins = getCapacitorPlugins();
+
+  // Primary native Android flow: @capgo/capacitor-social-login (Android Credential Manager)
+  if (Capacitor.isPluginAvailable('SocialLogin') || isNativeAndroidRuntime(Capacitor)) {
+    const SocialLogin = await ensureNativeSocialLoginInitialized();
+    const response = await SocialLogin.login({
+      provider: 'google',
+      options: {
+        scopes: ['email', 'profile'],
+        style: 'standard',
+        filterByAuthorizedAccounts: false,
+      },
+    });
+    const result = response?.result;
+    if (result && 'idToken' in result && result.idToken) {
+      return result.idToken;
+    }
+  }
+
+  // Secondary legacy native bridge fallbacks if registered
   if (
     Capacitor.isPluginAvailable('FirebaseAuthentication') &&
     typeof plugins.FirebaseAuthentication?.signInWithGoogle === 'function'
@@ -273,6 +311,18 @@ function formatFriendlyAuthError(error: unknown, fallbackMessage: string): {
   const rawMessage = error instanceof Error ? error.message : '';
 
   if (
+    code === 'USER_CANCELLED' ||
+    code === 'auth/popup-closed-by-user' ||
+    code === 'auth/cancelled-popup-request'
+  ) {
+    return {
+      error:
+        code === 'USER_CANCELLED'
+          ? 'Google sign-in was cancelled.'
+          : 'Sign-in window closed before completion.',
+    };
+  }
+  if (
     code === 'auth/unauthorized-domain' ||
     rawMessage.includes('auth/unauthorized-domain')
   ) {
@@ -287,9 +337,6 @@ function formatFriendlyAuthError(error: unknown, fallbackMessage: string): {
       providerDisabled: true,
       error: 'Online provider sign-in is unavailable here — continuing in Local Practice mode.',
     };
-  }
-  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-    return { error: 'Sign-in window closed before completion.' };
   }
   if (code === 'auth/popup-blocked') {
     return { error: 'Pop-ups are blocked — retrying Google sign-in via redirect or use email.' };
@@ -330,7 +377,7 @@ export async function ensureAnonymousSession(): Promise<AuthActionResult> {
 }
 
 export async function consumeGoogleRedirectResult(): Promise<User | null> {
-  if (typeof window === 'undefined' || Capacitor.isNativePlatform()) {
+  if (typeof window === 'undefined' || isNativeAndroidRuntime(Capacitor)) {
     return null;
   }
   try {
@@ -344,7 +391,7 @@ export async function consumeGoogleRedirectResult(): Promise<User | null> {
 
 export async function signInOrLinkGoogle(): Promise<AuthActionResult> {
   const flowResult = await executeGoogleSignInFlow<User>({
-    isNativePlatform: Capacitor.isNativePlatform(),
+    isNativePlatform: isNativeAndroidRuntime(Capacitor),
     getCurrentUser: () => auth.currentUser,
     ensurePersistence: ensureAuthPersistence,
     signInWithPopup: async () => {
@@ -361,7 +408,6 @@ export async function signInOrLinkGoogle(): Promise<AuthActionResult> {
     linkWithRedirect: async (currentUser) => {
       await linkWithRedirect(currentUser, googleProvider);
     },
-    hasNativeGooglePlugin: hasNativeCapacitorGooglePlugin,
     signInWithNativeGoogle: async () => {
       const idToken = await fetchNativeCapacitorGoogleIdToken();
       const credential = GoogleAuthProvider.credential(idToken);
@@ -382,11 +428,10 @@ export async function signInOrLinkGoogle(): Promise<AuthActionResult> {
   if (flowResult.redirectPending) {
     return { user: null, redirectPending: true };
   }
-  if (flowResult.nativePluginMissing) {
+  if (flowResult.cancelled) {
     return {
       user: null,
-      providerDisabled: true,
-      error: flowResult.errorMessage,
+      error: flowResult.errorMessage || 'Google sign-in was cancelled.',
     };
   }
   const formatted = formatFriendlyAuthError(
@@ -443,6 +488,14 @@ export async function updateFirebaseDisplayName(displayName: string): Promise<vo
 }
 
 export async function signOutFirebaseSession(): Promise<void> {
+  if (isNativeAndroidRuntime(Capacitor) && Capacitor.isPluginAvailable('SocialLogin')) {
+    try {
+      const SocialLogin = await ensureNativeSocialLoginInitialized();
+      await SocialLogin.logout({ provider: 'google' });
+    } catch {
+      // Non-fatal: continue signing out Firebase Auth session
+    }
+  }
   await signOut(auth);
 }
 

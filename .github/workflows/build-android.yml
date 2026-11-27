@@ -43,7 +43,15 @@ jobs:
       - name: Initialize and sync Capacitor Android project
         run: |
           if [ ! -f "android/app/build.gradle" ]; then
+            if [ -f "android/app/google-services.json" ]; then
+              cp android/app/google-services.json /tmp/google-services.json
+            fi
+            rm -rf android
             npx cap add android
+            if [ -f "/tmp/google-services.json" ]; then
+              mkdir -p android/app
+              mv /tmp/google-services.json android/app/google-services.json
+            fi
           fi
           npx cap sync android
 
